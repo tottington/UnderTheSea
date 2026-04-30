@@ -418,7 +418,7 @@ void post_adv() {
         && item_amount($item[inflammable leaf]) > 50)
         use($item[distilled resin]);
 
-    if (have_effect($effect[fishy]) == 0) {
+    if (have_effect($effect[fishy]) == 0 && have_effect($effect[Driving Waterproofly]) == 0) {
         if (have_item($item[fishy pipe])
             && item_amount($item[closed-circuit pay phone]) > 0
             && have_item($item[Monodent of the Sea])
@@ -436,19 +436,23 @@ void post_adv() {
                     && have_effect($effect[shadow affinity]) > 0)
                     shadowRift();
             }
+            print ("debug 1");
         } else if (!contains_text(get_property("_roninStoragePulls"), "10360")) {
             pullSequence($item[fish sauce]);
             chew($item[fish sauce]);
+            print ("debug 2");
         } else if (get_property("dreadScroll7") == "0"
             && item_amount($item[mer-kin worktea]) > 0
             && item_amount($item[mer-kin dreadscroll]) > 0) {
             cli_execute("buy white rice; create 1 beefy nigiri");
+            print ("debug 3");
         } else {
             abort("Out of fishy");
         }
+        print ("debug 4");
     }
-    if (have_effect($effect[fishy]) == 0)
-        abort("YOLO");
+    if (have_effect($effect[fishy]) == 0 && have_effect($effect[Driving Waterproofly]) == 0)
+        abort("Get fishy or Driving Waterproofly manually and rerun");
     if (have_item($item[bat wings])
         && (my_mp() < (my_maxmp() - 1000) || my_mp() < 150)) {
         equip($item[bat wings]);
@@ -780,7 +784,8 @@ void seaMonkees() {
             } else {
                 cli_execute("maximize item drop, equip really nice swimming trunks,"
                     + " equip Sheriff moustache, equip Sheriff badge,"
-                    + " equip Sheriff pistol, equip toy cupid bow");
+                    + " equip Sheriff pistol, equip toy cupid bow"
+                    + if_equip($item[baseball diamond]));
             }
             adv($location[An octopus's garden], 1, "");
         }
@@ -844,6 +849,8 @@ void seaMonkees() {
                 && !contains_text(get_property("trackedMonsters"), "Mer-kin tippler"))) {
                 conditional += ", equip McHugeLarge left pole";
             }
+            if (to_int(get_property("_bczSweatBulletsCasts")) < 9)
+                conditional += ", equip blood cubic zirconia";
             if (baseballPlayers() >= 9)
                 baseballD();
             conditional += ", equip mobius";
@@ -862,7 +869,7 @@ void seaMonkees() {
             mood(step4Res[ps]);
             cli_execute("maximize item drop, -100 combat, equip really nice swimming,"
                 + " equip everfull dart, equip monodent of the sea,"
-                + " equip toy cupid, equip blood cubic zirc" + conditional);
+                + " equip toy cupid" + conditional);
             adv(step4Loc[ps], 1, "");
         }
         pullSequence($item[mer-kin digpick]);
