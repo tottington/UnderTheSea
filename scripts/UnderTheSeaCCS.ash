@@ -144,7 +144,8 @@ void main(int round, monster mob, string page_text) {
             }
             if (mob == $monster[tumbleweed])
                 abort("Unexpected mob encountered in shadow rift");
-            use_if_have_skill(page_text, $skill[Sea *dent: Talk to Some Fish]);
+            if (get_property("_curveballFightsLeft").to_int() == 0 || get_property("seahorseName") != "")
+                use_if_have_skill(page_text, $skill[Sea *dent: Talk to Some Fish]);
             darts();
             cleanUp();
             break;
@@ -319,8 +320,13 @@ void main(int round, monster mob, string page_text) {
                     } else if (item_amount($item[waffle]) == 0) {
                         abort("Ran out of waffles — banish 2 of 3 coral corral monsters, pull a waffle, and rerun");
                     }
-                    free_kill(page_text, false);
+                    if (get_property("_curveballFightsLeft").to_int() > 0 && get_property("_curveballMonster") == "some fish"){
+                        use_if_have_skill(page_text, $skill[Sea *dent: Talk to Some Fish]);
+                        if (last_monster() == $monster[some fish])
+                            cleanUp();
+                    }
                     free_run(page_text, false);
+                    free_kill(page_text, false);
                     cleanUp();
                 }
             }
@@ -397,7 +403,8 @@ void main(int round, monster mob, string page_text) {
             }
             if (bcz_gaze_ready()) {
                 use_skill($skill[Sea *dent: Talk to Some Fish]);
-                use_skill($skill[BCZ: Refracted Gaze]);
+                if (to_monster(get_property("lastEncounter")) != $monster[none] && item_amount($item[mer-kin cheatsheet]) < 10)
+                    use_skill($skill[BCZ: Refracted Gaze]);
             }
             free_kill(page_text, true);
             cleanUp();
