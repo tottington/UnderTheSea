@@ -322,7 +322,6 @@ void shadowRift() {
             NCforce();
             adv1($location[Shadow Rift (The Misspelled Cemetary)], 0, "");
         }
-        // Fixed: was comparing string property to boolean
         if (get_property("_seadentWaveUsed") == "false")
             use_skill($skill[Sea *dent: Summon a Wave]);
         use($item[closed-circuit pay phone]);
@@ -347,15 +346,20 @@ void shadowRift() {
                 && item_amount($item[sea cowbell]) > 0)
                 abort("need more lassos somehow");
             use_familiar($familiar[jill-of-all-trades]);
+            string conditional = baseballPlayers() < 9
+                && available_amount($item[baseball diamond]) > 0
+                ? if_equip($item[baseball diamond]) : "";
             if (to_int(get_property("lassoTrainingCount")) < 20
                 && item_amount($item[sea cowbell]) > 0) {
                 cli_execute("maximize item drop, equip Flash Liquidizer Ultra Dousing Accessory,"
                     + " equip bat wings, equip everfull dart holster, equip monodent of the sea,"
-                    + " equip sea cowboy hat, equip sea chaps, equip toy cupid bow");
+                    + " equip sea cowboy hat, equip sea chaps, equip toy cupid bow"
+                    + conditional);
             } else {
                 cli_execute("maximize item drop, equip Flash Liquidizer Ultra Dousing Accessory,"
                     + " equip bat wings, equip everfull dart holster, equip monodent of the sea,"
-                    + " equip toy cupid bow");
+                    + " equip toy cupid bow"
+                    + conditional);
             }
             adv1($location[Shadow Rift (The Misspelled Cemetary)], 0, "");
             if (get_property("_seadentWaveUsed") == "false"
@@ -432,27 +436,22 @@ void post_adv() {
                 use($item[fishy pipe]);
             } else if (get_property("_shadowAffinityToday") == "false"
                 || have_effect($effect[shadow affinity]) > 0) {
-                while (have_effect($effect[fishy]) == 0
-                    && have_effect($effect[shadow affinity]) > 0)
+                if (have_effect($effect[shadow affinity]) == 0)
+                    shadowRift();
+                while (have_effect($effect[fishy]) == 0 && have_effect($effect[shadow affinity]) > 0)
                     shadowRift();
             }
-            print ("debug 1");
         } else if (!contains_text(get_property("_roninStoragePulls"), "10360")) {
             pullSequence($item[fish sauce]);
             chew($item[fish sauce]);
-            print ("debug 2");
         } else if (get_property("dreadScroll7") == "0"
             && item_amount($item[mer-kin worktea]) > 0
             && item_amount($item[mer-kin dreadscroll]) > 0) {
             cli_execute("buy white rice; create 1 beefy nigiri");
-            print ("debug 3");
         } else {
-            abort("Out of fishy");
+            abort("Get fishy or Driving Waterproofly manually and rerun");
         }
-        print ("debug 4");
     }
-    if (have_effect($effect[fishy]) == 0 && have_effect($effect[Driving Waterproofly]) == 0)
-        abort("Get fishy or Driving Waterproofly manually and rerun");
     if (have_item($item[bat wings])
         && (my_mp() < (my_maxmp() - 1000) || my_mp() < 150)) {
         equip($item[bat wings]);
@@ -1192,8 +1191,11 @@ void sorceress() {
         string conditional;
         if (!contains_text(get_property("_perilLocations"), "199"))
             conditional += ", equip peridot of peril";
-        if (have_item($item[Miniature crystal ball]))
+        if (have_item($item[Miniature crystal ball])){
             conditional += ", equip Miniature crystal ball";
+        }
+        if (get_property("_curveballFightsLeft").to_int() > 0 && get_property("_curveballMonster") == "some fish")
+            conditional += ", equip monodent of the sea";
         cli_execute("maximize item drop, equip really nice swimming" + conditional);
 
         if (item_amount($item[sea lasso]) == 0)
