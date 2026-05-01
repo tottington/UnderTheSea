@@ -107,7 +107,7 @@ void mood(string mod) {
                 $effect[Who's Going to Pay This Drunken Sailor?],
                 $effect[Fat Leon's Phat Loot Lyric], $effect[Lubricating Sauce],
                 $effect[Thoughtful Empathy], $effect[Singer's Faithful Ocelot],
-                $effect[Leash of Linguini], $effect[Empathy], $effect[Spice Haze],
+                $effect[Leash of Linguini], $effect[Empathy],
                 $effect[donho's bubbly ballad], $effect[the ballad of richie thingfinder]
             };
             applyEffects(itdrop);
