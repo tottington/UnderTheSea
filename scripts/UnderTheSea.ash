@@ -908,7 +908,7 @@ void seaMonkees() {
             && to_int(get_property("_monsterHabitatsRecalled")) == 2)
             use_familiar($familiar[patriotic eagle]);
         else
-            use_familiar($familiar[Peace Turkey]);
+            use_familiar($familiar[Disgeist]);
 
         // Conditional gear
         string conditional;
