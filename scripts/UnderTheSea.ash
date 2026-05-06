@@ -879,7 +879,7 @@ void seaMonkees() {
     // ── Step 6: Black Crayon Golem recall ────────────────────────────────────
     if (get_property("questS02Monkees") == "step6"
         && get_property("_monsterHabitatsMonster") == "") {
-        use_familiar($familiar[peace turkey]);
+        use_familiar($familiar[chest mimic]);
         string locketEquip = have_item($item[Combat lover's locket])
             ? ", equip combat lovers" : "";
         if (haveLocketMonster[$monster[black crayon golem]]) {
