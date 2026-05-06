@@ -345,7 +345,8 @@ void shadowRift() {
             if (item_amount($item[sea lasso]) == 0
                 && item_amount($item[sea cowbell]) > 0)
                 abort("need more lassos somehow");
-            use_familiar($familiar[jill-of-all-trades]);
+            // use_familiar($familiar[jill-of-all-trades]);
+            use_familiar($familiar[chest mimic]);
             string conditional = baseballPlayers() < 9
                 && available_amount($item[baseball diamond]) > 0
                 ? if_equip($item[baseball diamond]) : "";
@@ -396,11 +397,11 @@ void post_adv() {
         }
     }
 
-    if (get_property("autumnatonQuestLocation") == "") {
-        cli_execute($location[Shadow Rift (The Misspelled Cemetary)].turns_spent == 0
-            ? "autumnaton send noob cave"
-            : "autumnaton send Shadow Rift");
-    }
+    // if (get_property("autumnatonQuestLocation") == "") {
+    //     cli_execute($location[Shadow Rift (The Misspelled Cemetary)].turns_spent == 0
+    //         ? "autumnaton send noob cave"
+    //         : "autumnaton send Shadow Rift");
+    // }
 
     if (to_int(get_property("_universeCalculated"))
         < min(3, to_int(get_property("skillLevel144")))
@@ -628,7 +629,7 @@ void initialization() {
     }
 
     // Gear and consumables
-    equip($item[designer sweatpants]);
+    // equip($item[designer sweatpants]);
 
     if (item_amount($item[antique accordion]) == 0)
         buy($item[antique accordion]);
@@ -691,12 +692,13 @@ void unlockGuild() {
         }
         if (get_property(qprop) == "unstarted")
             visit_url("guild.php?place=challenge");
-        use_familiar($familiar[Peace Turkey]);
+        // use_familiar($familiar[Peace Turkey]);
+        use_familiar($familiar[chest mimic]);
         mood("itdrop");
         while (get_property(qprop) == "started") {
             cli_execute("maximize item drop, equip monodent of the sea,"
                 + " equip mobius, equip everfull dart, equip spring shoes,"
-                + " equip toy cupid bow, equip designer sweatpants"
+                + " equip toy cupid bow"
                 + freeRun() + conditional);
             adv1(questLoc[ps], 0, "");
         }
@@ -986,7 +988,7 @@ void seaMonkees() {
         // Get rusty porthole first via unholy diver
         if (item_amount($item[rusty porthole]) == 0) {
             if (baseballPlayers() >= 8)
-                use_familiar($familiar[jill-of-all-trades]);
+                use_familiar($familiar[chest mimic]);
             else
                 use_familiar($familiar[chest mimic]);
             cli_execute("maximize item, equip blood cubic zirconia,"
@@ -1059,7 +1061,8 @@ void seaMonkees() {
             if (to_int(get_property("_monsterHabitatsFightsLeft")) > 0)
                 abort("Need at least 1 free habitat recall"
                     + " and not currently occupied");
-            use_familiar($familiar[peace turkey]);
+            // use_familiar($familiar[peace turkey]);
+            use_familiar($familiar[chest mimic]);
             cli_execute("maximize item drop, equip " + divingHelmet()
                 + ", equip shark jumper, equip scale-mail underwear,"
                 + " equip black glass, equip peridot of peril,"

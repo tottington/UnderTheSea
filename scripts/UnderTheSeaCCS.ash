@@ -9,7 +9,7 @@ void free_kill(string ptext, boolean drop) {
         && to_int(get_property("_curveballFightsLeft")) > 0)
         return;
 
-    foreach freeskill in $skills[Spit jurassic acid, Assert your Authority,
+    foreach freeskill in $skills[Assert your Authority,
         Club 'Em Back in Time, Darts: Aim for the Bullseye,
         BCZ: Sweat Bullets, Chest X-Ray, Shattering Punch, Gingerbread Mob Hit] {
         if (freeskill == $skill[Club 'Em Back in Time]
@@ -34,6 +34,7 @@ void free_kill(string ptext, boolean drop) {
 
 // Attempt a free run using available skills/items.
 // Pass banish=true to allow banishing skills/items.
+
 void free_run(string ptext, boolean banish) {
     if (get_property("_curveballMonster") == last_monster()
         && to_int(get_property("_curveballFightsLeft")) > 0)
