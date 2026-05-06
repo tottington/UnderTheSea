@@ -777,7 +777,7 @@ void seaMonkees() {
             use_familiar($familiar[grouper groupie]);
             if (to_int(get_property("rwbMonsterCount")) == 1) {
                 cli_execute("maximize item drop, equip really nice swimming trunks,"
-                    + " equip McHugeLarge left pole, equip toy cupid bow"
+                    + " equip toy cupid bow"
                     + freeKill());
             } else {
                 cli_execute("maximize item drop, equip really nice swimming trunks,"
@@ -845,7 +845,7 @@ void seaMonkees() {
                 && !contains_text(get_property("trackedMonsters"), "giant squid"))
                 || (my_primestat() == $stat[moxie]
                 && !contains_text(get_property("trackedMonsters"), "Mer-kin tippler"))) {
-                conditional += ", equip McHugeLarge left pole";
+                conditional += "";
             }
             if (to_int(get_property("_bczSweatBulletsCasts")) < 9)
                 conditional += ", equip blood cubic zirconia";
@@ -888,7 +888,7 @@ void seaMonkees() {
             cli_execute("reminisce black crayon golem");
         } else {
             cli_execute("maximize item drop, equip legendary seal clubbing club,"
-                + " equip mchugelarge left pole" + locketEquip);
+                 + locketEquip);
             cli_execute("c2t_megg extract black crayon golem");
             cli_execute("c2t_megg fight black crayon golem");
             run_combat();
