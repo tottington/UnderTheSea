@@ -120,7 +120,7 @@ void mood(string mod) {
         case "noncom":
             foreach ef in $effects[the sonata of sneakiness, ultra-soft steps,
                 Wild and Westy!, hiding from seekers, life goals,
-                Smooth Movements, Apriling Band Patrol Beat,
+                Smooth Movements,
                 silent running, feeling lonely] {
                 if (have_effect(ef) == 0) {
                     if (ef == $effect[ultra-soft steps]
@@ -131,9 +131,6 @@ void mood(string mod) {
                     cli_execute(ef.default);
                 }
             }
-            if (have_effect($effect[Apriling Band Patrol Beat]) == 0
-                && total_turns_played() >= to_int(get_property("nextAprilBandTurn")))
-                cli_execute("aprilband effect nc");
             break;
         case "combat":
             foreach ef in $effects[Carlweather's Cantata of Confrontation,
@@ -148,9 +145,9 @@ void mood(string mod) {
                     cli_execute(ef.default);
                 }
             }
-            if (have_effect($effect[Apriling Band Battle Cadence]) == 0
-                && total_turns_played() >= to_int(get_property("nextAprilBandTurn")))
-                cli_execute("aprilband effect c");
+            // if (have_effect($effect[Apriling Band Battle Cadence]) == 0
+            //     && total_turns_played() >= to_int(get_property("nextAprilBandTurn")))
+            //     cli_execute("aprilband effect c");
             break;
         case "hotres":
         case "spookyres":
@@ -596,10 +593,10 @@ void initialization() {
         && get_property("_sitCourseCompleted") == "false")
         use($item[S.I.T. Course Completion Certificate]);
 
-    if (get_property("_aprilBandInstruments") == "0")
-        cli_execute("aprilband item tuba; aprilband item piccolo;"
-            + " aprilband play piccolo; aprilband play piccolo;"
-            + " aprilband play piccolo");
+    // if (get_property("_aprilBandInstruments") == "0")
+    //     cli_execute("aprilband item tuba; aprilband item piccolo;"
+    //         + " aprilband play piccolo; aprilband play piccolo;"
+    //         + " aprilband play piccolo");
 
     if (get_property("_photoBoothEquipment") == "0")
         cli_execute("photobooth item sheriff pistol;"
