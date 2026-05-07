@@ -1019,7 +1019,7 @@ void seaMonkees() {
 
         use_familiar(item_amount($item[rusty rivet]) < 4
             ? $familiar[chest mimic]
-            : $familiar[Jill-of-all-trades]);
+            : $familiar[chest mimic]);
         cli_execute("maximize item, equip blood cubic zirconia, equip toy cupid bow");
         if (have_effect($effect[everything looks yellow]) == 0)
             cli_execute("parka dilophosaur; equip jurassic parka");
