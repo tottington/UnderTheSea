@@ -353,6 +353,8 @@ void main(int round, monster mob, string page_text) {
                     && get_property("corralUnlocked") == "true") {
                     if ($monsters[slithering thing, eye in the darkness] contains mob)
                         use_skill($skill[RECALL FACTS: MONSTER HABITATS]);
+                    else if (mob == $monster[sausage goblin])
+                        run_combat();
                     else
                         abort("Hit an odd mob at caliginous abyss — should not have happened with peridot");
                 }
