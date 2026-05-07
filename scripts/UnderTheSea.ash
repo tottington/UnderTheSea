@@ -608,15 +608,15 @@ void initialization() {
     if (get_property("_aprilShowerGlobsCollected") == "false")
         visit_url("inventory.php?action=shower");
 
-    // First ascension of the day setup
-    if (get_property("ascensionsToday") == "1") {
-        if (get_workshed() == $item[none])
-            use($item[TakerSpace letter of Marque]);
-        if ((get_property("_takerSpaceSuppliesDelivered") == "false"
-            || get_property("takerSpaceGold") == "1")
-            && get_workshed() == $item[TakerSpace letter of Marque])
-            create(1, $item[anchor bomb]);
-    }
+    // // First ascension of the day setup
+    // if (get_property("ascensionsToday") == "1") {
+    //     if (get_workshed() == $item[none])
+    //         use($item[TakerSpace letter of Marque]);
+    //     if ((get_property("_takerSpaceSuppliesDelivered") == "false"
+    //         || get_property("takerSpaceGold") == "1")
+    //         && get_workshed() == $item[TakerSpace letter of Marque])
+    //         create(1, $item[anchor bomb]);
+    // }
 
     // Mr Store 2002 credits — buy in specific order
     if (get_property("availableMrStore2002Credits") == "3") {
