@@ -319,8 +319,7 @@ void main(int round, monster mob, string page_text) {
                         throw_item($item[waffle]);
                         run_combat();
                     } else if (item_amount($item[waffle]) == 0) {
-                       use_skill($skill[macrometeorite]);
-                       run_combat();
+                        abort("Ran out of waffles — banish 2 of 3 coral corral monsters, pull a waffle, and rerun");
                     }
                     if (get_property("_curveballFightsLeft").to_int() > 0 && get_property("_curveballMonster") == "some fish"){
                         use_if_have_skill(page_text, $skill[Sea *dent: Talk to Some Fish]);
