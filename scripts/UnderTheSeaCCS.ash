@@ -40,11 +40,13 @@ void free_run(string ptext, boolean banish) {
         && to_int(get_property("_curveballFightsLeft")) > 0)
         return;
 
-    foreach freeskill in $skills[spring away, Bowl a Curveball, snokebomb] {
+    foreach freeskill in $skills[spring away, Bowl a Curveball, snokebomb, Feel Hatred] {
         if (!contains_text(ptext, to_string(freeskill))) continue;
-        if (!banish && $skills[snokebomb, Bowl a Curveball] contains freeskill) continue;
+        if (!banish && $skills[snokebomb, Bowl a Curveball, Feel Hatred] contains freeskill) continue;
         if (banish && banishUsedAtYourLocation("snokebomb")
             && freeskill == $skill[snokebomb]) continue;
+        if (freeskill == $skill[Feel Hatred]
+            && to_int(get_property("_feelHatredUsed")) >= 3) continue;
         if ($locations[The Outskirts of Cobb's Knob, The Sleazy Back Alley,
             The Haunted Pantry] contains my_location()
             && freeskill == $skill[snokebomb])
