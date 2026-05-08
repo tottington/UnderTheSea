@@ -45,8 +45,8 @@ void free_run(string ptext, boolean banish) {
         if (!banish && $skills[snokebomb, Bowl a Curveball, Feel Hatred] contains freeskill) continue;
         if (banish && banishUsedAtYourLocation("snokebomb")
             && freeskill == $skill[snokebomb]) continue;
-        if (freeskill == $skill[Feel Hatred]
-            && to_int(get_property("_feelHatredUsed")) >= 3) continue;
+        if (banish && banishUsedAtYourLocation("Feel Hatred")
+            && freeskill == $skill[Feel Hatred]) continue;
         if ($locations[The Outskirts of Cobb's Knob, The Sleazy Back Alley,
             The Haunted Pantry] contains my_location()
             && freeskill == $skill[snokebomb])
