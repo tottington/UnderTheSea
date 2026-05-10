@@ -11,13 +11,17 @@ void free_kill(string ptext, boolean drop) {
 
     foreach freeskill in $skills[Spit jurassic acid, Assert your Authority,
         Club 'Em Back in Time, Darts: Aim for the Bullseye,
-        BCZ: Sweat Bullets, Chest X-Ray, Shattering Punch, Gingerbread Mob Hit] {
+        BCZ: Sweat Bullets, Chest X-Ray, Shattering Punch, Gingerbread Mob Hit,
+        Use the Force] {
         if (freeskill == $skill[Club 'Em Back in Time]
             && my_location() != $location[mer-kin colosseum])
             continue;
         if (freeskill == $skill[BCZ: Sweat Bullets]
             && to_int(get_property("_bczSweatBulletsCasts")) >= 9
             && my_location() == $location[The Mer-Kin Outpost])
+            continue;
+        if (freeskill == $skill[Use the Force]
+            && to_int(get_property("_saberForceUses")) >= 5)
             continue;
         if (contains_text(ptext, to_string(freeskill)))
             use_skill(freeskill);
@@ -71,7 +75,7 @@ void free_run(string ptext, boolean banish) {
 boolean free_monster(monster mob) {
     return $monsters[black crayon golem, time cop,
         kid who is too old to be Trick-or-Treating,
-        suburban security civilian, vandal kid] contains mob;
+        suburban security civilian, vandal kid, sausage goblin] contains mob;
 }
 
 // Use a skill if it appears as an option on the current page
@@ -516,12 +520,16 @@ void main(int round, monster mob, string page_text) {
         case $monster[unholy diver]:
             if (my_familiar() == $familiar[chest mimic])
                 use_skill($skill[%fn, lay an egg]);
+            if (have_equipped($item[Fourth of May Cosplay Saber])
+                && to_int(get_property("_saberForceUses")) < 5)
+                use_if_have_skill(page_text, $skill[Use the Force]);
             free_kill(page_text, true);
             cleanUp();
             break;
         case $monster[kid who is too old to be Trick-or-Treating]:
         case $monster[suburban security civilian]:
         case $monster[vandal kid]:
+        case $monster[sausage goblin]:
             cleanUp();
             break;
     }

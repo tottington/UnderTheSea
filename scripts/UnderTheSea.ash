@@ -65,7 +65,8 @@ void useMapIfAvailable() {
         kid who is too old to be Trick-or-Treating,
         suburban security civilian,
         vandal kid,
-        Black Crayon Golem
+        Black Crayon Golem,
+        sausage goblin
     ] contains get_property("lastCopyableMonster");
     if (isFreeMonster) return;
     if (get_property("_mapToACandyRichBlockUsed") == "false") {
@@ -198,6 +199,9 @@ string freeKill() {
         return ", equip Lil' Doctor™ bag";
     if ((my_basestat($stat[submoxie]) - 22500) > BCZcost("SweatBulletsCasts"))
         return ", equip blood cubic zirconia";
+    if (to_int(get_property("_saberForceUses")) < 5
+        && have_item($item[Fourth of May Cosplay Saber]))
+        return ", equip Fourth of May Cosplay Saber";
     return "";
 }
 
@@ -995,6 +999,9 @@ void seaMonkees() {
             mood("superitdrop");
             if (have_effect($effect[everything looks yellow]) == 0)
                 cli_execute("parka dilophosaur; equip jurassic parka");
+            if (have_item($item[Fourth of May Cosplay Saber])
+                && to_int(get_property("_saberForceUses")) < 5)
+                equip($item[Fourth of May Cosplay Saber]);
 
             // Fight unholy diver — locket first, then fax, then c2t
             if (haveLocketMonster[$monster[unholy diver]]) {
@@ -1024,6 +1031,9 @@ void seaMonkees() {
         cli_execute("maximize item, equip blood cubic zirconia, equip toy cupid bow");
         if (have_effect($effect[everything looks yellow]) == 0)
             cli_execute("parka dilophosaur; equip jurassic parka");
+        if (have_item($item[Fourth of May Cosplay Saber])
+            && to_int(get_property("_saberForceUses")) < 5)
+            equip($item[Fourth of May Cosplay Saber]);
         // Top up rivets via c2t copies — each fight gets one more
         if (item_amount($item[rusty rivet]) < 6) {
             cli_execute("c2t_megg fight unholy diver");

@@ -107,6 +107,11 @@ void main(int whichchoice, string page) {
             run_choice(4);
             break;
 
+        // ── Fourth of May Cosplay Saber ───────────────────────────────────
+        case 1387:
+            run_choice(3);
+            break;
+
         // ── Underwater zone run_choice(2) cases ───────────────────────────
         case 1469:
         case 1470:
