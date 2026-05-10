@@ -695,7 +695,10 @@ void unlockGuild() {
         }
         if (get_property(qprop) == "unstarted")
             visit_url("guild.php?place=challenge");
-        use_familiar($familiar[Peace Turkey]);
+        if (have_familiar($familiar[Peace Turkey]))
+            use_familiar($familiar[Peace Turkey]);
+        else
+            use_familiar($familiar[Disgeist]);
         mood("itdrop");
         while (get_property(qprop) == "started") {
             cli_execute("maximize item drop, equip monodent of the sea,"
@@ -884,7 +887,10 @@ void seaMonkees() {
     // ── Step 6: Black Crayon Golem recall ────────────────────────────────────
     if (get_property("questS02Monkees") == "step6"
         && get_property("_monsterHabitatsMonster") == "") {
-        use_familiar($familiar[peace turkey]);
+        if (have_familiar($familiar[Peace Turkey]))
+            use_familiar($familiar[Peace Turkey]);
+        else
+            use_familiar($familiar[Disgeist]);
         string locketEquip = have_item($item[Combat lover's locket])
             ? ", equip combat lovers" : "";
         if (haveLocketMonster[$monster[black crayon golem]]) {
@@ -912,8 +918,10 @@ void seaMonkees() {
         if (get_property("_monsterHabitatsFightsLeft") == "1"
             && to_int(get_property("_monsterHabitatsRecalled")) == 2)
             use_familiar($familiar[patriotic eagle]);
-        else
+        else if (have_familiar($familiar[Peace Turkey]))
             use_familiar($familiar[Peace Turkey]);
+        else
+            use_familiar($familiar[Disgeist]);
 
         // Conditional gear
         string conditional;
@@ -1069,7 +1077,10 @@ void seaMonkees() {
             if (to_int(get_property("_monsterHabitatsFightsLeft")) > 0)
                 abort("Need at least 1 free habitat recall"
                     + " and not currently occupied");
-            use_familiar($familiar[peace turkey]);
+            if (have_familiar($familiar[Peace Turkey]))
+                use_familiar($familiar[Peace Turkey]);
+            else
+                use_familiar($familiar[Disgeist]);
             cli_execute("maximize item drop, equip " + divingHelmet()
                 + ", equip shark jumper, equip scale-mail underwear,"
                 + " equip black glass, equip peridot of peril,"
