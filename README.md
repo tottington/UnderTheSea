@@ -21,6 +21,9 @@ list before starting a run:
   props daily and aborts if the booth is empty (it will suggest one).
 - **A Congressional Medal of Insanity** in storage. The script refuses to buy
   one for you.
+- **A Monodent of the Sea.** It is hard-wired into most farming outfits and
+  the maximizer wrapper aborts without it — and a measured run cast Talk to
+  Some Fish 29 times for 16 pristine fish scales on top of the banishes.
 - **Aftercore mode (running the sea outside the path):** at least 4 fullness
   and 5 spleen free at start; the script prompts for which boss to fight.
 
@@ -71,72 +74,19 @@ holding slots back for items it knows it will need later (`reservedPulls()`).
 Mall purchases into storage respect `autoBuyPriceLimit` and confirm before
 exceeding it.
 
-At the start of each run the script logs a pull checklist: what is already
-stocked in Hagnk's, what will be mall-bought if the route needs it, and — in
-red — anything absent that cannot be bought and should be acquired ahead of
-time.
-
-Each table is ranked by **Turns saved** — what the run loses doing without
-that pull (farming the item instead, or skipping what it enables). Cleanup
-pulls pay out the *next* day and are marked accordingly. Same methodology
-note as the IOTM tables below: estimates overlap and do not sum.
-
-### Pulled early, every run
-
-| Item | Turns saved | Why |
-|---|---|---|
-| Congressional Medal of Insanity | 1–2 | Large +item accessory worn through most farming; must already be in storage — the script won't buy one |
-| sea lasso | 1–2 | Lasso training toward 20 and seahorse taming; skipped when the Sword of S Words plan or monkey's paw wishes will supply them |
-| Mer-kin sneakmask | ~1 | Underwater-legal −combat hat for every noncombat hunt (outpost, pearl zones) |
-| shark jumper | ~1 | Underwater +item shirt for the Caliginous Abyss and copy fights |
-| scale-mail underwear | ~1 | Underwater +item pants, same fights |
-| Flash Liquidizer Ultra Dousing Accessory | ~1 | Douse Foe procs on the shadow slab during the pay-phone free fights |
-
-### Pulled when the route needs them
-
-| Item | Turns saved | Why |
-|---|---|---|
-| Mer-kin prayerbeads | 3–5 | Yog-Urt: three equipped means only two healing items to shed Suckrament |
-| sea cowbell | 2–3 | Seahorse taming needs three thrown |
-| null-day exploit | 1–2 | Null afternoon replaces crayon shavings as the Shub/colosseum deleveler |
-| Mer-kin digpick | 1–2 | Mine teflon ore for the swim fins tailpiece; also flags miner fights as killable |
-| comb jelly | 1–2 | Jelly Combed +item buff before Abyss and corral trips |
-| Mer-kin healscroll | 1–2 | Dreadscroll clue 2 (thrown in the library) and a Yog-Urt healing item |
-| Mer-kin killscroll | 1–2 | Dreadscroll clue 5 (thrown at a mer-kin) |
-| pro skateboard | 1–2 | Do an epic McTwist forces the corral opener's drops |
-| fish sauce / Aldebaran sardines / cheapest pasta | 1–2 | Keeping Fishy up (diet path depends on gear owned) |
-| lodestone | ~1 | Loded effect: extra mining attempts after Unaccompanied Miner's five run out |
-| Elf Guard SCUBA tank | ~1 | Waterbreathing gear that frees the pants slot during habitat fights and the lasso backup plan |
-| rusty rivet | ~1 | Tops the diver hunt up to 8 when one short |
-| Mer-kin worktea | ~1 | Dreadscroll clue 7 via the sushi meal |
-| Mer-kin knucklebone | ~1 | Dreadscroll clue 4 on use |
-| Mer-kin cheatsheet | ~1 | Tops up the 9-sheet vocabulary grind |
-| Mer-kin hallpass | ~1 | Steers the elementary school noncombat cycle |
-| Mer-kin hidepaint | ~1 | Colorfully Concealed −combat for the Grandpa noncombat hunt |
-| software glitch | ~1 | Corral opener: swaps the fight for the Bugged bugbear |
-| pulled yellow taffy | ~1 | Yellow-ray combat item for the corral opener |
-| waffle | ~1 | Re-rolls a monster in place: seahorse phase and peanut fights |
-| skate blade | ~1 | Skate Park war gear for the Holey Rollers resolution |
-| New Age healing crystal / soggy used band-aid | ~1 | Yog-Urt healing when prayerbeads are short |
-| damp old wallet | ~1 | Sand dollars for the Old Guy's boot without spending a clover adventure |
-| pie man was not meant to eat | ~1 | One-pull Asdon Martin fuel for Driving Waterproofly |
-| Handheld Allied radio / Clara's bell / stench jelly | ~1 | Noncombat forcer of last resort, only when no forcer IOTM is owned |
-
-### End-of-run cleanup pulls (whatever slots remain)
-
-| Item | Turns saved | Why |
-|---|---|---|
-| peppermint parasol | ~1 (next day) | Three free runaways for the next day's farming |
-| ink bladder | <1 (next day) | Underwater free-run combat item |
-| Mer-kin pinkslip | <1 (next day) | Free-run item that works on any mer-kin |
-| stuffed yam stinkbomb | <1 | Banishing free run |
-| Louder Than Bomb | <1 (next day) | Banishing free run |
-| anchor bomb | <1 (next day) | Banishing free run (TakerSpace) |
+The per-item detail lives in the run itself: at the start of each run the
+script logs a pull checklist — what is already stocked in Hagnk's, what will
+be mall-bought if the route needs it, and, in red, anything absent that
+cannot be bought and should be acquired ahead of time. The one pull worth
+calling out here is **Mer-kin prayerbeads** (worth 3–5 turns against farming
+them); the reserve system holds slots for it and the other
+expensive-to-farm pulls automatically.
 
 ## IOTMs the script uses
 
-None are strictly required — every use is guarded — but turn count scales
-with what you own. At the start of each run the script logs which of these
+Aside from the Monodent of the Sea (see Hard requirements), none are
+strictly required — every use is guarded — but turn count scales with what
+you own. At the start of each run the script logs which of these
 your account owns and which are missing, as a shopping list for future
 acquisitions.
 
@@ -152,11 +102,11 @@ changes how whole phases play out:
 
 | IOTM | Turns saved | Why it matters |
 |---|---|---|
+| monodent of the sea | 4–6, and effectively required | Hard-wired into most farming outfits (the run aborts without it). A measured run cast Talk to Some Fish 29 times for 16 pristine fish scales — a whole scale economy — on top of the lightning-bolt banishes shaping the corral and outpost pools |
 | Fourth of May Cosplay Saber | 4–6 | Use the Force: deterministic diver, sea cow, prayerbead and scroll drops via the Force budget ladder |
 | closed-circuit pay phone | 4–6 | Eleven free shadow fights a day carry the whole lasso-training block; several route branches key on owning it |
 | cursed monkey's paw | 2–4 | Wishes replace whole corral farming loops (lasso, cowbell); selects the summon-based diver plan |
 | 2002 Mr. Store Catalog | 2–4 | Spooky VHS copies, the pro skateboard's McTwist, software glitch — the corral opener and Mom-rescue copies come from here |
-| monodent of the sea | 2–3 | The underwater weapon the route lives in: lightning-bolt banishes shape the corral and outpost pools, and it anchors most farming outfits |
 | book of facts | 2–3 | Just the Facts wishes and Monster Habitats copy chains for the Mom rescue |
 | august scepter | 1–2 | Waffles re-roll monsters in place; Aug. 2nd is a free Lucky!; the script's resource tiering keys on the catalog/paw/scepter trio |
 | patriotic eagle (hatchling) | 1–2 | RWB blast forces the flytrap pellet; phylum screech banishes constructs; Cyberzone partner |
@@ -174,7 +124,7 @@ changes how whole phases play out:
 | backup camera | 1–2 | Copies: golem stat-chains and lockkey-monster repeats |
 | blood cubic zirconia | 1–2 | Sweat Bullets free kills; Refracted Gaze substat farming on free fights |
 | baseball diamond | 1–2 | Team pitches: yellow ray, free kill and banish outcomes |
-| Cincho de Mayo | 1–2 | Fiesta Exit noncombat forces, recharged through free rests |
+| Cincho de Mayo | ~1 | Fiesta Exit noncombat forces, recharged through free rests — measured run got zero casts off it despite the rest investment |
 | bat wings | 1–2 | Five free fights, swoop, and upside-down free rests |
 | Heartstone | ~1 | %banish skill plus the Ultraheart colosseum buff |
 | spring shoes | ~1 | Spring Kick banish and Spring Away free runs |
