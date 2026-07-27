@@ -28,30 +28,15 @@ encounter would otherwise have cost.
 
 ## Worth doing, needs a decision first
 
-### Pocket Professor
-`lecture on relativity` copies the monster, which is a free extra encounter, and
-`lecture on mass` re-rolls each item drop two extra times. Lecture uses scale with buffed
-familiar weight, so the Fidoxene floor and the familiar-weight buffs already in the mood
-list feed it directly.
+Everything that was on this list has now been resolved. Pocket Professor is implemented;
+Bastille Battalion, Tome of Clip Art and the Deck of Every Card were investigated and
+rejected. See `iotm-decisions.md` for the evidence on each.
 
-The blocker is the familiar slot. It would displace Space Jellyfish or Grouper Groupie,
-both of which are full Fairies underwater, so the trade is "lose the +item familiar, gain
-copies". Needs a comparison of copies-per-run against the item drop given up.
-
-### Bastille Battalion
-Five games a day, none of which cost adventures, and the score can be locked in once per
-day. One of the style lines carries **+25% Item Drops from Monsters**. Needs the
-style/lock-in mechanics worked out — which styles produce which buff, and whether the
-buff survives to the farming loops.
-
-### Pack of Every Card
-15 draws a day, and no single card can be drawn more than once a day. Some cards are
-items and some are buffs. Needs the card table read and a target list picked before it is
-worth wiring; drawing blind is not worth the calls.
-
-### Tome of Clip Art
-`Summon Clip Art`, three successful uses a day, producing items. Same requirement: work
-out whether anything it can summon is on the critical path for this route.
+The one item left genuinely open is the **Deck of Every Card**, and only conditionally:
+`cheat` fetches a specific card for 5 of the day's 15 draws, so three targeted cards a
+day. Nothing in the deck is on this route's critical path today, but the full card list
+was not enumerated card-by-card. If the loop ever ends up hand-farming a specific item,
+check whether a card produces it.
 
 ## Assessed and rejected
 
