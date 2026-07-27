@@ -21,9 +21,12 @@ list before starting a run:
   props daily and aborts if the booth is empty (it will suggest one).
 - **A Congressional Medal of Insanity** in storage. The script refuses to buy
   one for you.
-- **A Monodent of the Sea.** It is hard-wired into most farming outfits and
-  the maximizer wrapper aborts without it — and a measured run cast Talk to
-  Some Fish 29 times for 16 pristine fish scales on top of the banishes.
+- **A Monodent of the Sea.** Hard-wired into most farming outfits (31 gear
+  references, no guard) — the maximizer wrapper aborts without it. A measured
+  run also cast Talk to Some Fish 29 times for 16 pristine fish scales.
+- **The Eternity Codpiece**, loaded with unblemished pearls before ascending.
+  Seven outfit strings assume it, unguarded, and the pearl smuggling is how
+  the resistance phases stay cheap.
 - **Aftercore mode (running the sea outside the path):** at least 4 fullness
   and 5 spleen free at start; the script prompts for which boss to fight.
 
@@ -102,9 +105,8 @@ changes how whole phases play out:
 
 | IOTM | Turns saved | Why it matters |
 |---|---|---|
-| monodent of the sea | 4–6, and effectively required | Hard-wired into most farming outfits (the run aborts without it). A measured run cast Talk to Some Fish 29 times for 16 pristine fish scales — a whole scale economy — on top of the lightning-bolt banishes shaping the corral and outpost pools |
 | Fourth of May Cosplay Saber | 4–6 | Use the Force: deterministic diver, sea cow, prayerbead and scroll drops via the Force budget ladder |
-| closed-circuit pay phone | 4–6 | Eleven free shadow fights a day carry the whole lasso-training block; several route branches key on owning it |
+| closed-circuit pay phone | 5–8 | The run's largest free-turn engine, measured: 15 free shadow-rift encounters carried the whole lasso block, and all 13 shadow bricks (the colosseum's free rounds) came from it. 24 route branches key on it; the fallbacks exist but cost 6–10 turns of pearl-zone farming |
 | cursed monkey's paw | 2–4 | Wishes replace whole corral farming loops (lasso, cowbell); selects the summon-based diver plan |
 | 2002 Mr. Store Catalog | 2–4 | Spooky VHS copies, the pro skateboard's McTwist, software glitch — the corral opener and Mom-rescue copies come from here |
 | book of facts | 2–3 | Just the Facts wishes and Monster Habitats copy chains for the Mom rescue |
@@ -119,7 +121,7 @@ changes how whole phases play out:
 | McHugeLarge duffel bag | 2–3 | Avalanche noncombat force; left pole tracks squid/tippler; slash olfaction |
 | Apriling band helmet | 2–3 | Tuba noncombat forces; patrol beat −combat |
 | CyberRealm keycode | 1–2 | Cyberzone 1 free fights drive Mom-rescue progress |
-| Peridot of Peril | 1–2 | One forced encounter per zone per day, aimed by `zoneTarget()` |
+| Peridot of Peril | 1–2 | One forced encounter per zone per day, aimed by `zoneTarget()`. Near-required: two outfit strings assume it unguarded |
 | Comprehensive Cartography | 1–2 | Three more forced encounters (Map the Monsters), same targeting |
 | backup camera | 1–2 | Copies: golem stat-chains and lockkey-monster repeats |
 | blood cubic zirconia | 1–2 | Sweat Bullets free kills; Refracted Gaze substat farming on free fights |
