@@ -76,57 +76,62 @@ stocked in Hagnk's, what will be mall-bought if the route needs it, and — in
 red — anything absent that cannot be bought and should be acquired ahead of
 time.
 
+Each table is ranked by **Turns saved** — what the run loses doing without
+that pull (farming the item instead, or skipping what it enables). Cleanup
+pulls pay out the *next* day and are marked accordingly. Same methodology
+note as the IOTM tables below: estimates overlap and do not sum.
+
 ### Pulled early, every run
 
-| Item | Why |
-|---|---|
-| Mer-kin sneakmask | Underwater-legal −combat hat for every noncombat hunt (outpost, pearl zones) |
-| sea lasso | Lasso training toward 20 and seahorse taming; skipped when the Sword of S Words plan or monkey's paw wishes will supply them |
-| shark jumper | Underwater +item shirt for the Caliginous Abyss and copy fights |
-| scale-mail underwear | Underwater +item pants, same fights |
-| Congressional Medal of Insanity | Large +item accessory worn through most farming; must already be in storage — the script won't buy one |
-| Flash Liquidizer Ultra Dousing Accessory | Douse Foe procs on the shadow slab during the pay-phone free fights |
+| Item | Turns saved | Why |
+|---|---|---|
+| Congressional Medal of Insanity | 1–2 | Large +item accessory worn through most farming; must already be in storage — the script won't buy one |
+| sea lasso | 1–2 | Lasso training toward 20 and seahorse taming; skipped when the Sword of S Words plan or monkey's paw wishes will supply them |
+| Mer-kin sneakmask | ~1 | Underwater-legal −combat hat for every noncombat hunt (outpost, pearl zones) |
+| shark jumper | ~1 | Underwater +item shirt for the Caliginous Abyss and copy fights |
+| scale-mail underwear | ~1 | Underwater +item pants, same fights |
+| Flash Liquidizer Ultra Dousing Accessory | ~1 | Douse Foe procs on the shadow slab during the pay-phone free fights |
 
 ### Pulled when the route needs them
 
-| Item | Why |
-|---|---|
-| Mer-kin digpick | Mine teflon ore for the swim fins tailpiece; also flags miner fights as killable |
-| lodestone | Loded effect: extra mining attempts after Unaccompanied Miner's five run out |
-| comb jelly | Jelly Combed +item buff before Abyss and corral trips |
-| Elf Guard SCUBA tank | Waterbreathing gear that frees the pants slot during habitat fights and the lasso backup plan |
-| rusty rivet | Tops the diver hunt up to 8 when one short |
-| sea cowbell | Seahorse taming needs three thrown |
-| Mer-kin prayerbeads | Yog-Urt: three equipped means only two healing items to shed Suckrament |
-| Mer-kin healscroll | Dreadscroll clue 2 (thrown in the library) and a Yog-Urt healing item |
-| Mer-kin killscroll | Dreadscroll clue 5 (thrown at a mer-kin) |
-| Mer-kin worktea | Dreadscroll clue 7 via the sushi meal |
-| Mer-kin knucklebone | Dreadscroll clue 4 on use |
-| Mer-kin cheatsheet | Tops up the 9-sheet vocabulary grind |
-| Mer-kin hallpass | Steers the elementary school noncombat cycle |
-| Mer-kin hidepaint | Colorfully Concealed −combat for the Grandpa noncombat hunt |
-| pro skateboard | Do an epic McTwist forces the corral opener's drops |
-| software glitch | Corral opener: swaps the fight for the Bugged bugbear |
-| pulled yellow taffy | Yellow-ray combat item for the corral opener |
-| waffle | Re-rolls a monster in place: seahorse phase and peanut fights |
-| skate blade | Skate Park war gear for the Holey Rollers resolution |
-| null-day exploit | Null afternoon replaces crayon shavings as the Shub/colosseum deleveler |
-| New Age healing crystal / soggy used band-aid | Yog-Urt healing when prayerbeads are short |
-| damp old wallet | Sand dollars for the Old Guy's boot without spending a clover adventure |
-| fish sauce / Aldebaran sardines / cheapest pasta | Keeping Fishy up (diet path depends on gear owned) |
-| pie man was not meant to eat | One-pull Asdon Martin fuel for Driving Waterproofly |
-| Handheld Allied radio / Clara's bell / stench jelly | Noncombat forcer of last resort, only when no forcer IOTM is owned |
+| Item | Turns saved | Why |
+|---|---|---|
+| Mer-kin prayerbeads | 3–5 | Yog-Urt: three equipped means only two healing items to shed Suckrament |
+| sea cowbell | 2–3 | Seahorse taming needs three thrown |
+| null-day exploit | 1–2 | Null afternoon replaces crayon shavings as the Shub/colosseum deleveler |
+| Mer-kin digpick | 1–2 | Mine teflon ore for the swim fins tailpiece; also flags miner fights as killable |
+| comb jelly | 1–2 | Jelly Combed +item buff before Abyss and corral trips |
+| Mer-kin healscroll | 1–2 | Dreadscroll clue 2 (thrown in the library) and a Yog-Urt healing item |
+| Mer-kin killscroll | 1–2 | Dreadscroll clue 5 (thrown at a mer-kin) |
+| pro skateboard | 1–2 | Do an epic McTwist forces the corral opener's drops |
+| fish sauce / Aldebaran sardines / cheapest pasta | 1–2 | Keeping Fishy up (diet path depends on gear owned) |
+| lodestone | ~1 | Loded effect: extra mining attempts after Unaccompanied Miner's five run out |
+| Elf Guard SCUBA tank | ~1 | Waterbreathing gear that frees the pants slot during habitat fights and the lasso backup plan |
+| rusty rivet | ~1 | Tops the diver hunt up to 8 when one short |
+| Mer-kin worktea | ~1 | Dreadscroll clue 7 via the sushi meal |
+| Mer-kin knucklebone | ~1 | Dreadscroll clue 4 on use |
+| Mer-kin cheatsheet | ~1 | Tops up the 9-sheet vocabulary grind |
+| Mer-kin hallpass | ~1 | Steers the elementary school noncombat cycle |
+| Mer-kin hidepaint | ~1 | Colorfully Concealed −combat for the Grandpa noncombat hunt |
+| software glitch | ~1 | Corral opener: swaps the fight for the Bugged bugbear |
+| pulled yellow taffy | ~1 | Yellow-ray combat item for the corral opener |
+| waffle | ~1 | Re-rolls a monster in place: seahorse phase and peanut fights |
+| skate blade | ~1 | Skate Park war gear for the Holey Rollers resolution |
+| New Age healing crystal / soggy used band-aid | ~1 | Yog-Urt healing when prayerbeads are short |
+| damp old wallet | ~1 | Sand dollars for the Old Guy's boot without spending a clover adventure |
+| pie man was not meant to eat | ~1 | One-pull Asdon Martin fuel for Driving Waterproofly |
+| Handheld Allied radio / Clara's bell / stench jelly | ~1 | Noncombat forcer of last resort, only when no forcer IOTM is owned |
 
 ### End-of-run cleanup pulls (whatever slots remain)
 
-| Item | Why |
-|---|---|
-| peppermint parasol | Three free runaways for the next day's farming |
-| ink bladder | Underwater free-run combat item |
-| Mer-kin pinkslip | Free-run item that works on any mer-kin |
-| stuffed yam stinkbomb | Banishing free run |
-| Louder Than Bomb | Banishing free run |
-| anchor bomb | Banishing free run (TakerSpace) |
+| Item | Turns saved | Why |
+|---|---|---|
+| peppermint parasol | ~1 (next day) | Three free runaways for the next day's farming |
+| ink bladder | <1 (next day) | Underwater free-run combat item |
+| Mer-kin pinkslip | <1 (next day) | Free-run item that works on any mer-kin |
+| stuffed yam stinkbomb | <1 | Banishing free run |
+| Louder Than Bomb | <1 (next day) | Banishing free run |
+| anchor bomb | <1 (next day) | Banishing free run (TakerSpace) |
 
 ## IOTMs the script uses
 
