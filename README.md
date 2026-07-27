@@ -19,14 +19,10 @@ list before starting a run:
 - **`autoSatisfyWithNPCs = true`** in mafia's preferences.
 - **A clan with a stocked photobooth** — the script claims the three sheriff
   props daily and aborts if the booth is empty (it will suggest one).
-- **A Congressional Medal of Insanity** in storage. The script refuses to buy
-  one for you.
-- **A Monodent of the Sea.** Hard-wired into most farming outfits (31 gear
-  references, no guard) — the maximizer wrapper aborts without it. A measured
-  run also cast Talk to Some Fish 29 times for 16 pristine fish scales.
-- **The Eternity Codpiece**, loaded with unblemished pearls before ascending.
-  Seven outfit strings assume it, unguarded, and the pearl smuggling is how
-  the resistance phases stay cheap.
+- **A Monodent of the Sea** — the only IOTM the script hard-requires.
+  Hard-wired into most farming outfits (31 gear references) — the maximizer
+  wrapper aborts without it. A measured run also cast Talk to Some Fish 29
+  times for 16 pristine fish scales.
 - **Aftercore mode (running the sea outside the path):** at least 4 fullness
   and 5 spleen free at start; the script prompts for which boss to fight.
 
@@ -49,7 +45,7 @@ The script sorts your account into a resource tier and routes accordingly:
 - **Low shiny** — you own none of the 2002 Mr. Store Catalog, cursed monkey's
   paw or august scepter. The script assumes pulls are precious and farms
   drops it would otherwise pull or wish for, and leans harder on the
-  Congressional Medal of Insanity for +item.
+  Congressional Medal of Insanity.
 - **High shiny** — an Asdon Martin workshed plus
   `garbo_valueOfFreeFight > valueOfAdventure`: your free fights are worth
   more to aftercore meat farming than to the run, so the script *conserves*
@@ -60,7 +56,7 @@ The script sorts your account into a resource tier and routes accordingly:
 
 ## Things to prepare BEFORE ascending
 
-- Load up the codpiece with unblemished pearls
+- Load up The Eternity Codpiece with unblemished pearls (if you own one)
 - Have all of the underwater maps done
 - Have a damp old wallet (not required but saves a turn)
 - Have black crayon golem and unholy diver in the combat lover's locket
@@ -83,7 +79,9 @@ be mall-bought if the route needs it, and, in red, anything absent that
 cannot be bought and should be acquired ahead of time. The one pull worth
 calling out here is **Mer-kin prayerbeads** (worth 3–5 turns against farming
 them); the reserve system holds slots for it and the other
-expensive-to-farm pulls automatically.
+expensive-to-farm pulls automatically. The **Congressional Medal of
+Insanity** is also worth stocking in Hagnk's — the script pulls and wears
+one when present — but it is optional and the script won't buy one for you.
 
 ## IOTMs the script uses
 
@@ -105,10 +103,12 @@ changes how whole phases play out:
 
 | IOTM | Turns saved | Why it matters |
 |---|---|---|
-| Fourth of May Cosplay Saber | 4–6 | Use the Force: deterministic diver, sea cow, prayerbead and scroll drops via the Force budget ladder |
+| Monodent of the Sea | — | **The one hard requirement** (see above): 31 outfit strings are built around it and the route has no fallback — without it the run aborts rather than slows down. Everything else on this page degrades gracefully; this doesn't |
 | closed-circuit pay phone | 5–8 | The run's largest free-turn engine, measured: 15 free shadow-rift encounters carried the whole lasso block, and all 13 shadow bricks (the colosseum's free rounds) came from it. 24 route branches key on it; the fallbacks exist but cost 6–10 turns of pearl-zone farming |
+| Fourth of May Cosplay Saber | 4–6 | Use the Force: deterministic diver, sea cow, prayerbead and scroll drops via the Force budget ladder |
 | cursed monkey's paw | 2–4 | Wishes replace whole corral farming loops (lasso, cowbell); selects the summon-based diver plan |
 | 2002 Mr. Store Catalog | 2–4 | Spooky VHS copies, the pro skateboard's McTwist, software glitch — the corral opener and Mom-rescue copies come from here |
+| The Eternity Codpiece | 2–3 | Load it with unblemished pearls before ascending — the smuggled pearls keep the resistance phases cheap — and socketed gems (Peridot, zirconia, Heartstone, baseball diamond) grant their skills without spending accessory slots |
 | book of facts | 2–3 | Just the Facts wishes and Monster Habitats copy chains for the Mom rescue |
 | august scepter | 1–2 | Waffles re-roll monsters in place; Aug. 2nd is a free Lucky!; the script's resource tiering keys on the catalog/paw/scepter trio |
 | patriotic eagle (hatchling) | 1–2 | RWB blast forces the flytrap pellet; phylum screech banishes constructs; Cyberzone partner |
