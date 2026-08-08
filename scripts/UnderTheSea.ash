@@ -2858,8 +2858,10 @@ boolean burnTurnElsewhere() {
         // The gear grind runs ~28 turns and the colosseum ~37, so any effect
         // short enough to be worth waiting out is gone long before the
         // colosseum is reached. It is the backstop for a run already holding
-        // its gear, and it is safe to win early: the temple picks its boss from
-        // the outfit worn, so becoming Champion does not close Yog-Urt's door.
+        // its gear, and it is safe to win early: this path fights both elder
+        // gods, so the temple keeps a separate door per boss (Right/Left/center
+        // for Yog-Urt/Shub/Dad) and the colosseum only unlocks Shub's -- winning
+        // it early cannot close Yog-Urt's.
         if (available_amount($item[Mer-kin gladiator mask]) == 0
             || available_amount($item[Mer-kin gladiator tailpiece]) == 0) {
             gladiatorGearStep();
