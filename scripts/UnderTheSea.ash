@@ -91,17 +91,9 @@ import <seedfinder/seedfinder.ash>;
             equip($item[Elf Guard SCUBA tank]);
         }
     }
-    // Pants for the underwater combat outfits. On a path-55 run whose account
-    // opted in via the Kramco (see kramcoCoversScaleMail), the scale-mail
-    // pull is skipped and the trunks (free from the Old Man, +90 all stats
-    // underwater) fill the slot; MP rides on topUpMp()'s free rests and soda
-    // water as it already does between casts. Mirrors swimmingTrunks() under
-    // Driving Waterproofly: slot left to the maximizer. Path 0 has no
-    // scale-mail pull at all (the storage-pull loop is path-55-only), and
-    // swimmingTrunks()'s path-0 branch is a waterbreathing container, not
-    // pants -- so a path-0 account without a stocked scale-mail leaves the
-    // slot to the maximizer, where it used to abort "Missing"; announced
-    // once so the change is observable.
+    // Pants for the underwater combat outfits. Returns "" to leave the slot to
+    // the maximizer when no scale-mail was pulled; the trunks are free and give
+    // +90 all stats underwater.
     string underwaterPants(){
         if (available_amount($item[scale-mail underwear]) > 0)
             return "scale-mail underwear,";
@@ -204,28 +196,18 @@ import <seedfinder/seedfinder.ash>;
             && available_amount($item[comb jelly]) == 0
             && !contains_text(pulledToday, "," + to_int($item[comb jelly]) + ","))
             n += 1;
-        // One slot for the skate blade while the war is still open -- same test
-        // the cleanup loop uses to decide it has work left. Holey Rollers only
-        // fires with a blade equipped; without one the zone serves Picking
-        // Sides instead, so the park costs an extra turn and an extra forced
-        // noncombat. Unreserved, a discretionary pull elsewhere takes the slot
-        // and the phase is left to chance.
-        // Path check first: skatePark() is only reachable on path 55 or on a
-        // path-0 Yogurt run, and skateParkStatus defaults to "war", so without
-        // it a path-0 Shub/Dad run would hold the slot all run for a pull it
-        // never makes.
+        // Reserve a pull slot for the skate blade while the war is open: Holey
+        // Rollers only fires with a blade equipped. Path-gated, since
+        // skateParkStatus defaults to "war" and only these paths reach the park.
         if ((my_path().id == 55 || boss == "Yogurt")
             && get_property("skateParkStatus") == "war"
             && !contains_text($location[The Skate Park].noncombat_queue, "Holey Rollers")
             && available_amount($item[skate blade]) == 0
             && !contains_text(pulledToday, "," + to_int($item[skate blade]) + ","))
             n += 1;
-        // One slot for the Shub deleveler while he is alive and the banked
-        // delevelers cannot floor him (multiplicative test -- a raw shavings
-        // count passes mixes the CCS's product math rejects). While Yog-Urt
-        // is still ahead, two shavings are spoken for: her deleveler ladder
-        // throws up to two before Shub is fought, so a bank that is exactly
-        // at the floor today is below it by then.
+        // Reserve a pull slot for the Shub deleveler while he is alive and the
+        // bank cannot floor him. Multiplicative, matching the CCS. Two shavings
+        // are already spoken for while Yog-Urt is ahead.
         if (get_property("shubJigguwattDefeated") == "false"
             && shubPrepShort(get_property("yogUrtDefeated") == "false" ? 2 : 0)
             && item_amount($item[null-day exploit]) == 0
@@ -704,10 +686,8 @@ import <seedfinder/seedfinder.ash>;
                 + " sell some junk or fight for meat and rerun.", "red");
     }
 
-    // Lift Beaten Up by the cheapest route available. The Walrus cast needs
-    // MP the flows that lose fights often lack (Shub prep empties the pool
-    // and turns MP restore off), so top up before casting; without the
-    // skill, rest -- free rests first, then campground turns.
+    // Lift Beaten Up by the cheapest route: top up MP first, since the Walrus
+    // cast needs it, then rest -- free rests before campground turns.
     void liftBeatenUp() {
         if (have_effect($effect[beaten up]) == 0)
             return;
@@ -723,13 +703,10 @@ import <seedfinder/seedfinder.ash>;
             cli_execute("rest");
     }
 
-    // Mafia's recovery thresholds are ratios of max HP, but what this script
-    // actually wants is an absolute floor -- 570 HP, or 800 in the gymnasium,
-    // or full in the colosseum. Storing an absolute as a ratio means the ratio
-    // is only true for the gear it was computed in, so it has to be recomputed
-    // whenever the outfit moves max HP. post_adv() does that after every adv();
-    // the pearl walk has to ask for it, because adv1() does not go through
-    // post_adv() and its per-zone re-dress swings max HP by about half.
+    // Mafia's thresholds are ratios of max HP; this script wants an absolute
+    // floor (570, 800 in the gymnasium, full in the colosseum), so the ratio has
+    // to be recomputed whenever the outfit moves max HP. post_adv() does that
+    // after adv(); adv1() does not, so the pearl walk asks here.
     void setRecoveryTargets() {
         float mpTar = min(1, 250 / to_float(my_maxmp()));
         float hpTar;
@@ -752,11 +729,8 @@ import <seedfinder/seedfinder.ash>;
 
     void post_adv() {
         if (get_property("_lastCombatLost") == "true"){
-            // liftBeatenUp() rather than the old inline pair: with the
-            // Walrus known, the rest fallback here was unreachable, and a
-            // Shub loss reaches this line with MP deliberately emptied and
-            // recovery off -- the cast failed and the rerun started still
-            // Beaten Up.
+            // liftBeatenUp() rather than the inline pair: a Shub loss reaches
+            // this line with MP emptied and recovery off.
             liftBeatenUp();
             set_property("_lastCombatLost", "false");
             abort("It appears you lost the last combat, look into that");
@@ -1287,12 +1261,9 @@ import <seedfinder/seedfinder.ash>;
     void gymnasium(){
         use_familiar("combat");
         string conditional;
-            // Only bank a noncombat here while the park still has a use for
-            // one. skateParkStatus is the reliable test: the queue stops
-            // listing Holey Rollers once the zone flips to Ice Skate
-            // Territory, so gating on the queue alone re-arms the ski for a
-            // park that is already resolved -- and the next pass through the
-            // gladiator grind then aborts on the forcer this call banked.
+            // Only bank a noncombat while the park still needs one.
+            // skateParkStatus, not the queue: the queue stops listing Holey
+            // Rollers once the zone flips, re-arming the ski for a done park.
             if (get_property("skateParkStatus") == "war"
                 && !contains_text($location[The Skate Park].noncombat_queue, "Holey Rollers")){
                 if (have_item($item[mchugelarge left ski]) && to_int(get_property("_mcHugeLargeAvalancheUses")) < 3)
@@ -1328,11 +1299,10 @@ import <seedfinder/seedfinder.ash>;
             gymnasium();
         else if (!parkaForceAvailable() && !leftSkiAvailable() && have_item($item[allied radio backpack]))
             cli_execute("alliedradio sniper");
-        // The blade now holds one of the reserved slots, so spending down TO
-        // the line is the point -- ">" would leave the reservation blocking its
-        // own pull. Skip once a blade is in hand: a blade that arrived without
-        // a pull (drop, mall, closet) leaves the id absent from
-        // _roninStoragePulls, so pullSequence would happily buy a second one.
+        // The blade holds one of the reserved slots, so spend down TO the line;
+        // ">" would leave the reservation blocking its own pull. Skip once a
+        // blade is in hand -- one that arrived unpulled is absent from
+        // _roninStoragePulls, so pullSequence would buy a second.
         if (available_amount($item[skate blade]) == 0
             && pulls_remaining( ) >= reservedPulls())
             pullSequence($item[skate blade]);
@@ -2359,55 +2329,22 @@ void pearlZonePrep(location zone) {
         swimmingTrunks() + bathysphere($item[none]));
 }
 
-// Pearl progress pays its full 10% a combat only at 18+ of the zone's
-// element; below that the game pays partial credit and the ten-combat
-// pearl stretches. Checked every turn, not just at zone entry -- the res
-// buffs run out mid-zone -- re-upping expired buffs and refusing to farm
-// slower than the economics were priced at.
-//
-// The shortfall self-heals before aborting, because both failure modes
-// are transient. The mood casts fail silently when the fights have
-// drained MP -- and the pearl fights routinely end near zero -- so the
-// top-up comes BEFORE the moods; after it, the res buffs land, and so
-// do the +combat buffs that would otherwise stay silently down all
-// zone whenever gear happens to carry the res. And the entry maximize
-// ran under "18 max" while buffs were live, crediting them and putting
-// zero res on the gear -- when they lapse the OUTFIT is the gap, so
-// one pearlZonePrep re-dress with the true state visible fixes what a
-// manual rerun used to.
+// Pearl progress pays its full 10% a combat only at 18+ of the zone's element.
+// Checked every turn rather than at zone entry, since the res buffs lapse
+// mid-zone. MP comes first because the mood casts fail silently on an empty
+// pool; the buffs, then the outfit, then a stop if it is still short.
 void pearlResCheck(location zone) {
     string elem = substring(pearlZoneRes[zone], 0, index_of(pearlZoneRes[zone], " "));
     if (my_mp() < 30)
         topUpMp(30);
     mood(elem + "res");
     mood("combat");
-    // Waterproofly grants Adventure Underwater and Underwater Familiar, which
-    // is precisely the back slot and the familiar slot. While it is up,
-    // swimmingTrunks() and bathysphere() contribute nothing and the maximizer
-    // dresses those two slots freely; when it lapses they are pinned to
-    // breathing gear, and the outfit loses the slots it had been spending to
-    // reach the resistance line. Putting the effect back is therefore cheaper
-    // than re-dressing around its absence, and it is the only repair that
-    // restores the slot budget the zone was originally prepped against.
-    //
-    // Gated on the same shortfall the re-dress below tests, and not merely on
-    // the effect being down, because the effect being down is not by itself a
-    // problem: a zone entered without it was dressed with the breathing gear
-    // pinned from the start and can sit on the line quite happily. Driving in
-    // that state would buy bread and burn a tankful every turn to fix an outfit
-    // that was never broken. Only a deficit is worth fuel.
-    //
-    // A drive costs 37 fuel and lasts 30 turns. The batch is sized from the
-    // shortfall rather than fixed, so a partial tank does not cook a full one.
-    // The converter pays out roughly the adventures the food would have given
-    // rather than its fullness -- the rate the existing fuel call upstream is
-    // calibrated against -- and a loaf is worth 5 to 7, so the divisor takes
-    // the low end and a top-up cannot come up short.
-    //
-    // All of it is inert for anyone without the workshed. The outer test skips
-    // them, and mafia prints "You haven't got enough fuel" without raising an
-    // error, so a tank that cannot be filled simply falls through to the
-    // re-dress below and behaves exactly as it did before.
+    // Waterproofly grants Adventure Underwater and Underwater Familiar, so while
+    // it is up the back and familiar slots are the maximizer's; restoring it
+    // recovers the slots the zone was prepped with. Gated on the same shortfall
+    // the re-dress tests, so an outfit already on the line burns no fuel. A
+    // drive is 37 fuel for 30 turns, and a loaf is worth 5 to 7 of it. Inert
+    // without the workshed: a fuel-short drive prints rather than aborting.
     if ((!boolean_modifier("Adventure Underwater")
             || numeric_modifier(elem + " resistance") < 18)
         && have_effect($effect[Driving Waterproofly]) == 0
@@ -2420,26 +2357,16 @@ void pearlResCheck(location zone) {
         if (get_fuel() >= 37)
             cli_execute("asdonmartin drive Waterproofly");
     }
-    // Same lapsed-buff trap as the resistance below, one step nastier.
-    // Driving Waterproofly is what lets swimmingTrunks() and
-    // bathysphere() hand their slots to the maximizer, so a zone prepped
-    // while it was up carries no breathing gear at all -- and when it
-    // runs out mid-zone the next dive dies on "You can't breathe
-    // underwater". Fishy does not cover this: it is what gets you into
-    // the Sea, not what lets you breathe there. Re-dressing re-pins the
-    // trunks and the bathysphere now that the effect is gone.
+    // Re-dress when breathing or resistance is short. A zone prepped while
+    // Waterproofly was up carries no breathing gear, so its lapse has to re-pin
+    // the trunks and the bathysphere. Fishy does not cover this.
     if (!boolean_modifier("Adventure Underwater")
         || numeric_modifier(elem + " resistance") < 18)
         pearlZonePrep(zone);
-    // Backstop only: when the trunks are simply absent, the re-dress
-    // above already died inside tempEquipment with "Missing <item>".
-    // This catches the quieter case -- a path where swimmingTrunks() has
-    // nothing to offer at all -- rather than diving and failing.
-    // Both stops below print before they abort. An abort message is written
-    // to the gCLI and nowhere else -- it never reaches the session log -- so
-    // after the fact a run that ended this way is indistinguishable from one
-    // that ended cleanly: the work simply stops. print() is logged, so the
-    // reason survives long enough to be read later.
+    // Backstop for a path where swimmingTrunks() offers nothing at all; an
+    // absent item already died inside tempEquipment. Both stops print before
+    // they abort, because abort text goes to the gCLI and never to the
+    // session log.
     if (!boolean_modifier("Adventure Underwater")) {
         string why = "Pearl farming can't breathe in " + zone
             + ": Driving Waterproofly has lapsed and nothing in the outfit grants"
@@ -2455,42 +2382,20 @@ void pearlResCheck(location zone) {
         print(why);
         abort(why);
     }
-    // Last, once the gear above is settled: the walk's outfit spends every slot
-    // on resistance and +combat, so max HP here is a fraction of what the run
-    // proper carries, and a threshold computed back then leaves mafia waiting
-    // until a couple of hundred HP to heal.
+    // After the re-dress: this outfit's max HP is a fraction of the run's, so a
+    // threshold computed earlier leaves mafia waiting far too long to heal.
     setRecoveryTargets();
-    // Then heal outright, rather than leaving it to that threshold. Mafia's
-    // trigger is three quarters of the target, which assumes a fight costs less
-    // than a quarter of the bar; one of these fights costs most of it, so a
-    // walker that starts a turn even slightly down is inside the margin that
-    // kills it, and mafia -- still above its trigger -- does nothing. There is
-    // no safe buffer at this ratio, only full.
-    //
-    // It also has to happen after the re-dress above and not before. A zone
-    // change swaps the whole outfit and max HP moves with it, so a heal taken
-    // while the previous zone's gear was on tops up to the wrong number and
-    // leaves a gap mafia will not close.
-    //
-    // The mana comes first because the cheap way to fill that bar is a spell:
-    // asking for a full heal with nothing to cast it with is how a top-up turns
-    // into "ran out of restores", which stops the walk outright. The top-up at
-    // the head of this function ran before the moods spent from the same pool.
-    //
-    // Above the heal's own cost, too, and not merely up to it. A cocoon is 20
-    // of it, and topping up to exactly what the cocoon spends hands the dive a
-    // bar with nothing left in it -- which is the shortfall the top-up exists
-    // to prevent, moved one step later.
+    // Then heal outright. Mafia's trigger is three quarters of the target, but
+    // one of these fights costs most of the bar, so there is no safe buffer at
+    // this ratio. Mana first, since the cheap way to fill HP is a spell, and to
+    // above the heal's own cost rather than merely up to it.
     if (my_mp() < 50)
         topUpMp(50);
     restore_hp(my_maxhp());
 }
 
-// The walker's Beaten Up guard, called before each of its adventuring
-// paths: lift the debuff, stop loudly if it will not lift. No zone
-// re-prep -- nothing in the lift (rest, soda water, the Walrus cast)
-// touches equipment, and the res moods are refreshed by pearlResCheck
-// before every pearl turn anyway.
+// Lift Beaten Up before each of the walker's adventuring paths, or stop. No
+// zone re-prep: nothing in the lift touches equipment.
 void pearlLiftOrAbort() {
     if (have_effect($effect[beaten up]) == 0)
         return;
@@ -2525,10 +2430,8 @@ void pullEverything() {
         cli_execute("pull all");
 }
 
-// The postloop's adventure top-up: crack the six-pack if needed, Ode up,
-// drink pilsners until the target is met. Returns whether it got there,
-// so callers can tell "topped up" from "genuinely dry". Bails the moment
-// a drink fails to add adventures rather than spinning on it.
+// Crack the six-pack, Ode up, drink pilsners to the target. Returns whether it
+// got there. Bails when a drink stops adding adventures.
 boolean gainAdventures(int target) {
     while (my_adventures() < target) {
         int before = my_adventures();
@@ -2551,20 +2454,14 @@ boolean gainAdventures(int target) {
     return true;
 }
 
-// What the Lucky! dive costs. The Haggling grants its full 20 turns
-// either way, but encountering it with no Fishy left costs two
-// adventures instead of one -- so topping up on the LAST turn of Fishy
-// is strictly cheaper, and keeps The Brinier Deepers reachable while we
-// are still fishy rather than betting on gear for underwater access.
+// What the Lucky! dive costs: The Haggling takes one adventure while fishy and
+// two from zero, so topping up on the last fishy turn is cheaper.
 int cloverFishyCost() {
     return have_effect($effect[Fishy]) > 0 ? 1 : 2;
 }
 
-// Why a Lucky! Fishy top-up could not run, or "" when it can. Named
-// rather than folded into cloverFishy's boolean so the caller's abort
-// can say which precondition failed: "out of Fishy" while the pref is
-// on and the real blocker was two adventures reads as the feature being
-// broken.
+// Why a Lucky! Fishy top-up cannot run, or "" when it can. Named so the
+// caller's abort can say which precondition failed.
 string cloverFishyBlocker() {
     if (get_property("uts_postLoopCloverFishy") != "true")
         return "uts_postLoopCloverFishy is not set";
@@ -2600,13 +2497,9 @@ string cloverFishyBlocker() {
 boolean cloverFishy(location zone) {
     if (cloverFishyBlocker() != "")
         return false;
-    // Adventures are topped up rather than treated as a hard block: the
-    // walker's own pilsner ladder sits further down the loop and only
-    // fires at exactly zero, so a farm a turn or two short aborted "out
-    // of Fishy" with pilsners still in the inventory. The Lucky! source
-    // was already proved by the blocker above -- getLucky()'s clover
-    // branch exits the script when none can be had, which is why that
-    // check has to happen before we call it.
+    // Top up adventures rather than blocking: the walker's pilsner ladder sits
+    // further down and only fires at zero. The blocker above must run before
+    // getLucky(), whose clover branch exits the script when none can be had.
     if (!gainAdventures(cloverFishyCost() + 1))
         return false;
     getLucky();
@@ -2618,13 +2511,9 @@ boolean cloverFishy(location zone) {
     // prepped a zone yet when this fires.
     tempEquipment("combat", swimmingTrunks() + bathysphere($item[none]));
     adv1($location[The Brinier Deepers]);
-    // A wanderer can spend the turn without spending the Lucky!; one
-    // more visit collects The Haggling. Fund the retry the same way the
-    // first dive was funded rather than testing the counter raw: the
-    // Lucky! is already paid for, so giving up here with pilsners still
-    // drinkable throws the clover away. cloverFishyCost() now reads 2 --
-    // the first dive spent the last of the Fishy -- so this asks for the
-    // retry plus the pearl turn it exists to enable.
+    // A wanderer can spend the turn without spending the Lucky!, so fund the
+    // retry the same way rather than testing the counter raw. cloverFishyCost()
+    // now reads 2, covering the retry plus the pearl turn it enables.
     if (have_effect($effect[Fishy]) == 0
         && have_effect($effect[Lucky!]) > 0
         && gainAdventures(cloverFishyCost() + 1))
@@ -2748,24 +2637,17 @@ void pearlPostloop() {
         }
         if (!rundown && !farm)
             break;
-        // Rundown-only: its message is rundown-specific, and hard-stopping
-        // here made the farm's cloverFishy() fallback (at the mid-zone
-        // check below) unreachable -- a farm-only run that exhausted Fishy
-        // aborted instead of restocking via a Lucky! trip.
+        // Rundown-only: stopping here made the farm's cloverFishy() fallback
+        // below unreachable.
         if (rundown && have_effect($effect[Fishy]) == 0)
             abort("uts_runOutEagleBanish: out of Fishy after " + spent
                 + " turns with the re-aim unfinished.");
-        // Same pilsner ladder as the in-run diet, shared with cloverFishy().
-        // Deliberately not fatal: a farm that spends its last adventure on
-        // its last pearl arrives here dry with a liver full of the pilsners
-        // that got it this far, and that is a finished farm, not a failure.
-        // Zone selection below breaks cleanly when nothing is unclaimed, and
-        // the mid-zone stop after it aborts if work really does remain.
+        // Same pilsner ladder as the in-run diet. Not fatal: a farm that spent
+        // its last adventure on its last pearl is finished, not failed. Zone
+        // selection breaks cleanly, and the mid-zone stop catches real work.
         gainAdventures(1);
-        // The rundown, unlike the farm, has nothing useful to break out
-        // to: falling through with no adventures lands on the "no open
-        // pearl zone" abort, which blames a missing zone for what is
-        // really an empty turn budget.
+        // The rundown has nothing to break out to: falling through lands on the
+        // "no open pearl zone" abort, which blames the wrong thing.
         if (rundown && my_adventures() == 0)
             abort("uts_runOutEagleBanish: out of adventures with the re-aim"
                 + " unfinished, and no astral pilsner could be drunk"
@@ -2775,10 +2657,9 @@ void pearlPostloop() {
         // guard at the mid-zone checks -- ungated, this cap strangled it.
         if (rundown && spent >= 40)
             abort("uts_runOutEagleBanish: the screech still isn't ready after 40 turns; something is wrong, bailing out.");
-        // Lift here, after the rundown-done break and the pilsner ladder:
-        // the day's last adventure may be exactly what the lift's rest
-        // needs, so adventure manufacture must come first. Zone selection
-        // below maximizes -- never through halved stats.
+        // After the rundown break and the pilsner ladder: the day's last
+        // adventure may be what the lift's rest needs. Zone selection below
+        // maximizes, never through halved stats.
         pearlLiftOrAbort();
         if (current == $location[none] || get_property(pearlClaimed[current]) == "true") {
             current = $location[none];
@@ -2795,10 +2676,8 @@ void pearlPostloop() {
             }
             pearlZonePrep(current);
         }
-        // Top up on the LAST turn of Fishy, not after it runs out: The
-        // Haggling costs one adventure while fishy and two from zero.
-        // Read the blocker first -- cloverFishy() spends the very things
-        // it names (the clover, the pilsner), so asking afterwards
+        // Top up on the last fishy turn, not after. Read the blocker first --
+        // cloverFishy() spends the very things it names, so asking afterwards
         // reports the aftermath instead of the cause.
         if (have_effect($effect[Fishy]) <= 1) {
             string fishyBlocker = cloverFishyBlocker();
@@ -2821,18 +2700,14 @@ void pearlPostloop() {
         // never take the pearl turn with the debuff on.
         pearlLiftOrAbort();
         pearlResCheck(current);
-        // Cleared just before the turn so the read below sees only THIS
-        // fight's outcome: mafia rewrites the pref only when a fight ends,
-        // so a stale "true" from a pre-loop loss, the screech fight or a
-        // cloverFishy dive would otherwise book a phantom pearl loss.
+        // Cleared so the read below sees only this fight: mafia rewrites the
+        // pref only when a fight ends, so a stale "true" books a phantom loss.
         set_property("_lastCombatLost", "false");
         adv1(current);
         spent += 1;
-        // Only a plain win ticks pearl progress, so a lost fight is pure
-        // turn burn -- and a full-strength walker should essentially never
-        // lose one, so a single loss is evidence enough. Stop immediately:
-        // zone progress lives in daily prefs, and a rerun lifts Beaten Up
-        // on entry and resumes exactly where this stopped.
+        // Only a plain win ticks pearl progress, so a loss is pure turn burn.
+        // Stop immediately: zone progress lives in daily prefs, and a rerun
+        // lifts Beaten Up on entry and resumes where this stopped.
         if (get_property("_lastCombatLost") == "true")
             abort("postloop pearls: lost a combat in " + current + " after "
                 + spent + " turns with " + claimed + " pearls claimed; check"
@@ -2902,30 +2777,18 @@ void gladiatorGearStep() {
     }
 }
 
-// One colosseum round. Gladiators are insta-kill immune (bricks and X-Rays
-// glance, the Asdon missile reads UNTARGETABLE), so the club is the only free
-// round in the building -- against immune monsters Club 'Em still deals 30% max
-// HP and frees the fight. Past its five casts, only the bat wings proc can
-// refund a round. Split out of the loop in sorceress() for the same reason as
-// gladiatorGearStep().
+// One colosseum round. Gladiators are insta-kill immune, so Club 'Em is the only
+// free round here -- it still deals 30% max HP and frees the fight. Past its
+// five casts only the bat wings proc refunds a round.
 void colosseumRound() {
-    // Fund the bladeswitcher stall. Its reflect costs ten rounds of dealing no
-    // damage, and the unguent is 30 meat over the counter in Market Square --
-    // restockable, and clear of both the pulled scrolls and the sand-penny items
-    // Yog-Urt is fought with. Eleven: ten to stall on, one left for her fight.
-    //
-    // Here rather than before the loop in sorceress() because that is not the
-    // only way in: the Gummiheart wait reaches colosseum rounds through
-    // burnTurnElsewhere(), which never passes that line. Restocking per round
-    // also refills between fights, and costs an inventory check once the stock
-    // is up.
+    // Fund the bladeswitcher stall: ten rounds of dealing no damage, plus one
+    // left for Yog-Urt. Per round rather than before the loop in sorceress(),
+    // because burnTurnElsewhere() also reaches colosseum rounds.
     if (item_amount($item[Doc Galaktik's Pungent Unguent]) < 11)
         cli_execute("acquire 11 Doc Galaktik's Pungent Unguent");
-    // The unguent only buys rounds; sea gel is what keeps us alive through them
-    // at 500 HP a throw, against a stall costing 110-175 a round. Five: four to
-    // spend, one left for Yog-Urt. Ten sand pennies each, and pennies drop from
-    // every combat, but the buy still waits for a full price so a thin purse is
-    // left for the ladder that spends it later.
+    // Sea gel is what survives the stall, at 500 HP a throw against 110-175 a
+    // round. Five: four to spend, one for Yog-Urt. Buys only at a full price, so
+    // a thin purse is left for the ladder that spends it later.
     while (item_amount($item[sea gel]) < 5
         && item_amount($item[sand penny]) >= 10) {
         // Both conditions only move on a successful buy, so a refused one would
@@ -2969,16 +2832,11 @@ void colosseumRound() {
     }
 }
 
-// The places the run can spend a turn it owed anyway, tried in the order
-// sorceress() works them. A blocking effect only ticks down on turns actually
-// spent, so this is how the script waits one out without wasting anything.
-//
-// Returns false only when every sink is finished. Whether a pass consumed a
-// turn is a separate question, and the caller's to ask: underwater combats are
-// routinely free (banishes, free fights, noncombat forcers), so a single
-// turnless pass says nothing about whether work remains.
-// TODO: the Deep-Tainted Mind loop still open-codes an older, shorter version
-// of this ladder.
+// The places the run can spend a turn it owed anyway, in the order sorceress()
+// works them. Returns false only when every sink is finished; whether a pass
+// consumed a turn is the caller's question, since underwater combats are
+// routinely free.
+// TODO: the Deep-Tainted Mind loop still open-codes an older version of this.
 boolean burnTurnElsewhere() {
     if (get_property("skateParkStatus") == "war"
         && !contains_text($location[The Skate Park].noncombat_queue,
@@ -2987,12 +2845,9 @@ boolean burnTurnElsewhere() {
         return true;
     }
     if (my_path().id == 55 || boss == "Shub") {
-        // The gear grind comes first and runs long enough to outlast any effect
-        // worth waiting out, so the colosseum is the backstop for a run that
-        // already holds its gear. Winning it early cannot strand a boss: this
-        // path fights both elder gods, so the temple keeps a separate door per
-        // boss (Right/Left/center for Yog-Urt/Shub/Dad) and the colosseum only
-        // unlocks Shub's.
+        // The gear grind outlasts any effect worth waiting out, so the colosseum
+        // is the backstop. Winning it early strands no boss: the temple keeps a
+        // separate door per boss and the colosseum only unlocks Shub's.
         if (available_amount($item[Mer-kin gladiator mask]) == 0
             || available_amount($item[Mer-kin gladiator tailpiece]) == 0) {
             gladiatorGearStep();
@@ -3493,15 +3348,10 @@ void sorceress() {
 
         // YogUrt fight
         if (get_property("yogUrtDefeated") == "false") {
-            // Gummiheart's +100 Muscle inflates max HP, and Yog-Urt's debuff
-            // scales with max HP while the healing items below heal fixed
-            // amounts -- so it has to go before the cocoon is cast, not after.
-            // Every source is short (the PYEC grants 5 turns, a gummi
-            // trick-or-treat monster 10) while the gladiator-gear grind that
-            // follows this fight runs far longer, so wait it out on work the run
-            // already owes rather than spend a pull slot on an antidote. Path 55
-            // is the gate: a path-0 Yog-Urt run never reaches that grind, so it
-            // has nowhere to burn and the abort below is all we have for it.
+            // Gummiheart's +100 Muscle inflates max HP and Yog-Urt's debuff
+            // scales with it while the healing items heal fixed amounts, so it
+            // has to lapse before the cocoon. Wait it out on the gear grind;
+            // path 55 only, since a path-0 run never reaches that grind.
             if (have_effect($effect[gummiheart]) > 0 && my_path().id == 55) {
                 // Free combats spend no turn yet still make progress, so only a
                 // run of turnless passes means genuinely stuck.
@@ -3647,19 +3497,10 @@ void sorceress() {
             if (my_path().id == 0)
                 retrieve_item(8,$item[crayon shavings]);
             if (shubPrepShort()){
-                // shubPrepShort() mirrors shubDelevel()'s multiplicative
-                // math (bootleg 0.5, shavings 0.7, rattle/kit 0.75, floor
-                // 0.25), so the ladder and the null-day reservation agree
-                // on what "prepped" means. (The insurance below keys on
-                // account tier and stat margin instead -- the fight is
-                // always prepped by this point; what varies is whether the
-                // account clears a floored Shub's defense.) A refused paw
-                // wish ("That wish is quite impossible") consumes nothing,
-                // so testing wishes is free. Ladder: pull the exploit in
-                // place, then free golem fights (they drop shavings), then
-                // an abort naming every exit. Path 0 lands here too when
-                // the retrieve above comes back short -- same ladder, same
-                // exits.
+                // shubPrepShort() mirrors shubDelevel()'s multiplicative math
+                // (bootleg 0.5, shavings 0.7, rattle/kit 0.75, floor 0.25) so
+                // both agree on "prepped". Ladder: pull the exploit, then free
+                // golem fights for shavings, then an abort naming every exit.
                 if (item_amount($item[null-day exploit]) == 0)
                     pullSequence($item[null-day exploit]);
                 if (item_amount($item[null-day exploit]) > 0)
@@ -3702,14 +3543,9 @@ void sorceress() {
             set_property("hpAutoRecoveryTarget", "1");
             set_property("mpAutoRecovery", "-0.05");
             set_property("mpAutoRecoveryTarget", "-0.05");
-            // Miss/fumble insurance, both one-fight pulls. The ladder above
-            // floors Shub or aborts, but a floored Shub still keeps ~1000
-            // defense (0.25 of 4000): accounts that clear that by a wide
-            // margin waste two pulls here, accounts that don't genuinely
-            // need them. Insure the low-shelf tier (lowShiny) and anyone
-            // whose post-maximize muscle is short of the floor plus margin;
-            // everyone else skips both pulls. The maximize above has already
-            // run, so buffed muscle here is what the fight will see.
+            // Miss/fumble insurance, both one-fight pulls. A floored Shub still
+            // keeps ~1000 defense, so insure the low-shelf tier and anyone whose
+            // post-maximize muscle is short of the floor plus margin.
             if (lowShiny() || my_buffedstat($stat[muscle]) < 1250) {
                 if (item_amount($item[gremlin juice]) == 0)
                     pullSequence($item[gremlin juice]);
