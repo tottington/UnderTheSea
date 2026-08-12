@@ -2381,6 +2381,45 @@ void pearlResCheck(location zone) {
         topUpMp(30);
     mood(elem + "res");
     mood("combat");
+    // Waterproofly grants Adventure Underwater and Underwater Familiar, which
+    // is precisely the back slot and the familiar slot. While it is up,
+    // swimmingTrunks() and bathysphere() contribute nothing and the maximizer
+    // dresses those two slots freely; when it lapses they are pinned to
+    // breathing gear, and the outfit loses the slots it had been spending to
+    // reach the resistance line. Putting the effect back is therefore cheaper
+    // than re-dressing around its absence, and it is the only repair that
+    // restores the slot budget the zone was originally prepped against.
+    //
+    // Gated on the same shortfall the re-dress below tests, and not merely on
+    // the effect being down, because the effect being down is not by itself a
+    // problem: a zone entered without it was dressed with the breathing gear
+    // pinned from the start and can sit on the line quite happily. Driving in
+    // that state would buy bread and burn a tankful every turn to fix an outfit
+    // that was never broken. Only a deficit is worth fuel.
+    //
+    // A drive costs 37 fuel and lasts 30 turns. The batch is sized from the
+    // shortfall rather than fixed, so a partial tank does not cook a full one.
+    // The converter pays out roughly the adventures the food would have given
+    // rather than its fullness -- the rate the existing fuel call upstream is
+    // calibrated against -- and a loaf is worth 5 to 7, so the divisor takes
+    // the low end and a top-up cannot come up short.
+    //
+    // All of it is inert for anyone without the workshed. The outer test skips
+    // them, and mafia prints "You haven't got enough fuel" without raising an
+    // error, so a tank that cannot be filled simply falls through to the
+    // re-dress below and behaves exactly as it did before.
+    if ((!boolean_modifier("Adventure Underwater")
+            || numeric_modifier(elem + " resistance") < 18)
+        && have_effect($effect[Driving Waterproofly]) == 0
+        && get_workshed() == $item[Asdon Martin keyfob (on ring)]) {
+        if (get_fuel() < 37) {
+            int loaves = ceil((37 - get_fuel()) / 5.0);
+            if (retrieve_item(loaves, $item[loaf of soda bread]))
+                cli_execute("asdonmartin fuel " + loaves + " loaf of soda bread");
+        }
+        if (get_fuel() >= 37)
+            cli_execute("asdonmartin drive Waterproofly");
+    }
     // Same lapsed-buff trap as the resistance below, one step nastier.
     // Driving Waterproofly is what lets swimmingTrunks() and
     // bathysphere() hand their slots to the maximizer, so a zone prepped
@@ -2396,15 +2435,26 @@ void pearlResCheck(location zone) {
     // above already died inside tempEquipment with "Missing <item>".
     // This catches the quieter case -- a path where swimmingTrunks() has
     // nothing to offer at all -- rather than diving and failing.
-    if (!boolean_modifier("Adventure Underwater"))
-        abort("Pearl farming can't breathe in " + zone
+    // Both stops below print before they abort. An abort message is written
+    // to the gCLI and nowhere else -- it never reaches the session log -- so
+    // after the fact a run that ended this way is indistinguishable from one
+    // that ended cleanly: the work simply stops. print() is logged, so the
+    // reason survives long enough to be read later.
+    if (!boolean_modifier("Adventure Underwater")) {
+        string why = "Pearl farming can't breathe in " + zone
             + ": Driving Waterproofly has lapsed and nothing in the outfit grants"
             + " underwater access. Re-drive Waterproofly or free up the pants"
-            + " slot for the swimming trunks, then rerun.");
-    if (numeric_modifier(elem + " resistance") < 18)
-        abort("Pearl farming needs 18 " + elem + " resistance for full speed in "
+            + " slot for the swimming trunks, then rerun.";
+        print(why);
+        abort(why);
+    }
+    if (numeric_modifier(elem + " resistance") < 18) {
+        string why = "Pearl farming needs 18 " + elem + " resistance for full speed in "
             + zone + " and only " + to_int(numeric_modifier(elem + " resistance"))
-            + " is up; add " + elem + " resistance gear or buffs and rerun.");
+            + " is up; add " + elem + " resistance gear or buffs and rerun.";
+        print(why);
+        abort(why);
+    }
     // Last, once the gear above is settled: the walk's outfit spends every slot
     // on resistance and +combat, so max HP here is a fraction of what the run
     // proper carries, and a threshold computed back then leaves mafia waiting
