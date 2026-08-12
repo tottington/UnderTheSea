@@ -2671,6 +2671,26 @@ void pearlPostloop() {
             abort("uts_postLoopRunOutEagleBanish: The Smut Orc Logging Camp isn't open, and the re-aim needs a place to screech.");
     }
     pullEverything();
+    if (get_property("uts_loop") == "true") {
+        while (my_inebriety() < inebriety_limit()) {
+            int drunkBefore = my_inebriety();
+            if (item_amount($item[astral pilsner]) == 0
+                && item_amount($item[astral six-pack]) > 0)
+                use($item[astral six-pack]);
+            if (item_amount($item[astral pilsner]) == 0)
+                break;
+            if (have_effect($effect[Ode to Booze]) == 0
+                && have_skill($skill[The Ode to Booze])) {
+                cli_execute("shrug Donho's Bubbly Ballad");
+                if (!use_skill(1, $skill[the ode to booze]))
+                    print("uts_loop: no Ode to Booze; drinking without it.", "blue");
+            }
+            if (!drink($item[astral pilsner]))
+                break;
+            if (my_inebriety() <= drunkBefore)
+                break;
+        }
+    }
     // The eagle's combats are what recharge the screech, so it stays out
     // until the re-aim; otherwise the Hound Dog's +combat means fewer
     // noncombats per pearl (picked directly, never via the "combat"
