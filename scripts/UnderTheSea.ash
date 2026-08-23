@@ -384,12 +384,17 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         if (available_amount($item[black glass]) == 0 && item_amount($item[sand dollar]) > 13)
             blackGlass();
 
+        // The borrow counter only advances when the booth reports a grab, so it
+        // can fall behind what is actually in inventory. Possession decides.
         if (to_int(get_property("_photoBoothEquipment")) < 3)
             foreach it in $items[sheriff pistol, sheriff moustache, sheriff badge]
-                if (available_amount(it) == 0)
-                    cli_execute("photobooth item " + it);
-        if (to_int(get_property("_photoBoothEquipment")) < 3)
-            abort("It seems that your clan may have an incomplete photobooth, join BAFH and rerun");
+                if (available_amount(it) == 0 && !cli_execute("photobooth item " + it))
+                    print("Couldn't borrow the " + it + " from the photo booth.", "red");
+        foreach it in $items[sheriff pistol, sheriff moustache, sheriff badge]
+            if (available_amount(it) == 0)
+                abort("Missing the " + it + " -- the clan photo booth may not have the "
+                    + "Sheriff props unlocked (join BAFH and rerun), or all three of "
+                    + "today's prop borrows are already spent.");
 
         if (my_path().id == 55){
             if (get_property("questM05Toot") == "started") {
