@@ -623,11 +623,9 @@ import <seedfinder/seedfinder.ash>;
         // that an antidote can clear. The same antidote also removes
         // Feeling Excited and Industrial Strength Starch, not tried here.
         if (predictedHP*0.9 > maxHeal && have_effect($effect[Gummiheart]) > 0) {
-            if (item_amount($item[soft green echo eyedrop antidote]) == 0
-                && item_amount($item[ancient cure-all]) == 0)
+            if (item_amount($item[soft green echo eyedrop antidote]) == 0)
                 pullSequence($item[soft green echo eyedrop antidote]);
-            if ((item_amount($item[soft green echo eyedrop antidote]) > 0
-                || item_amount($item[ancient cure-all]) > 0)
+            if (item_amount($item[soft green echo eyedrop antidote]) > 0
                 && !cli_execute("uneffect Gummiheart"))
                 print("Couldn't remove Gummiheart before Yog-Urt.", "red");
             if (have_effect($effect[Gummiheart]) > 0)
