@@ -619,6 +619,25 @@ import <seedfinder/seedfinder.ash>;
         print ("Predicted Mus "+ predictedMus);
         int predictedHP = round((predictedMus+3)*trueHPPercent()) + numeric_modifier("maximum hp");
         print ("predicted HP " + predictedHP);
+        // Gummiheart is a flat Muscle +100, the largest contributor above
+        // that an antidote can clear. The same antidote also removes
+        // Feeling Excited and Industrial Strength Starch, not tried here.
+        if (predictedHP*0.9 > maxHeal && have_effect($effect[Gummiheart]) > 0) {
+            if (item_amount($item[soft green echo eyedrop antidote]) == 0
+                && item_amount($item[ancient cure-all]) == 0)
+                pullSequence($item[soft green echo eyedrop antidote]);
+            if ((item_amount($item[soft green echo eyedrop antidote]) > 0
+                || item_amount($item[ancient cure-all]) > 0)
+                && !cli_execute("uneffect Gummiheart"))
+                print("Couldn't remove Gummiheart before Yog-Urt.", "red");
+            if (have_effect($effect[Gummiheart]) > 0)
+                print("Gummiheart is still up; no antidote to remove it.", "red");
+            else {
+                predictedMus = round(30 * (1+(numeric_modifier("Muscle Percent")/100)))+numeric_modifier("Muscle");
+                predictedHP = round((predictedMus+3)*trueHPPercent()) + numeric_modifier("maximum hp");
+                print ("predicted HP after antidote " + predictedHP);
+            }
+        }
         if (predictedHP*0.9 > maxHeal)
             abort("Muscle/HP too high, see if there are any effects you can get rid of");
     }
