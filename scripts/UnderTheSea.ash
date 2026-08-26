@@ -1983,13 +1983,12 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     farmPrayerbeads();
             }
 
-            // None of the pulls below consults reservedPulls(), so the
-            // antidote YogHpCheck() may need is taken first rather than
-            // held back. Muscle classes only: 1.5 HP per point of Muscle
-            // is what puts Gummiheart's flat +100 within reach of the check.
+            // Taken here because the pulls below can exhaust the day's
+            // budget before YogHpCheck() runs. Under 1.4 HP per point of
+            // Muscle, a flat +100 cannot reach that check's threshold.
             if (have_effect($effect[Gummiheart]) > 0
                 && item_amount($item[soft green echo eyedrop antidote]) == 0
-                && $classes[Seal Clubber, Turtle Tamer] contains my_class())
+                && trueHPPercent() >= 1.4)
                 pullSequence($item[soft green echo eyedrop antidote]);
 
             // Healscroll pull
