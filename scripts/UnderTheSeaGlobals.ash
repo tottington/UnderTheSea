@@ -619,6 +619,23 @@ import <seedfinder/seedfinder.ash>;
         print ("Predicted Mus "+ predictedMus);
         int predictedHP = round((predictedMus+3)*trueHPPercent()) + numeric_modifier("maximum hp");
         print ("predicted HP " + predictedHP);
+        // Gummiheart is a flat Muscle +100, the largest contributor above
+        // that an antidote can clear. The same antidote also removes
+        // Feeling Excited and Industrial Strength Starch, not tried here.
+        if (predictedHP*0.9 > maxHeal && have_effect($effect[Gummiheart]) > 0) {
+            if (item_amount($item[soft green echo eyedrop antidote]) == 0)
+                pullSequence($item[soft green echo eyedrop antidote]);
+            if (item_amount($item[soft green echo eyedrop antidote]) > 0
+                && !cli_execute("uneffect Gummiheart"))
+                print("Couldn't remove Gummiheart before Yog-Urt.", "red");
+            if (have_effect($effect[Gummiheart]) > 0)
+                print("Gummiheart is still up; no antidote to remove it.", "red");
+            else {
+                predictedMus = round(30 * (1+(numeric_modifier("Muscle Percent")/100)))+numeric_modifier("Muscle");
+                predictedHP = round((predictedMus+3)*trueHPPercent()) + numeric_modifier("maximum hp");
+                print ("predicted HP after antidote " + predictedHP);
+            }
+        }
         if (predictedHP*0.9 > maxHeal)
             abort("Muscle/HP too high, see if there are any effects you can get rid of");
     }
@@ -1981,6 +1998,7 @@ void pullChecklist() {
         pulled yellow taffy, stuffed yam stinkbomb, waffle, skate blade,
         null-day exploit, New Age healing crystal, soggy used band-aid,
         damp old wallet, fish sauce, Aldebaran sardines,
+        soft green echo eyedrop antidote,
         pie man was not meant to eat, Handheld Allied radio, Clara's bell,
         stench jelly, peppermint parasol, ink bladder, Mer-kin pinkslip,
         Louder Than Bomb, anchor bomb];

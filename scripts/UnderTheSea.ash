@@ -1989,6 +1989,14 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     farmPrayerbeads();
             }
 
+            // Taken here because the pulls below can exhaust the day's
+            // budget before YogHpCheck() runs. Under 1.4 HP per point of
+            // Muscle, a flat +100 cannot reach that check's threshold.
+            if (have_effect($effect[Gummiheart]) > 0
+                && item_amount($item[soft green echo eyedrop antidote]) == 0
+                && trueHPPercent() >= 1.4)
+                pullSequence($item[soft green echo eyedrop antidote]);
+
             // Healscroll pull
             if (item_amount($item[mer-kin healscroll]) == 0)
                 pullSequence($item[mer-kin healscroll]);
