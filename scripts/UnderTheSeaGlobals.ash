@@ -148,6 +148,13 @@ import <seedfinder/seedfinder.ash>;
         if (get_property("shubJigguwattDefeated") == "false" && item_amount($item[crayon shavings]) < 4
             && item_amount($item[null-day exploit]) == 0 && pulledToday($item[null-day exploit]))
             n += 1;
+        // YogHpCheck() spends a pull on an antidote when Gummiheart would
+        // push it over. Only the Muscle classes take 1.5 HP per point of
+        // Muscle, which is what brings that check within reach.
+        if (have_effect($effect[Gummiheart]) > 0
+            && get_property("yogUrtDefeated") == "false"
+            && $classes[Seal Clubber, Turtle Tamer] contains my_class())
+            n += 1;
         return n;
     }
 
