@@ -148,13 +148,6 @@ import <seedfinder/seedfinder.ash>;
         if (get_property("shubJigguwattDefeated") == "false" && item_amount($item[crayon shavings]) < 4
             && item_amount($item[null-day exploit]) == 0 && pulledToday($item[null-day exploit]))
             n += 1;
-        // YogHpCheck() spends a pull on an antidote when Gummiheart would
-        // push it over. Only the Muscle classes take 1.5 HP per point of
-        // Muscle, which is what brings that check within reach.
-        if (have_effect($effect[Gummiheart]) > 0
-            && get_property("yogUrtDefeated") == "false"
-            && $classes[Seal Clubber, Turtle Tamer] contains my_class())
-            n += 1;
         return n;
     }
 
@@ -2005,6 +1998,7 @@ void pullChecklist() {
         pulled yellow taffy, stuffed yam stinkbomb, waffle, skate blade,
         null-day exploit, New Age healing crystal, soggy used band-aid,
         damp old wallet, fish sauce, Aldebaran sardines,
+        soft green echo eyedrop antidote,
         pie man was not meant to eat, Handheld Allied radio, Clara's bell,
         stench jelly, peppermint parasol, ink bladder, Mer-kin pinkslip,
         Louder Than Bomb, anchor bomb];
