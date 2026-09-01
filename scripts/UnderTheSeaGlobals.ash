@@ -761,17 +761,11 @@ boolean diverPartsComplete() {
 }
 
 // The rivet hunt is live while nothing that fills the diving-helmet slot is
-// owned. Mirrors divingHelmet() in UnderTheSea.ash, which parse order keeps
-// out of reach of this file.
+// owned.
 boolean diverHuntActive() {
     if (diverPartsComplete())
         return false;
-    foreach it in $items[Mer-kin gladiator mask, Mer-kin scholar mask,
-        crappy Mer-kin mask, aerated diving helmet, Elf Guard SCUBA tank] {
-        if (item_amount(it) > 0 || have_equipped(it))
-            return false;
-    }
-    return true;
+    return divingHelmet() == $item[none];
 }
 
 // Mirrors doneWithSeaCow() in UnderTheSea.ash, which parse order keeps out of
@@ -944,7 +938,7 @@ void duplicateMonster(monster mob, string page_text) {
     // Best killed tables the route meets: the golem (free fight, flat 100%
     // crayon shavings -- the Shub deleveler), then the unForced sea cow, the
     // sheet-grind monitor, and the diver only on saberless kits, where a
-    // doubled kill's 8 rivets end the hunt outright.
+    // doubled kill rolls its whole table twice.
     boolean wanted = (mob == $monster[Black Crayon Golem] && item_amount($item[crayon shavings]) < 4)
         || (mob == $monster[sea cow] && seaCowNeeded() && !diverHuntActive())
         || (mob == $monster[Mer-kin monitor] && cheatsheetsNeeded())

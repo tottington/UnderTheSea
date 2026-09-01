@@ -1271,7 +1271,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
 
     void unholyDiver(string str){
         step("phase: rusty rivets");
-        while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]) {
+        while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]
+            && my_adventures() > 0) {
             if (baseballPlayers() >= 9 && contains_text(get_property("baseballTeam"),"745"))
                 baseballD();
             switch (str) {
@@ -1369,7 +1370,9 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             abort("Could not build an aerated diving helmet: "
                 + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
                 + item_amount($item[rusty porthole]) + " porthole, "
-                + item_amount($item[rusty rivet]) + "/8 rivets.");
+                + item_amount($item[rusty rivet]) + "/8 rivets, "
+                + available_amount($item[bubblin' stone]) + " bubblin' stone, "
+                + my_adventures() + " adventures left.");
     }
 
     void caliginous(string str){
@@ -1712,8 +1715,11 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             if (available_amount($item[crappy Mer-kin mask]) == 0
                 && available_amount($item[aerated diving helmet]) == 0
                 && available_amount($item[rusty diving helmet]) == 0
-                && !diverPartsComplete())
+                && !diverPartsComplete()) {
+                step("Diving helmet chain short after the diver phase; "
+                    + "recovering it in the Wreck");
                 unholyDiver("direct");
+            }
             cli_execute("unequip sea chaps; unequip aerated diving helmet");
             if (available_amount($item[crappy Mer-kin mask]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
@@ -1738,7 +1744,10 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     adv($location[the caliginous abyss]);
                 }
                 if (!retrieve_item($item[crappy Mer-kin tailpiece]))
-                    abort("Could not build a crappy Mer-kin tailpiece.");
+                    abort("Could not build a crappy Mer-kin tailpiece: "
+                        + available_amount($item[sea chaps]) + " sea chaps, "
+                        + available_amount($item[teflon swim fins]) + " swim fins, "
+                        + available_amount($item[pristine fish scale]) + "/3 fish scales.");
             }
 
             if (my_path().id == 0){
