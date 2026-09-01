@@ -765,7 +765,7 @@ boolean diverPartsComplete() {
 boolean diverHuntActive() {
     if (diverPartsComplete())
         return false;
-    return divingHelmet() == $item[none];
+    return to_slot(divingHelmet()) != $slot[hat];
 }
 
 // Mirrors doneWithSeaCow() in UnderTheSea.ash, which parse order keeps out of
@@ -813,6 +813,19 @@ string diverSaber() {
     return "";
 }
 
+// The egg is capped at 11 a day and costs 200 familiar experience. A bare
+// cast that fails sets the error state, which ends the run at the next
+// statement -- mid-combat, from a consult script.
+void layMimicEgg() {
+    if (my_familiar() != $familiar[chest mimic])
+        return;
+    if (get_property("_mimicEggsObtained").to_int() >= 11)
+        return;
+    if ($familiar[chest mimic].experience < 200)
+        return;
+    use_skill($skill[%fn, lay an egg]);
+}
+
 // CCS entry. On the diver: lay the insurance egg for diver #2 while the fight
 // is still open, then Force the drops. Returns true when it Forced -- the
 // combat is over and the caller must end the consult pass.
@@ -825,8 +838,7 @@ boolean diverForce(monster mob, string page_text) {
         return false;
     if (!contains_text(page_text, "Use the Force"))
         return false;
-    if (my_familiar() == $familiar[chest mimic])
-        use_skill($skill[%fn, lay an egg]);
+    layMimicEgg();
     step("Use the Force -> unholy diver (rivets " + item_amount($item[rusty rivet]) + "/8)");
     use_skill($skill[Use the Force]);
     return true;

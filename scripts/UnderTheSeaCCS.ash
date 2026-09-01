@@ -172,9 +172,7 @@ item bangB(){
 // the two cannot drift apart. The egg is capped daily and a bare use_skill
 // at the cap would set the error state and end the run mid-combat.
 void killDiver(string page_text) {
-    if (my_familiar() == $familiar[chest mimic]
-        && get_property("_mimicEggsObtained").to_int() < 11)
-        use_skill($skill[%fn, lay an egg]);
+    layMimicEgg();
     if (item_amount($item[spitball]) > 0)
         throw_item($item[spitball]);
     free_kill(page_text, true);
@@ -232,8 +230,11 @@ void main(int round, monster mob, string page_text) {
         && my_location() != $location[The Wreck of the Edgar Fitzsimmons]) {
         // backupLasso() trains in these zones and the zone case throws the
         // lasso as its first statement, so throw it here before returning.
-        if (have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
-            && item_amount($item[sea lasso]) > 0)
+        // Bounded at 20: taming spends a lasso at exactly that count.
+        if (current_round() > 0
+            && have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
+            && item_amount($item[sea lasso]) > 0
+            && to_int(get_property("lassoTrainingCount")) < 20)
             throw_item($item[sea lasso]);
         killDiver(page_text);
         return;

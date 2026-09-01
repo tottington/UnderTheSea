@@ -1271,8 +1271,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
 
     void unholyDiver(string str){
         step("phase: rusty rivets");
-        while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]
-            && my_adventures() > 0) {
+        while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]) {
             if (baseballPlayers() >= 9 && contains_text(get_property("baseballTeam"),"745"))
                 baseballD();
             switch (str) {
@@ -1329,6 +1328,13 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     //Resource saving, the basic adventure in the wreck until you get enough rivets
                     if (diverPartsComplete() || to_slot(divingHelmet()) == $slot[hat])
                         break;
+                    // Every free diver source runs above this, so no adventures
+                    // here means nothing is left to spend on the hunt.
+                    if (my_adventures() < 1)
+                        abort("Out of adventures with the diving helmet chain short: "
+                            + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
+                            + item_amount($item[rusty porthole]) + " porthole, "
+                            + item_amount($item[rusty rivet]) + "/8 rivets.");
                     string conditional;
                     if (total_turns_played( ) >= to_int(get_property("_lastFitzsimmonsHatch")) + 20){
                         use_familiar("-combat");
@@ -1371,6 +1377,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
                 + item_amount($item[rusty porthole]) + " porthole, "
                 + item_amount($item[rusty rivet]) + "/8 rivets, "
+                + available_amount($item[rusty diving helmet]) + " rusty diving helmet, "
                 + available_amount($item[bubblin' stone]) + " bubblin' stone, "
                 + my_adventures() + " adventures left.");
     }
