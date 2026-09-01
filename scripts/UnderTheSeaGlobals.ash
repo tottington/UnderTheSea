@@ -750,11 +750,21 @@ string saberEquip(location loc) {
 // One Forced diver is a guaranteed 4 rivets + porthole + helmet (its whole
 // payload is non-conditional), independent of item bonus.
 
+// The rusty diving helmet takes 1 broken helmet + 1 porthole + 8 rivets, so
+// a rivet count alone only settles the hunt under the Force plan, where one
+// Forced diver delivers all three at once. Off that plan the three drops roll
+// independently, and a dolphin can take any of them.
+boolean diverPartsComplete() {
+    return item_amount($item[rusty rivet]) >= 8
+        && item_amount($item[rusty porthole]) > 0
+        && available_amount($item[rusty broken diving helmet]) > 0;
+}
+
 // The rivet hunt is live while nothing that fills the diving-helmet slot is
 // owned. Mirrors divingHelmet() in UnderTheSea.ash, which parse order keeps
 // out of reach of this file.
 boolean diverHuntActive() {
-    if (item_amount($item[rusty rivet]) >= 8)
+    if (diverPartsComplete())
         return false;
     foreach it in $items[Mer-kin gladiator mask, Mer-kin scholar mask,
         crappy Mer-kin mask, aerated diving helmet, Elf Guard SCUBA tank] {
@@ -938,7 +948,7 @@ void duplicateMonster(monster mob, string page_text) {
     boolean wanted = (mob == $monster[Black Crayon Golem] && item_amount($item[crayon shavings]) < 4)
         || (mob == $monster[sea cow] && seaCowNeeded() && !diverHuntActive())
         || (mob == $monster[Mer-kin monitor] && cheatsheetsNeeded())
-        || (mob == $monster[unholy diver] && item_amount($item[rusty rivet]) < 8
+        || (mob == $monster[unholy diver] && !diverPartsComplete()
             && !have_item($item[Fourth of May Cosplay Saber]));
     if (!wanted)
         return;
@@ -1133,7 +1143,7 @@ void lectureOnRelativity(monster mob, string page_text) {
         return;
     // Same targets as professorFamiliar(): the diver while rivets are owed,
     // the sea cow while its drops are.
-    boolean wanted = (mob == $monster[unholy diver] && item_amount($item[rusty rivet]) < 8)
+    boolean wanted = (mob == $monster[unholy diver] && !diverPartsComplete())
         || (mob == $monster[sea cow] && seaCowNeeded());
     if (!wanted)
         return;
@@ -1295,7 +1305,7 @@ boolean replaceEnemy(monster mob, string page_text) {
     // Never re-roll the monster we came for, and stop once its drops are in.
     if (mob == $monster[unholy diver])
         return false;
-    if (item_amount($item[rusty rivet]) >= 8)
+    if (diverPartsComplete())
         return false;
     return rerollEnemy(page_text);
 }
@@ -1318,7 +1328,7 @@ void feelNostalgic(monster mob, string page_text) {
     // the diver's rivets, the sea cow's leather and cowbells, or the
     // monitor's cheatsheet (~capped at itdrop bonuses) during the grind.
     string copied = get_property("lastCopyableMonster");
-    boolean wanted = (copied == "unholy diver" && item_amount($item[rusty rivet]) < 8)
+    boolean wanted = (copied == "unholy diver" && !diverPartsComplete())
         || (copied == "sea cow" && seaCowNeeded())
         || (copied == "Mer-kin monitor" && cheatsheetsNeeded());
     if (!wanted)
@@ -1347,7 +1357,7 @@ void otoscope(monster mob, string page_text) {
         return;
     if (mob != $monster[unholy diver])
         return;
-    if (item_amount($item[rusty rivet]) >= 8)
+    if (diverPartsComplete())
         return;
     if (!contains_text(page_text, "Otoscope"))
         return;
