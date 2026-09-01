@@ -1271,7 +1271,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
 
     void unholyDiver(string str){
         step("phase: rusty rivets");
-        while ((item_amount($item[rusty rivet]) < 8 || item_amount($item[rusty porthole]) == 0 || available_amount($item[rusty broken diving helmet]) == 0) && to_slot(divingHelmet()) != $slot[hat]) {
+        while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]) {
             if (baseballPlayers() >= 9 && contains_text(get_property("baseballTeam"),"745"))
                 baseballD();
             switch (str) {
@@ -1282,8 +1282,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         }
 
                         int diverTries;
-                        while ((item_amount($item[rusty rivet]) < 8 || item_amount($item[rusty porthole]) == 0 || available_amount($item[rusty broken diving helmet]) == 0)
-                            && diverTries < 4) {
+                        while (!diverPartsComplete() && diverTries < 4) {
                             diverTries += 1;
                             if (diverForceReady() || item_amount($item[rusty rivet]) < 4){
                                 if (!use_familiar($familiar[chest mimic]))
@@ -1320,17 +1319,25 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         while (item_amount($item[rusty rivet]) > 5 && item_amount($item[rusty rivet]) < 8 && get_property("_monkeyPawWishesUsed").to_int() < 5 && have_item($item[cursed monkey's paw]))
                             cli_execute("monkeypaw wish rusty rivet");
                     }
-                    if (item_amount($item[rusty rivet]) >= 8 || to_slot(divingHelmet()) == $slot[hat])
+                    if (diverPartsComplete() || to_slot(divingHelmet()) == $slot[hat])
                         break;
                 case "greg":
                     if (str == "greg" && get_property("beGregariousMonster") == "unholy diver")
                         return;
                 case "direct":
                     //Resource saving, the basic adventure in the wreck until you get enough rivets
-                    if ((item_amount($item[rusty rivet]) >= 8 && item_amount($item[rusty porthole]) == 0 && available_amount($item[rusty broken diving helmet]) == 0) || to_slot(divingHelmet()) == $slot[hat])
+                    if (diverPartsComplete() || to_slot(divingHelmet()) == $slot[hat])
                         break;
+                    // Every free diver source runs above this, so no adventures
+                    // here means nothing is left to spend on the hunt.
+                    if (my_adventures() < 1)
+                        abort("Out of adventures with the diving helmet chain short: "
+                            + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
+                            + item_amount($item[rusty porthole]) + " porthole, "
+                            + item_amount($item[rusty rivet]) + "/8 rivets, "
+                            + available_amount($item[bubblin' stone]) + " bubblin' stone.");
                     string conditional;
-                    if (total_turns_played( ) > to_int(get_property("_lastFitzsimmonsHatch")) + 20){
+                    if (total_turns_played( ) >= to_int(get_property("_lastFitzsimmonsHatch")) + 20){
                         use_familiar("-combat");
                         tempEquipment("-combat,sea", bathysphere($item[toy cupid bow]));
                         mood("-combat");
@@ -1365,8 +1372,15 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     break;
             }
         }
-        if (to_slot(divingHelmet()) != $slot[hat])
-            retrieve_item($item[aerated diving helmet]);
+        if (to_slot(divingHelmet()) != $slot[hat]
+            && !retrieve_item($item[aerated diving helmet]))
+            abort("Could not build an aerated diving helmet: "
+                + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
+                + item_amount($item[rusty porthole]) + " porthole, "
+                + item_amount($item[rusty rivet]) + "/8 rivets, "
+                + available_amount($item[rusty diving helmet]) + " rusty diving helmet, "
+                + available_amount($item[bubblin' stone]) + " bubblin' stone, "
+                + my_adventures() + " adventures left.");
     }
 
     void caliginous(string str){
@@ -1703,6 +1717,17 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             equipSwimTrunks();
             while (item_amount($item[sand dollar]) < 10)
                 getSandDollar();
+            // The diver phase runs only while the seahorse is untamed, so a
+            // part still missing here has no other route back. Collect it
+            // before the craft below instead of failing on it.
+            if (available_amount($item[crappy Mer-kin mask]) == 0
+                && available_amount($item[aerated diving helmet]) == 0
+                && available_amount($item[rusty diving helmet]) == 0
+                && !diverPartsComplete()) {
+                step("Diving helmet chain short after the diver phase; "
+                    + "recovering it in the Wreck");
+                unholyDiver("direct");
+            }
             cli_execute("unequip sea chaps; unequip aerated diving helmet");
             if (available_amount($item[crappy Mer-kin mask]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
@@ -1713,7 +1738,9 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         abort("get a total of "+available_amount($item[pristine fish scale])+" pristine fish scale, out of hermitage clovers");
                     adv($location[the caliginous abyss]);
                 }
-                retrieve_item($item[crappy Mer-kin mask]);
+                if (!retrieve_item($item[crappy Mer-kin mask]))
+                    abort("Could not build a crappy Mer-kin mask; the aerated "
+                        + "diving helmet chain is short.");
             }
             if (available_amount($item[crappy Mer-kin tailpiece]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
@@ -1724,7 +1751,11 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         abort("get a total of "+available_amount($item[pristine fish scale])+" pristine fish scale, out of hermitage clovers");
                     adv($location[the caliginous abyss]);
                 }
-                retrieve_item($item[crappy Mer-kin tailpiece]);
+                if (!retrieve_item($item[crappy Mer-kin tailpiece]))
+                    abort("Could not build a crappy Mer-kin tailpiece: "
+                        + available_amount($item[sea chaps]) + " sea chaps, "
+                        + available_amount($item[teflon swim fins]) + " swim fins, "
+                        + available_amount($item[pristine fish scale]) + "/3 fish scales.");
             }
 
             if (my_path().id == 0){
@@ -2630,7 +2661,8 @@ void seaMonkees() {
     // no no no --> sea cowboy  --> unholy diver mctwist taffy lasso --> caliginous abyss --> finish corral
     if (get_property("seahorseName") == ""){
         if (my_path().id == 0){
-            retrieve_item($item[aerated diving helmet]);
+            if (!retrieve_item($item[aerated diving helmet]))
+                abort("Could not build an aerated diving helmet.");
         } else if (highShiny()){
             caliginous("cheap");
             unholyDiver("direct");
