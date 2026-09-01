@@ -172,7 +172,7 @@ item bangB(){
 // the two cannot drift apart. The egg is capped daily and a bare use_skill
 // at the cap would set the error state and end the run mid-combat.
 void killDiver(string page_text) {
-    layMimicEgg();
+    layMimicEgg(page_text);
     if (item_amount($item[spitball]) > 0)
         throw_item($item[spitball]);
     free_kill(page_text, true);
@@ -226,13 +226,13 @@ void main(int round, monster mob, string page_text) {
     // spending the copy on that zone's own target. While the helmet chain is
     // short, kill it as a diver instead. The Wreck is excluded: there the
     // location block casts Be Gregarious and Uses the Force on it.
-    if (last_monster() == $monster[unholy diver] && diverHuntActive()
+    if (current_round() > 0 && last_monster() == $monster[unholy diver]
+        && diverHuntActive()
         && my_location() != $location[The Wreck of the Edgar Fitzsimmons]) {
         // backupLasso() trains in these zones and the zone case throws the
         // lasso as its first statement, so throw it here before returning.
         // Bounded at 20: taming spends a lasso at exactly that count.
-        if (current_round() > 0
-            && have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
+        if (have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
             && item_amount($item[sea lasso]) > 0
             && to_int(get_property("lassoTrainingCount")) < 20)
             throw_item($item[sea lasso]);

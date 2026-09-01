@@ -755,6 +755,9 @@ string saberEquip(location loc) {
 // Forced diver delivers all three at once. Off that plan the three drops roll
 // independently, and a dolphin can take any of them.
 boolean diverPartsComplete() {
+    // The craft consumes all three, so an assembled helmet is the done state.
+    if (available_amount($item[rusty diving helmet]) > 0)
+        return true;
     return item_amount($item[rusty rivet]) >= 8
         && item_amount($item[rusty porthole]) > 0
         && available_amount($item[rusty broken diving helmet]) > 0;
@@ -813,15 +816,18 @@ string diverSaber() {
     return "";
 }
 
-// The egg is capped at 11 a day and costs 200 familiar experience. A bare
+// The egg is capped at 11 a day and costs 50 familiar experience. A bare
 // cast that fails sets the error state, which ends the run at the next
-// statement -- mid-combat, from a consult script.
-void layMimicEgg() {
+// statement -- mid-combat, from a consult script -- so check the page too:
+// to_string() on this skill yields the literal %fn, which never matches.
+void layMimicEgg(string page_text) {
     if (my_familiar() != $familiar[chest mimic])
         return;
     if (get_property("_mimicEggsObtained").to_int() >= 11)
         return;
-    if ($familiar[chest mimic].experience < 200)
+    if ($familiar[chest mimic].experience < 50)
+        return;
+    if (!contains_text(page_text, "lay an egg"))
         return;
     use_skill($skill[%fn, lay an egg]);
 }
@@ -838,7 +844,7 @@ boolean diverForce(monster mob, string page_text) {
         return false;
     if (!contains_text(page_text, "Use the Force"))
         return false;
-    layMimicEgg();
+    layMimicEgg(page_text);
     step("Use the Force -> unholy diver (rivets " + item_amount($item[rusty rivet]) + "/8)");
     use_skill($skill[Use the Force]);
     return true;

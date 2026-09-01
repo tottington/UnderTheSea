@@ -1334,7 +1334,9 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         abort("Out of adventures with the diving helmet chain short: "
                             + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
                             + item_amount($item[rusty porthole]) + " porthole, "
-                            + item_amount($item[rusty rivet]) + "/8 rivets.");
+                            + item_amount($item[rusty rivet]) + "/8 rivets, "
+                            + available_amount($item[rusty diving helmet]) + " rusty diving helmet, "
+                            + available_amount($item[bubblin' stone]) + " bubblin' stone.");
                     string conditional;
                     if (total_turns_played( ) >= to_int(get_property("_lastFitzsimmonsHatch")) + 20){
                         use_familiar("-combat");
