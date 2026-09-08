@@ -627,7 +627,10 @@ import <seedfinder/seedfinder.ash>;
     boolean YogHpCheck(){
         int maxHeal = 1001;
         int n;
-        foreach it in HealingHP {
+        // Same order yogHealing() throws them in. Iterating the HealingHP map
+        // instead walks item id order, so when fewer healings are needed than
+        // are owned, this counted items the fight never reaches.
+        foreach it in $items[sea gel,mer-kin healscroll,waterlogged scroll of healing,soggy used band-aid,New Age healing crystal] {
             if (n >= (available_amount($item[mer-kin prayerbeads]) <= 3 ? YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] : 1))
                 break;
             if (available_amount(it) > 0){
