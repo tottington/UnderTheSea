@@ -2427,7 +2427,11 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 // banishedPhyla is the ground truth. The recorded cast only
                 // explains a banish that did not move, so it is read second.
                 if (!contains_text(get_property("banishedPhyla"), "construct")) {
-                    print("Patriotic Screech re-aimed at smut orcs after " + spent + " turns; constructs are free.", "blue");
+                    if (get_property("_utsScreechFired") == "true")
+                        print("Patriotic Screech re-aimed at smut orcs after " + spent + " turns; constructs are free.", "blue");
+                    else
+                        // The banish runs 100 turns, so it can also just expire.
+                        print("The construct banish is gone after " + spent + " turns; constructs are free.", "blue");
                     rundown = false;
                     farmHandoff(farm, current);
                 } else if (get_property("_utsScreechFired") == "true") {

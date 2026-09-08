@@ -178,7 +178,11 @@ void main(int round, monster mob, string page_text) {
     // Cast once only: the screech does not end the fight, and re-submitting a
     // skill KoL has stopped offering is rejected without advancing the round.
     if (get_property("_utsScreechReaim") == "true") {
-        if (get_property("_utsScreechFired") == "") {
+        // Only the zone's natives are safe to banish; a wanderer would take
+        // the banish onto its own phylum, and the pearl zones are fish.
+        // Leaving the result unset backs the caller off and retries.
+        if (get_property("_utsScreechFired") == ""
+            && last_monster().phylum == $phylum[orc]) {
             page_text = to_string(use_skill($skill[%fn, Release the Patriotic Screech!]));
             // The line mafia itself reads to register the banish.
             set_property("_utsScreechFired",
