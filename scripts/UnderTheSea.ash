@@ -2663,9 +2663,12 @@ void seaMonkees() {
                     $item[waterlogged scroll of healing]);
             council();
             council();
+            // First of the postloop steps, since the later ones can abort
+            // and leave the supply undrunk. After council(): the storage
+            // pull it may need is refused before the prism breaks.
+            usePilsners();
             pearlPostloop();
             prepCodpiece();
-            usePilsners();
             if (get_property("uts_postloopCommand") != "")
                 cli_execute(get_property("uts_postloopCommand"));
         }
@@ -2705,9 +2708,9 @@ void main(string... args) {
             set_ccs("temp");
             set_property("battleAction", "custom combat script");
             print("Starting UnderTheSea (postloop only)");
+            usePilsners();
             pearlPostloop();
             prepCodpiece();
-            usePilsners();
             if (get_property("uts_postloopCommand") != "")
                 cli_execute(get_property("uts_postloopCommand"));
         } finally {
