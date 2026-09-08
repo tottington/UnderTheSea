@@ -182,6 +182,28 @@ void killDiver(string page_text) {
 // ─── MAIN CCS ─────────────────────────────────────────────────────────────────
 
 void main(int round, monster mob, string page_text) {
+    // The postloop re-aims the Patriotic Screech onto a harmless phylum.
+    // Cast it here rather than through a combat filter: use_skill hands back
+    // the action's own response, so the caller reads a result instead of
+    // inferring one from banishedPhyla.
+    // Cast once only: the screech does not end the fight, and re-submitting a
+    // skill KoL has stopped offering is rejected without advancing the round.
+    if (get_property("_utsScreechReaim") == "true") {
+        // Only the zone's natives are safe to banish; a wanderer would take
+        // the banish onto its own phylum, and the pearl zones are fish.
+        // Leaving the result unset backs the caller off and retries.
+        if (get_property("_utsScreechFired") == ""
+            && last_monster().phylum == $phylum[orc]) {
+            page_text = to_string(use_skill($skill[%fn, Release the Patriotic Screech!]));
+            // The line mafia itself reads to register the banish.
+            set_property("_utsScreechFired",
+                contains_text(page_text, "releases an ear shattering screech")
+                    ? "true" : "false");
+        }
+        free_kill(page_text, false);
+        cleanUp();
+        return;
+    }
     if (get_property("_utsPearlFarm") == "true") {
         free_kill(page_text, false);
         cleanUp();
