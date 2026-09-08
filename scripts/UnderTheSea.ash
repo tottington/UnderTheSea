@@ -2331,6 +2331,20 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             + "take out the Patriotic Eagle and screech in The Smut Orc Logging Camp.", "red");
     }
 
+    // Once the rundown is done or given up on, the eagle has no more work,
+    // and the Hound Dog's +combat buys the farm fewer noncombats per pearl.
+    void farmHandoff(boolean farm, location current) {
+        if (!farm || !have_familiar($familiar[Jumpsuited Hound Dog]))
+            return;
+        use_familiar($familiar[Jumpsuited Hound Dog]);
+        // The bathysphere is familiar equipment, so the new familiar needs
+        // it maximized back on before the next underwater turn; a claimed
+        // or unset zone gets its prep from the selection block instead.
+        if (current != $location[none]
+            && get_property(pearlClaimed[current]) != "true")
+            pearlZonePrep(current);
+    }
+
     void pearlPostloop() {
         boolean rundown = get_property("uts_postLoopRunOutEagleBanish") == "true"
             && contains_text(get_property("banishedPhyla"), "construct");
@@ -2410,28 +2424,20 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 adv1($location[The Smut Orc Logging Camp]);
                 set_property("_utsScreechReaim", "false");
                 spent += 1;
-                if (get_property("_utsScreechFired") != "true") {
+                // banishedPhyla is the ground truth. The recorded cast only
+                // explains a banish that did not move, so it is read second.
+                if (!contains_text(get_property("banishedPhyla"), "construct")) {
+                    print("Patriotic Screech re-aimed at smut orcs after " + spent + " turns; constructs are free.", "blue");
+                    rundown = false;
+                    farmHandoff(farm, current);
+                } else if (get_property("_utsScreechFired") == "true") {
+                    reportRundownStalled("the screech was cast but constructs are still banished", spent);
+                    rundown = false;
+                    farmHandoff(farm, current);
+                } else {
                     // Every farming turn below is another fight with the eagle
                     // out, so the cooldown runs down while the pearls come in.
                     nextScreechTry = spent + 11;
-                } else if (contains_text(get_property("banishedPhyla"), "construct")) {
-                    reportRundownStalled("the screech was cast but constructs are still banished", spent);
-                    rundown = false;
-                } else {
-                    print("Patriotic Screech re-aimed at smut orcs after " + spent + " turns; constructs are free.", "blue");
-                    rundown = false;
-                    // Only a continuing farm needs the handoff; the rundown alone
-                    // is done the moment the screech is spent.
-                    if (farm && have_familiar($familiar[Jumpsuited Hound Dog])) {
-                        use_familiar($familiar[Jumpsuited Hound Dog]);
-                        // The bathysphere is familiar equipment, so the new
-                        // familiar needs it maximized back on before the next
-                        // underwater turn; a claimed or unset zone gets its prep
-                        // from the selection block instead.
-                        if (current != $location[none]
-                            && get_property(pearlClaimed[current]) != "true")
-                            pearlZonePrep(current);
-                    }
                 }
             }
             if (!rundown && !farm)
@@ -2456,6 +2462,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 rundown = false;
                 if (!farm)
                     break;
+                farmHandoff(farm, current);
             }
             if (current == $location[none] || get_property(pearlClaimed[current]) == "true") {
                 current = $location[none];
@@ -2707,6 +2714,8 @@ void main(string... args) {
             // Same defensive clear initialization() does: a run killed
             // mid-walk can leave this set, which reduces the CCS to cleanUp().
             set_property("_utsPearlFarm", "false");
+            // A leaked re-aim flag would screech at the next fight instead.
+            set_property("_utsScreechReaim", "false");
             // The pearl walk fights through the CCS, and pearlPostloop()
             // hands it _utsPearlFarm to reduce it to plain kills.
             write_ccs(to_buffer("consult UnderTheSeaCCS.ash \n abort"), "temp");
