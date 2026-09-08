@@ -2017,6 +2017,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 pullSequence($item[mer-kin healscroll]);
 
             // YogUrt fight
+            int hpCheckPasses;
             while (get_property("yogUrtDefeated") == "false") {
                 cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir; cast cannel");
                 if (delevelers() < 2 && !pulledToday($item[null-day exploit]) && pulls_remaining() > 0){
@@ -2060,6 +2061,22 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     }
                 }
                 if (!YogHPCheck()){
+                    // Farming the Outpost can move this: the Mer-kin healer
+                    // drops a healscroll, which raises the weakest healing the
+                    // fight will throw. That is what the retries wait for, and
+                    // it is only a chance, so cap the wait rather than spending
+                    // the rest of the day on it. The cap sits below Gummiheart's
+                    // duration, so waiting that out is not one of the outcomes
+                    // here -- the antidote is, and the abort names it when it is
+                    // what is left standing.
+                    if (hpCheckPasses >= 25)
+                        abort("Predicted HP is still too high for the healing on hand after "
+                            + hpCheckPasses + " prayerbead attempts"
+                            + (have_effect($effect[Gummiheart]) > 0
+                                ? " (Gummiheart is still up and no antidote could be pulled)"
+                                : "")
+                            + " -- check what is granting maximum HP.");
+                    hpCheckPasses += 1;
                     farmPrayerbeads();
                     continue;
                 }
