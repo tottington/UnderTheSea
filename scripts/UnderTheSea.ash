@@ -364,6 +364,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         // "true" reduces the whole CCS to cleanUp(); in-run zones need the
         // full consult.
         set_property("_utsPearlFarm", "false");
+        // Likewise: a stuck re-aim flag screeches in every in-run fight.
+        set_property("_utsScreechReaim", "false");
 
         if (chosenFamiliar != $familiar[none]){
             use_familiar($familiar[none]);
@@ -1276,7 +1278,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
 
     void unholyDiver(string str){
         step("phase: rusty rivets");
-        while ((item_amount($item[rusty rivet]) < 8 || item_amount($item[rusty porthole]) == 0 || available_amount($item[rusty broken diving helmet]) == 0) && to_slot(divingHelmet()) != $slot[hat]) {
+        while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]) {
             if (baseballPlayers() >= 9 && contains_text(get_property("baseballTeam"),"745"))
                 baseballD();
             switch (str) {
@@ -1287,8 +1289,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         }
 
                         int diverTries;
-                        while ((item_amount($item[rusty rivet]) < 8 || item_amount($item[rusty porthole]) == 0 || available_amount($item[rusty broken diving helmet]) == 0)
-                            && diverTries < 4) {
+                        while (!diverPartsComplete() && diverTries < 4) {
                             diverTries += 1;
                             if (diverForceReady() || item_amount($item[rusty rivet]) < 4){
                                 if (!use_familiar($familiar[chest mimic]))
@@ -1325,14 +1326,22 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         while (item_amount($item[rusty rivet]) > 5 && item_amount($item[rusty rivet]) < 8 && get_property("_monkeyPawWishesUsed").to_int() < 5 && have_item($item[cursed monkey's paw]))
                             cli_execute("monkeypaw wish rusty rivet");
                     }
-                    if (item_amount($item[rusty rivet]) >= 8 || to_slot(divingHelmet()) == $slot[hat])
+                    if (diverPartsComplete() || to_slot(divingHelmet()) == $slot[hat])
                         break;
                 case "direct":
                     //Resource saving, the basic adventure in the wreck until you get enough rivets
-                    if ((item_amount($item[rusty rivet]) >= 8 && item_amount($item[rusty porthole]) == 0 && available_amount($item[rusty broken diving helmet]) == 0) || to_slot(divingHelmet()) == $slot[hat])
+                    if (diverPartsComplete() || to_slot(divingHelmet()) == $slot[hat])
                         break;
+                    // Every free diver source runs above this, so no adventures
+                    // here means nothing is left to spend on the hunt.
+                    if (my_adventures() < 1)
+                        abort("Out of adventures with the diving helmet chain short: "
+                            + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
+                            + item_amount($item[rusty porthole]) + " porthole, "
+                            + item_amount($item[rusty rivet]) + "/8 rivets, "
+                            + available_amount($item[bubblin' stone]) + " bubblin' stone.");
                     string conditional;
-                    if (total_turns_played( ) > to_int(get_property("_lastFitzsimmonsHatch")) + 20){
+                    if (total_turns_played( ) >= to_int(get_property("_lastFitzsimmonsHatch")) + 20){
                         use_familiar("-combat");
                         tempEquipment("-combat,sea", bathysphere($item[toy cupid bow]));
                         mood("-combat");
@@ -1361,8 +1370,15 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     break;
             }
         }
-        if (to_slot(divingHelmet()) != $slot[hat])
-            retrieve_item($item[aerated diving helmet]);
+        if (to_slot(divingHelmet()) != $slot[hat]
+            && !retrieve_item($item[aerated diving helmet]))
+            abort("Could not build an aerated diving helmet: "
+                + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
+                + item_amount($item[rusty porthole]) + " porthole, "
+                + item_amount($item[rusty rivet]) + "/8 rivets, "
+                + available_amount($item[rusty diving helmet]) + " rusty diving helmet, "
+                + available_amount($item[bubblin' stone]) + " bubblin' stone, "
+                + my_adventures() + " adventures left.");
     }
 
     void caliginous(string str){
@@ -1700,6 +1716,17 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             equipSwimTrunks();
             while (item_amount($item[sand dollar]) < 10)
                 getSandDollar();
+            // The diver phase runs only while the seahorse is untamed, so a
+            // part still missing here has no other route back. Collect it
+            // before the craft below instead of failing on it.
+            if (available_amount($item[crappy Mer-kin mask]) == 0
+                && available_amount($item[aerated diving helmet]) == 0
+                && available_amount($item[rusty diving helmet]) == 0
+                && !diverPartsComplete()) {
+                step("Diving helmet chain short after the diver phase; "
+                    + "recovering it in the Wreck");
+                unholyDiver("direct");
+            }
             cli_execute("unequip sea chaps; unequip aerated diving helmet");
             if (available_amount($item[crappy Mer-kin mask]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
@@ -1710,7 +1737,9 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         abort("get a total of "+available_amount($item[pristine fish scale])+" pristine fish scale, out of hermitage clovers");
                     adv($location[the caliginous abyss]);
                 }
-                retrieve_item($item[crappy Mer-kin mask]);
+                if (!retrieve_item($item[crappy Mer-kin mask]))
+                    abort("Could not build a crappy Mer-kin mask; the aerated "
+                        + "diving helmet chain is short.");
             }
             if (available_amount($item[crappy Mer-kin tailpiece]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
@@ -1721,7 +1750,11 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         abort("get a total of "+available_amount($item[pristine fish scale])+" pristine fish scale, out of hermitage clovers");
                     adv($location[the caliginous abyss]);
                 }
-                retrieve_item($item[crappy Mer-kin tailpiece]);
+                if (!retrieve_item($item[crappy Mer-kin tailpiece]))
+                    abort("Could not build a crappy Mer-kin tailpiece: "
+                        + available_amount($item[sea chaps]) + " sea chaps, "
+                        + available_amount($item[teflon swim fins]) + " swim fins, "
+                        + available_amount($item[pristine fish scale]) + "/3 fish scales.");
             }
 
             if (my_path().id == 0){
@@ -1984,6 +2017,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 pullSequence($item[mer-kin healscroll]);
 
             // YogUrt fight
+            int hpCheckPasses;
             while (get_property("yogUrtDefeated") == "false") {
                 cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir; cast cannel");
                 if (delevelers() < 2 && !pulledToday($item[null-day exploit]) && pulls_remaining() > 0){
@@ -2027,6 +2061,22 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     }
                 }
                 if (!YogHPCheck()){
+                    // Farming the Outpost can move this: the Mer-kin healer
+                    // drops a healscroll, which raises the weakest healing the
+                    // fight will throw. That is what the retries wait for, and
+                    // it is only a chance, so cap the wait rather than spending
+                    // the rest of the day on it. The cap sits below Gummiheart's
+                    // duration, so waiting that out is not one of the outcomes
+                    // here -- the antidote is, and the abort names it when it is
+                    // what is left standing.
+                    if (hpCheckPasses >= 25)
+                        abort("Predicted HP is still too high for the healing on hand after "
+                            + hpCheckPasses + " prayerbead attempts"
+                            + (have_effect($effect[Gummiheart]) > 0
+                                ? " (Gummiheart is still up and no antidote could be pulled)"
+                                : "")
+                            + " -- check what is granting maximum HP.");
+                    hpCheckPasses += 1;
                     farmPrayerbeads();
                     continue;
                 }
@@ -2261,24 +2311,6 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         tempEquipment("200 " + pearlZoneRes[zone] + " 18 max, combat,sea",bathysphere($item[none]));
     }
 
-    // mafia calls a combat filter every round until something ends the fight, so
-    // this has to stop offering the screech once it has been spent. The screech
-    // does NOT end the fight -- the foe "running off covering his ears" is
-    // flavour, and the monster keeps attacking -- it consumes itself, setting
-    // screechCombats to its 11-fight recharge, and KoL drops the skill from the
-    // fight's dropdown. Re-submitting a skill KoL no longer offers is rejected,
-    // so the round never advances while mafia's counter climbs ("thinks it is
-    // round 3 but KoL thinks it is round 2"), and nothing in mafia bounds that:
-    // the filter is retried until someone stops the script by hand. Testing the
-    // pref as well as the page keeps it bounded -- either the cast lands and
-    // screechCombats flips, or KoL stops offering the skill.
-    string screechFilter(int round, monster mob, string page_text) {
-        if (to_int(get_property("screechCombats")) == 0
-            && contains_text(page_text, "Release the Patriotic Screech"))
-            return "skill 7451";   // %fn, Release the Patriotic Screech!
-        return "attack";
-    }
-
     // Both post-run preps start by emptying Hagnk's -- the run is over, so
     // everything left in storage may as well be on hand for gearing and
     // pearl-buying. Emptying is once per ascension; a repeat call is a no-op.
@@ -2347,6 +2379,20 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             + "take out the Patriotic Eagle and screech in The Smut Orc Logging Camp.", "red");
     }
 
+    // Once the rundown is done or given up on, the eagle has no more work,
+    // and the Hound Dog's +combat buys the farm fewer noncombats per pearl.
+    void farmHandoff(boolean farm, location current) {
+        if (!farm || !have_familiar($familiar[Jumpsuited Hound Dog]))
+            return;
+        use_familiar($familiar[Jumpsuited Hound Dog]);
+        // The bathysphere is familiar equipment, so the new familiar needs
+        // it maximized back on before the next underwater turn; a claimed
+        // or unset zone gets its prep from the selection block instead.
+        if (current != $location[none]
+            && get_property(pearlClaimed[current]) != "true")
+            pearlZonePrep(current);
+    }
+
     void pearlPostloop() {
         boolean rundown = get_property("uts_postLoopRunOutEagleBanish") == "true"
             && contains_text(get_property("banishedPhyla"), "construct");
@@ -2406,32 +2452,44 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         set_property("_utsPearlFarm", "true");
         int spent;
         int claimed;
+        int nextScreechTry;
         location current = $location[none];
         try {
         while (true) {
-            // The moment the screech is back, spend it: one fight at the Smut
-            // Orc Logging Camp moves the banish onto the orc phylum, and the
-            // rundown is done. Zone progress holds while stepping out, so a
-            // continuing farm loses nothing to the detour.
-            if (rundown && to_int(get_property("screechCombats")) == 0) {
-                if (my_adventures() == 0)
-                    abort("uts_postLoopRunOutEagleBanish: out of adventures with the screech ready; get a turn and rerun to re-aim.");
-                adv1($location[The Smut Orc Logging Camp], -1, "screechFilter");
-                if (contains_text(get_property("banishedPhyla"), "construct"))
-                    abort("uts_postLoopRunOutEagleBanish: the screech didn't re-aim; constructs are still banished.");
-                print("Patriotic Screech re-aimed at smut orcs after " + spent + " pearl-farming turns; constructs are free.", "blue");
-                rundown = false;
-                // Only a continuing farm needs the handoff; the rundown alone
-                // is done the moment the screech is spent.
-                if (farm && have_familiar($familiar[Jumpsuited Hound Dog])) {
-                    use_familiar($familiar[Jumpsuited Hound Dog]);
-                    // The bathysphere is familiar equipment, so the new
-                    // familiar needs it maximized back on before the next
-                    // underwater turn; a claimed or unset zone gets its prep
-                    // from the selection block instead.
-                    if (current != $location[none]
-                        && get_property(pearlClaimed[current]) != "true")
-                        pearlZonePrep(current);
+            // One fight at the Smut Orc Logging Camp moves the banish onto
+            // the orc phylum and the rundown is done. Zone progress holds
+            // while stepping out, so a continuing farm loses nothing to the
+            // detour. At 0 adventures this waits for the pilsner ladder below.
+            if (rundown && to_int(get_property("screechCombats")) == 0
+                && spent >= nextScreechTry && my_adventures() > 0) {
+                // The CCS casts the screech and records whether it landed, so
+                // "not recastable yet" is told apart from "cast, and the
+                // banish stayed put". screechCombats cannot separate them:
+                // mafia resets it at rollover, while the real cooldown is 11
+                // fights with the eagle out.
+                set_property("_utsScreechFired", "");
+                set_property("_utsScreechReaim", "true");
+                adv1($location[The Smut Orc Logging Camp]);
+                set_property("_utsScreechReaim", "false");
+                spent += 1;
+                // banishedPhyla is the ground truth. The recorded cast only
+                // explains a banish that did not move, so it is read second.
+                if (!contains_text(get_property("banishedPhyla"), "construct")) {
+                    if (get_property("_utsScreechFired") == "true")
+                        print("Patriotic Screech re-aimed at smut orcs after " + spent + " turns; constructs are free.", "blue");
+                    else
+                        // The banish runs 100 turns, so it can also just expire.
+                        print("The construct banish is gone after " + spent + " turns; constructs are free.", "blue");
+                    rundown = false;
+                    farmHandoff(farm, current);
+                } else if (get_property("_utsScreechFired") == "true") {
+                    reportRundownStalled("the screech was cast but constructs are still banished", spent);
+                    rundown = false;
+                    farmHandoff(farm, current);
+                } else {
+                    // Every farming turn below is another fight with the eagle
+                    // out, so the cooldown runs down while the pearls come in.
+                    nextScreechTry = spent + 11;
                 }
             }
             if (!rundown && !farm)
@@ -2451,8 +2509,13 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     abort("uts_runOutEagleBanish: out of adventures and no astral pilsner left to drink.");
             }
             // Rundown only; unconditional made the 90-turn farm ceiling unreachable.
-            if (rundown && spent >= 40)
-                abort("uts_runOutEagleBanish: the screech still isn't ready after 40 turns; something is wrong, bailing out.");
+            if (rundown && spent >= 40) {
+                reportRundownStalled("the screech still isn't ready after 40 turns", spent);
+                rundown = false;
+                if (!farm)
+                    break;
+                farmHandoff(farm, current);
+            }
             if (current == $location[none] || get_property(pearlClaimed[current]) == "true") {
                 current = $location[none];
                 foreach loc in pearlZoneRes {
@@ -2487,6 +2550,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         }
         } finally {
             set_property("_utsPearlFarm", "false");
+            set_property("_utsScreechReaim", "false");
         }
         if (farm) {
             foreach loc in pearlZoneRes {
@@ -2625,7 +2689,8 @@ void seaMonkees() {
     // no no no --> sea cowboy  --> unholy diver mctwist taffy lasso --> caliginous abyss --> finish corral
     if (get_property("seahorseName") == ""){
         if (my_path().id == 0){
-            retrieve_item($item[aerated diving helmet]);
+            if (!retrieve_item($item[aerated diving helmet]))
+                abort("Could not build an aerated diving helmet.");
         } else if (highShiny()){
             caliginous("cheap");
             unholyDiver("direct");
@@ -2663,9 +2728,12 @@ void seaMonkees() {
                     $item[waterlogged scroll of healing]);
             council();
             council();
+            // First of the postloop steps, since the later ones can abort
+            // and leave the supply undrunk. After council(): the storage
+            // pull it may need is refused before the prism breaks.
+            usePilsners();
             pearlPostloop();
             prepCodpiece();
-            usePilsners();
             if (get_property("uts_postloopCommand") != "")
                 cli_execute(get_property("uts_postloopCommand"));
         }
@@ -2699,15 +2767,17 @@ void main(string... args) {
             // Same defensive clear initialization() does: a run killed
             // mid-walk can leave this set, which reduces the CCS to cleanUp().
             set_property("_utsPearlFarm", "false");
+            // A leaked re-aim flag would screech at the next fight instead.
+            set_property("_utsScreechReaim", "false");
             // The pearl walk fights through the CCS, and pearlPostloop()
             // hands it _utsPearlFarm to reduce it to plain kills.
             write_ccs(to_buffer("consult UnderTheSeaCCS.ash \n abort"), "temp");
             set_ccs("temp");
             set_property("battleAction", "custom combat script");
             print("Starting UnderTheSea (postloop only)");
+            usePilsners();
             pearlPostloop();
             prepCodpiece();
-            usePilsners();
             if (get_property("uts_postloopCommand") != "")
                 cli_execute(get_property("uts_postloopCommand"));
         } finally {

@@ -168,9 +168,42 @@ item bangB(){
     return $item[none];
 }
 
+// The diver's own kill. Shared by the copy guard and the monster switch so
+// the two cannot drift apart. The egg is capped daily and a bare use_skill
+// at the cap would set the error state and end the run mid-combat.
+void killDiver(string page_text) {
+    layMimicEgg(page_text);
+    if (item_amount($item[spitball]) > 0)
+        throw_item($item[spitball]);
+    free_kill(page_text, true);
+    cleanUp();
+}
+
 // ─── MAIN CCS ─────────────────────────────────────────────────────────────────
 
 void main(int round, monster mob, string page_text) {
+    // The postloop re-aims the Patriotic Screech onto a harmless phylum.
+    // Cast it here rather than through a combat filter: use_skill hands back
+    // the action's own response, so the caller reads a result instead of
+    // inferring one from banishedPhyla.
+    // Cast once only: the screech does not end the fight, and re-submitting a
+    // skill KoL has stopped offering is rejected without advancing the round.
+    if (get_property("_utsScreechReaim") == "true") {
+        // Only the zone's natives are safe to banish; a wanderer would take
+        // the banish onto its own phylum, and the pearl zones are fish.
+        // Leaving the result unset backs the caller off and retries.
+        if (get_property("_utsScreechFired") == ""
+            && last_monster().phylum == $phylum[orc]) {
+            page_text = to_string(use_skill($skill[%fn, Release the Patriotic Screech!]));
+            // The line mafia itself reads to register the banish.
+            set_property("_utsScreechFired",
+                contains_text(page_text, "releases an ear shattering screech")
+                    ? "true" : "false");
+        }
+        free_kill(page_text, false);
+        cleanUp();
+        return;
+    }
     if (get_property("_utsPearlFarm") == "true") {
         free_kill(page_text, false);
         cleanUp();
@@ -210,6 +243,24 @@ void main(int round, monster mob, string page_text) {
     }
     if ((highShiny() || !have_item($item[closed-circuit pay phone])) && item_amount($item[sea lasso]) > 5 && my_location().environment == "underwater" && to_int(get_property("lassoTrainingCount")) < 6)
         throw_item($item[sea lasso]);
+    // A copied diver surfaces in whichever zone the route is adventuring in,
+    // and that zone's logic transforms or re-rolls whatever it is handed,
+    // spending the copy on that zone's own target. While the helmet chain is
+    // short, kill it as a diver instead. The Wreck is excluded: there the
+    // location block casts Be Gregarious and Uses the Force on it.
+    if (current_round() > 0 && last_monster() == $monster[unholy diver]
+        && diverHuntActive()
+        && my_location() != $location[The Wreck of the Edgar Fitzsimmons]) {
+        // backupLasso() trains in these zones and the zone case throws the
+        // lasso as its first statement, so throw it here before returning.
+        // Bounded at 20: taming spends a lasso at exactly that count.
+        if (have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
+            && item_amount($item[sea lasso]) > 0
+            && to_int(get_property("lassoTrainingCount")) < 20)
+            throw_item($item[sea lasso]);
+        killDiver(page_text);
+        return;
+    }
     // ── Location-based combat logic ───────────────────────────────────────────
     switch (my_location()) {
         case $location[The Skeleton Store]:
@@ -830,13 +881,7 @@ void main(int round, monster mob, string page_text) {
             cleanUp();
             break;
         case $monster[unholy diver]:
-            if (my_familiar() == $familiar[chest mimic])
-                use_skill($skill[%fn, lay an egg]);
-            if (item_amount($item[spitball]) > 0){
-                throw_item($item[spitball]);
-            }
-            free_kill(page_text, true);
-            cleanUp();
+            killDiver(page_text);
             break;
         case $monster[sea cowboy]:
             use_skill($skill[%fn, kill a lot of these guys]);
