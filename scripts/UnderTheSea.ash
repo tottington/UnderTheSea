@@ -364,6 +364,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         // "true" reduces the whole CCS to cleanUp(); in-run zones need the
         // full consult.
         set_property("_utsPearlFarm", "false");
+        // Likewise: a stuck re-aim flag screeches in every in-run fight.
+        set_property("_utsScreechReaim", "false");
 
         if (chosenFamiliar != $familiar[none]){
             use_familiar($familiar[none]);
@@ -2261,24 +2263,6 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         tempEquipment("200 " + pearlZoneRes[zone] + " 18 max, combat,sea",bathysphere($item[none]));
     }
 
-    // mafia calls a combat filter every round until something ends the fight, so
-    // this has to stop offering the screech once it has been spent. The screech
-    // does NOT end the fight -- the foe "running off covering his ears" is
-    // flavour, and the monster keeps attacking -- it consumes itself, setting
-    // screechCombats to its 11-fight recharge, and KoL drops the skill from the
-    // fight's dropdown. Re-submitting a skill KoL no longer offers is rejected,
-    // so the round never advances while mafia's counter climbs ("thinks it is
-    // round 3 but KoL thinks it is round 2"), and nothing in mafia bounds that:
-    // the filter is retried until someone stops the script by hand. Testing the
-    // pref as well as the page keeps it bounded -- either the cast lands and
-    // screechCombats flips, or KoL stops offering the skill.
-    string screechFilter(int round, monster mob, string page_text) {
-        if (to_int(get_property("screechCombats")) == 0
-            && contains_text(page_text, "Release the Patriotic Screech"))
-            return "skill 7451";   // %fn, Release the Patriotic Screech!
-        return "attack";
-    }
-
     // Both post-run preps start by emptying Hagnk's -- the run is over, so
     // everything left in storage may as well be on hand for gearing and
     // pearl-buying. Emptying is once per ascension; a repeat call is a no-op.
@@ -2406,32 +2390,48 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         set_property("_utsPearlFarm", "true");
         int spent;
         int claimed;
+        int nextScreechTry;
         location current = $location[none];
         try {
         while (true) {
-            // The moment the screech is back, spend it: one fight at the Smut
-            // Orc Logging Camp moves the banish onto the orc phylum, and the
-            // rundown is done. Zone progress holds while stepping out, so a
-            // continuing farm loses nothing to the detour.
-            if (rundown && to_int(get_property("screechCombats")) == 0) {
-                if (my_adventures() == 0)
-                    abort("uts_postLoopRunOutEagleBanish: out of adventures with the screech ready; get a turn and rerun to re-aim.");
-                adv1($location[The Smut Orc Logging Camp], -1, "screechFilter");
-                if (contains_text(get_property("banishedPhyla"), "construct"))
-                    abort("uts_postLoopRunOutEagleBanish: the screech didn't re-aim; constructs are still banished.");
-                print("Patriotic Screech re-aimed at smut orcs after " + spent + " pearl-farming turns; constructs are free.", "blue");
-                rundown = false;
-                // Only a continuing farm needs the handoff; the rundown alone
-                // is done the moment the screech is spent.
-                if (farm && have_familiar($familiar[Jumpsuited Hound Dog])) {
-                    use_familiar($familiar[Jumpsuited Hound Dog]);
-                    // The bathysphere is familiar equipment, so the new
-                    // familiar needs it maximized back on before the next
-                    // underwater turn; a claimed or unset zone gets its prep
-                    // from the selection block instead.
-                    if (current != $location[none]
-                        && get_property(pearlClaimed[current]) != "true")
-                        pearlZonePrep(current);
+            // One fight at the Smut Orc Logging Camp moves the banish onto
+            // the orc phylum and the rundown is done. Zone progress holds
+            // while stepping out, so a continuing farm loses nothing to the
+            // detour. At 0 adventures this waits for the pilsner ladder below.
+            if (rundown && to_int(get_property("screechCombats")) == 0
+                && spent >= nextScreechTry && my_adventures() > 0) {
+                // The CCS casts the screech and records whether it landed, so
+                // "not recastable yet" is told apart from "cast, and the
+                // banish stayed put". screechCombats cannot separate them:
+                // mafia resets it at rollover, while the real cooldown is 11
+                // fights with the eagle out.
+                set_property("_utsScreechFired", "");
+                set_property("_utsScreechReaim", "true");
+                adv1($location[The Smut Orc Logging Camp]);
+                set_property("_utsScreechReaim", "false");
+                spent += 1;
+                if (get_property("_utsScreechFired") != "true") {
+                    // Every farming turn below is another fight with the eagle
+                    // out, so the cooldown runs down while the pearls come in.
+                    nextScreechTry = spent + 11;
+                } else if (contains_text(get_property("banishedPhyla"), "construct")) {
+                    reportRundownStalled("the screech was cast but constructs are still banished", spent);
+                    rundown = false;
+                } else {
+                    print("Patriotic Screech re-aimed at smut orcs after " + spent + " turns; constructs are free.", "blue");
+                    rundown = false;
+                    // Only a continuing farm needs the handoff; the rundown alone
+                    // is done the moment the screech is spent.
+                    if (farm && have_familiar($familiar[Jumpsuited Hound Dog])) {
+                        use_familiar($familiar[Jumpsuited Hound Dog]);
+                        // The bathysphere is familiar equipment, so the new
+                        // familiar needs it maximized back on before the next
+                        // underwater turn; a claimed or unset zone gets its prep
+                        // from the selection block instead.
+                        if (current != $location[none]
+                            && get_property(pearlClaimed[current]) != "true")
+                            pearlZonePrep(current);
+                    }
                 }
             }
             if (!rundown && !farm)
@@ -2451,8 +2451,12 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                     abort("uts_runOutEagleBanish: out of adventures and no astral pilsner left to drink.");
             }
             // Rundown only; unconditional made the 90-turn farm ceiling unreachable.
-            if (rundown && spent >= 40)
-                abort("uts_runOutEagleBanish: the screech still isn't ready after 40 turns; something is wrong, bailing out.");
+            if (rundown && spent >= 40) {
+                reportRundownStalled("the screech still isn't ready after 40 turns", spent);
+                rundown = false;
+                if (!farm)
+                    break;
+            }
             if (current == $location[none] || get_property(pearlClaimed[current]) == "true") {
                 current = $location[none];
                 foreach loc in pearlZoneRes {
@@ -2487,6 +2491,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         }
         } finally {
             set_property("_utsPearlFarm", "false");
+            set_property("_utsScreechReaim", "false");
         }
         if (farm) {
             foreach loc in pearlZoneRes {
