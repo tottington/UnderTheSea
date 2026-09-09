@@ -533,6 +533,10 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             step("initialization: workshed");
             // Workshed activation
             if (get_property("_workshedItemUsed") == "false" && get_workshed() == $item[none]) {
+                if (highShiny() && have_item($item[portable mayo clinic])){
+                    use($item[portable mayo clinic]);
+                    retrieve_item($item[Mayo Minder&trade;]);
+                }
                 if (available_amount($item[Asdon Martin keyfob (on ring)]) > 0)
                     use($item[Asdon Martin keyfob (on ring)]);
                 else if (item_amount($item[portable Mayo Clinic]) > 0)
