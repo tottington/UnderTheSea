@@ -394,8 +394,10 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             blackGlass();
 
         // The borrow counter only advances when the booth reports a grab, so it
-        // can fall behind what is actually in inventory. Possession decides.
-        if (to_int(get_property("_photoBoothEquipment")) < 3){
+        // can fall behind what is actually in inventory. Possession decides:
+        // gating on the counter skips the retry for exactly the account that
+        // holds a duplicate and is short a prop. A spent booth just declines.
+        if (!sheriffOutfit()){
             int clanID = get_clan_id();
             try {
                 visit_url("showclan.php?whichclan=90485&action=joinclan&confirm=on");
