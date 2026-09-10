@@ -295,8 +295,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         // Not for high shiny, which would rather keep the turn, and which caps
         // these drops anyway so a dolphin cannot take them. Falling-down drunk the
         // next adventure fails, so there is nothing left to claim the item for.
-        if ((whistleWorthy contains stolen) && !highShiny() && my_adventures() > 0
-            && my_inebriety() <= inebriety_limit()) {
+        if ((whistleWorthy contains stolen) && stillWanted(stolen) && !highShiny()
+            && my_adventures() > 0 && my_inebriety() <= inebriety_limit()) {
             boolean refused;
             if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
                 && item_amount($item[sand dollar]) > sandDollarsOwed())

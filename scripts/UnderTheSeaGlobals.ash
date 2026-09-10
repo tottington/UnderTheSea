@@ -364,6 +364,26 @@ import <seedfinder/seedfinder.ash>;
         rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
         sea cowbell, sea lasso];
 
+    // How many of each the run wants. Absent means the need moves as the run
+    // goes, so it always counts as wanted.
+    int [item] whistleNeed = {
+        $item[rusty broken diving helmet]:   1,
+        $item[rusty porthole]:               1,
+        $item[rusty rivet]:                  8,
+        $item[Mer-kin prayerbeads]:          3,
+        $item[Mer-kin cheatsheet]:           9,
+        $item[Mer-kin bunwig]:               1,
+        $item[sea cowbell]:                  3,
+        $item[sea leather]:                  2
+    };
+
+    // available_amount counts what is worn, which prayerbeads are.
+    boolean stillWanted(item it) {
+        if (!(whistleNeed contains it))
+            return true;
+        return available_amount(it) < whistleNeed[it];
+    }
+
     // Charges cap at seaPoints, and one in Hagnk's is unusable in Ronin, so
     // possession is not readiness.
     boolean durableWhistleReady() {
