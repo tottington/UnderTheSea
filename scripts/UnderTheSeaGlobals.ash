@@ -357,17 +357,79 @@ import <seedfinder/seedfinder.ash>;
         return true;
     }
 
-    // A zone loop that waits on a drop has no natural bound, so a run whose
-    // item stack cannot beat the zone's penalty spends the day in it and says
-    // nothing. Speak up every ten turns past the mark; the loop still decides
-    // for itself when to stop. The zone is passed in because post_adv() can
-    // adventure elsewhere before this is reached.
-    void zoneStall(string waitingFor, location zone, int spent, int mark) {
+    // Items the run re-farms rather than does without, and so worth a turn to
+    // whistle back off a dolphin. Every one sits at a few percent behind a
+    // heavy zone penalty, which is more than the single turn the whistle fight
+    // costs at any item stack a Sea run reaches.
+    boolean [item] whistleWorthy = $items[Mer-kin prayerbeads, Mer-kin healscroll,
+        Mer-kin lockkey, Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig,
+        rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
+        sea cowbell, sea lasso];
+
+    // Holding the durable whistle is not the same as being able to blow it. Its
+    // charges run out at seaPoints, which is one per finished Sea run and two per
+    // hardcore one, so a second softcore pass has exactly one; and one sitting
+    // in Hagnk's cannot be used in Ronin, which have_item() would not tell
+    // apart from one in hand. Asked in one place so the buy and the use
+    // cannot disagree.
+    boolean durableWhistleReady() {
+        return item_amount($item[durable dolphin whistle]) > 0
+            && to_int(get_property("_durableDolphinWhistleUsed"))
+                < to_int(get_property("seaPoints"));
+    }
+
+    // The last theft reported on and the words used. dolphinItem stays set
+    // until a whistle blows, so the block is re-entered every turn until then;
+    // comparing the rendered reason means a retry stays quiet while any change
+    // -- a whistle arriving, dollars arriving, a refusal -- always becomes the
+    // standing word, without a flag per message.
+    item dolphinSaid;
+    string dolphinSaidWhy;
+
+    // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
+    // the damp old boot. Only the surplus buys whistles.
+    int sandDollarsOwed() {
+        int n;
+        if (available_amount($item[black glass]) == 0)
+            n += 13;
+        // Big Brother's own gate for the boot, so a boot already bought and
+        // spent does not keep 50 reserved. Tested against "true" rather than
+        // "false" so an unread preference reserves instead of releasing.
+        if (get_property("dampOldBootPurchased") != "true")
+            n += 50;
+        // Bootstraps smith into the teflon swim fins, which are one of the
+        // tailpieces the run will settle for.
+        if (tailpiece() == $item[none]
+            && available_amount($item[waterlogged bootstraps]) == 0)
+            n += 10;
+        return n;
+    }
+
+    // A zone loop that waits on a drop or a noncombat has no natural bound, so a
+    // run whose stack cannot beat the zone spends the day in it and says nothing.
+    // Speak up every ten turns past the mark; the loop still decides when to
+    // stop. Reports measurements rather than an estimate: what governs a wait
+    // here is the forced-noncombat counter, the combat rate and the item stack
+    // against the zone's penalty, and each of those is a fact. Call it while the
+    // loop's own gear is on: the modifiers read here are whatever is worn, and
+    // post_adv() can re-dress and adventure elsewhere before returning.
+    void zoneStall(string waitingFor, item gate, location zone, int spent, int mark) {
         if (spent < mark || (spent - mark) % 10 != 0)
             return;
+        string why;
+        if (gate == $item[none])
+            why = (turns_until_forced_noncombat(zone) < 0
+                    ? "no forced noncombat here"
+                    : "forced noncombat in " + turns_until_forced_noncombat(zone)
+                        + " turns")
+                + ", combat rate " + round(combat_rate_modifier()) + "%";
+        else
+            why = gate + " x" + item_amount(gate) + ", item "
+                + round(numeric_modifier("Item Drop")) + "% against this zone's "
+                + round(numeric_modifier("Loc:" + to_string(zone),
+                    "Item Drop Penalty")) + "%";
         print(spent + " turns in " + zone + " still waiting on " + waitingFor
-            + ". This zone carries a steep item penalty, so a thin item stack"
-            + " can leave a drop out of reach however long you farm it.", "red");
+            + " -- " + why + ".", "red");
     }
 
     string freeKill() {

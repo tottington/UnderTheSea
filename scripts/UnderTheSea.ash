@@ -289,18 +289,58 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             use_skill($skill[rest upside down]);
         }
 
-        // Whether a stolen item is worth a whistle does not depend on how shiny
-        // the account is, and lowShiny() excludes anyone holding one of its
-        // three items however little else they own. None of the per-phase
-        // whistle sites are gated that way either.
-        // Kept to these two: a whistle costs a turn as well as a charge, and
-        // the phase sites spend the rest on the item that phase actually wants.
-        if ((get_property("dolphinItem") == "Mer-kin prayerbeads"
-                || get_property("dolphinItem") == "rusty rivet")
-            && have_item($item[durable dolphin whistle])
-            && to_int(get_property("_durableDolphinWhistleUsed"))
-                < to_int(get_property("seaPoints")))
-            use($item[durable dolphin whistle]);
+        // A dolphin's buffer holds one item -- the next theft overwrites it --
+        // so the choice has to be made now, and everything worth whistling for
+        // costs more than the turn the whistle fight takes. What happened is
+        // rendered into one line and reported only when it differs from the last,
+        // so a retry stays quiet and any change becomes the standing word.
+        item stolen = to_item(get_property("dolphinItem"));
+        if ((whistleWorthy contains stolen) && my_adventures() > 0) {
+            // The disposable is refused while falling-down drunk; the durable is
+            // not, so only the disposable's paths ask about it. Buy with none in
+            // hand and no usable durable: one bought but not blown keeps.
+            boolean sober = my_inebriety() <= inebriety_limit();
+            boolean refused;
+            if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
+                && sober && item_amount($item[sand dollar]) > sandDollarsOwed())
+                refused = !buy($coinmaster[Big Brother], 1, $item[dolphin whistle]);
+            item whistle;
+            if (durableWhistleReady())
+                whistle = $item[durable dolphin whistle];
+            else if (sober && item_amount($item[dolphin whistle]) > 0)
+                whistle = $item[dolphin whistle];
+            // Captured to clear the error state, then not trusted: use() returns
+            // true having used nothing when a fight or choice is still open, and
+            // true as well when the thief fight is lost. Mafia empties the buffer
+            // on the fight redirect, so that is what says the whistle blew.
+            boolean ignored;
+            if (whistle != $item[none])
+                ignored = use(whistle);
+            boolean blew = get_property("dolphinItem") == "";
+            string why;
+            if (blew)
+                why = "blew the " + whistle;
+            else if (whistle != $item[none])
+                why = "the " + whistle + " would not blow";
+            else if (!sober)
+                why = "falling-down drunk, which the disposable whistle refuses";
+            else if (refused)
+                why = "Big Brother would not sell a whistle";
+            else
+                why = "no whistle, and " + item_amount($item[sand dollar])
+                    + " sand dollars against " + sandDollarsOwed() + " owed";
+            if (stolen != dolphinSaid || why != dolphinSaidWhy) {
+                step("a dolphin took " + stolen + "; " + why + ".");
+                dolphinSaid = stolen;
+                dolphinSaidWhy = why;
+            }
+            // The buffer is empty once the whistle has blown, so a later theft of
+            // the same item is a new event and has to report again.
+            if (blew) {
+                dolphinSaid = $item[none];
+                dolphinSaidWhy = "";
+            }
+        }
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
@@ -1889,10 +1929,10 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         tempEquipment("-combat,sea", "monodent of the sea,crappy Mer-kin tailpiece,crappy Mer-kin mask," + if_equip($item[blood cubic zirconia])
                             + bathysphere($item[toy cupid bow]) + if_equip($item[M&ouml;bius ring]) + conditional);
                         mood("-combat");
+                        zoneStall("the teacher's lounge noncombat", $item[none],
+                            $location[mer-kin elementary school], schoolTurns, 20);
                         adv($location[mer-kin elementary school]);
                         schoolTurns += 1;
-                        zoneStall("the teacher's lounge noncombat",
-                            $location[mer-kin elementary school], schoolTurns, 20);
                         put_closet(item_amount($item[mer-kin hallpass]),
                             $item[mer-kin hallpass]);
                         if ((available_amount($item[Mer-kin facecowl]) > 0 && available_amount($item[Mer-kin waistrope]) > 0))
@@ -1916,10 +1956,12 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         mood("itdrop");
                         tempEquipment("item drop,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + "monodent of the sea,"
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
+                        // The lounge that hands them over wants a hallpass, so the
+                        // pass is what the wait is really on.
+                        zoneStall("the scholar outfit pieces", $item[Mer-kin hallpass],
+                            $location[mer-kin elementary school], schoolTurns, 20);
                         adv($location[mer-kin elementary school]);
                         schoolTurns += 1;
-                        zoneStall("the scholar outfit pieces",
-                            $location[mer-kin elementary school], schoolTurns, 20);
                     }
                 }
 
