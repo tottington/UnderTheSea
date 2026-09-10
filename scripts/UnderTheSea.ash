@@ -289,16 +289,11 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             use_skill($skill[rest upside down]);
         }
 
-        // A dolphin's buffer holds one item -- the next theft overwrites it --
-        // so the choice has to be made now, and everything worth whistling for
-        // costs more than the turn the whistle fight takes. What happened is
-        // rendered into one line and reported only when it differs from the last,
-        // so a retry stays quiet and any change becomes the standing word.
+        // The buffer holds one item and the next theft overwrites it, so this
+        // has to act now.
         item stolen = to_item(get_property("dolphinItem"));
         if ((whistleWorthy contains stolen) && my_adventures() > 0) {
-            // The disposable is refused while falling-down drunk; the durable is
-            // not, so only the disposable's paths ask about it. Buy with none in
-            // hand and no usable durable: one bought but not blown keeps.
+            // Only the disposable is refused while falling-down drunk.
             boolean sober = my_inebriety() <= inebriety_limit();
             boolean refused;
             if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
@@ -309,10 +304,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 whistle = $item[durable dolphin whistle];
             else if (sober && item_amount($item[dolphin whistle]) > 0)
                 whistle = $item[dolphin whistle];
-            // Captured to clear the error state, then not trusted: use() returns
-            // true having used nothing when a fight or choice is still open, and
-            // true as well when the thief fight is lost. Mafia empties the buffer
-            // on the fight redirect, so that is what says the whistle blew.
+            // use() returns true having used nothing mid-fight, and true on a lost
+            // thief fight, so the emptied buffer is what says the whistle blew.
             boolean ignored;
             if (whistle != $item[none])
                 ignored = use(whistle);
@@ -334,8 +327,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 dolphinSaid = stolen;
                 dolphinSaidWhy = why;
             }
-            // The buffer is empty once the whistle has blown, so a later theft of
-            // the same item is a new event and has to report again.
+            // A later theft of the same item is a new event.
             if (blew) {
                 dolphinSaid = $item[none];
                 dolphinSaidWhy = "";
@@ -1944,10 +1936,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         farmPrayerbeads();
                     cli_execute("uneffect the sonata of sneakiness");
                     while (available_amount($item[Mer-kin facecowl]) == 0 || available_amount($item[Mer-kin waistrope]) == 0){
-                        // The pieces come from the teacher's lounge, which wants a
-                        // hallpass to open. Waiting until one piece is already in
-                        // hand farms a 5% drop under the zone's -150% item penalty
-                        // for the pass that would have opened it in the first place.
+                        // Waiting for a piece first farms a 5% drop under -150% for
+                        // the pass that opens the lounge they come from.
                         if (available_amount($item[mer-kin hallpass]) == 0
                             && pulls_remaining( ) > reservedPulls())
                             pullSequence($item[mer-kin hallpass]);
@@ -1956,8 +1946,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         mood("itdrop");
                         tempEquipment("item drop,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + "monodent of the sea,"
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
-                        // The lounge that hands them over wants a hallpass, so the
-                        // pass is what the wait is really on.
+                        // The lounge wants a hallpass, so that is the real gate.
                         zoneStall("the scholar outfit pieces", $item[Mer-kin hallpass],
                             $location[mer-kin elementary school], schoolTurns, 20);
                         adv($location[mer-kin elementary school]);
