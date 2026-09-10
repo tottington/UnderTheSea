@@ -292,9 +292,10 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         // The buffer holds one item and the next theft overwrites it, so this
         // has to act now.
         item stolen = to_item(get_property("dolphinItem"));
-        // Falling-down drunk means the next adventure fails anyway, so there is
-        // nothing left to recover the item for.
-        if ((whistleWorthy contains stolen) && my_adventures() > 0
+        // Not for high shiny, which forces the drops it needs and would rather
+        // keep the turn. Falling-down drunk the next adventure fails anyway, so
+        // there is nothing left to recover the item for.
+        if ((whistleWorthy contains stolen) && !highShiny() && my_adventures() > 0
             && my_inebriety() <= inebriety_limit()) {
             boolean refused;
             if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
