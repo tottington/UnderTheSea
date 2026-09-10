@@ -290,50 +290,41 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         }
 
         // A dolphin's buffer holds one item -- the next theft overwrites it --
-        // so the choice has to be made now. Everything below is a few percent
-        // behind a heavy zone penalty, so replacing one always costs more than
-        // the single turn the whistle fight takes. The estimate is reported
-        // rather than tested: there is no stack at which farming wins.
-        // A dolphin's buffer holds one item -- the next theft overwrites it --
-        // so the choice has to be made now. Everything in farmedIn sits a few
-        // percent behind a heavy zone penalty, so replacing one always costs
-        // more than the single turn the whistle fight takes. No turn estimate is
-        // printed here: the gear worn when the theft happens is not the gear the
-        // run would farm in, so a figure taken now would contradict the one the
-        // farm loop reports for the same item.
+        // so the choice has to be made now, and everything worth whistling for
+        // costs more than a turn to farm again. Reports are gated on the item so
+        // a retry does not speak every turn.
         item stolen = to_item(get_property("dolphinItem"));
-        if (stolen != $item[none] && (farmedIn contains stolen)
-            && my_adventures() > 0 && my_inebriety() <= inebriety_limit()) {
+        if ((whistleWorthy contains stolen) && my_adventures() > 0
+            && my_inebriety() <= inebriety_limit()) {
             // Buy only with none in hand and no usable durable. One bought but
             // not blown keeps for the next turn, and what changes between turns
             // is whether one can be afforded -- so this retries, quietly.
             if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
                 && item_amount($item[sand dollar]) > sandDollarsOwed()
-                && !buy($coinmaster[Big Brother], 1, $item[dolphin whistle]))
+                && !buy($coinmaster[Big Brother], 1, $item[dolphin whistle])
+                && stolen != dolphinSaid)
                 step("Big Brother would not sell a dolphin whistle.");
             item whistle;
             if (durableWhistleReady())
                 whistle = $item[durable dolphin whistle];
             else if (item_amount($item[dolphin whistle]) > 0)
                 whistle = $item[dolphin whistle];
-            if (stolen != dolphinSaid) {
-                step("a dolphin took " + stolen + "; "
-                    + (whistle == $item[none]
-                        ? "no whistle and " + item_amount($item[sand dollar])
-                            + " sand dollars against " + sandDollarsOwed()
-                            + " owed, so leaving it"
-                        : "blowing the " + whistle) + ".");
-                dolphinSaid = stolen;
-            }
-            if (whistle != $item[none]) {
-                // Cleared on success so a later theft of the same item is
-                // reported again rather than handled silently.
-                if (use(whistle))
-                    dolphinSaid = $item[none];
+            // Speak when the item changes, and again when a turn that had given
+            // up can now act, so "leaving it" is never the last word on an item
+            // that was recovered.
+            if (stolen != dolphinSaid
+                || (whistle != $item[none] && !dolphinSaidBlowing)) {
+                if (whistle == $item[none])
+                    step("a dolphin took " + stolen + "; no whistle and "
+                        + item_amount($item[sand dollar]) + " sand dollars against "
+                        + sandDollarsOwed() + " owed, so leaving it.");
                 else
-                    step("the " + whistle + " would not blow; leaving the "
-                        + stolen + ".");
+                    step("a dolphin took " + stolen + "; blowing the " + whistle + ".");
+                dolphinSaid = stolen;
+                dolphinSaidBlowing = whistle != $item[none];
             }
+            if (whistle != $item[none] && !use(whistle))
+                step("the " + whistle + " would not blow; leaving the " + stolen + ".");
         }
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{

@@ -348,96 +348,32 @@ import <seedfinder/seedfinder.ash>;
             ? castMathFloor : castMathFloor + 1);
     }
 
-    // What one more of a drop costs in turns here, for this account. The
-    // zone's item penalty and the account's item stack both feed in, so the
-    // same item is a few turns to one player and out of reach to another.
-    // -1 means nothing there can drop it at this item stack; -2 means mafia
-    // lists no such drop in the zone at all, which is a different thing to
-    // report. Pickpocket-only and unrated drops are not farmable by killing;
-    // a fixed drop ignores the item stack.
-    float turnsToFarm(item it, location zone) {
-        // The costed zone's own penalty plus the item drop being carried.
-        // item_drop_modifier() is not used because it folds in the penalty of
-        // wherever the character stands, and that cannot be subtracted back
-        // out reliably: my_location() reads nextAdventure, which using an
-        // adventure-costing item clears, while the modifiers keep the zone.
-        // Gear that offsets an underwater penalty and a location-scoped item
-        // bonus are both left in, so this is close rather than exact.
-        float stack = numeric_modifier("Item Drop")
-            + numeric_modifier("Loc:" + to_string(zone), "Item Drop Penalty");
-        float perTurn;
-        boolean listed;
-        foreach mob, freq in appearance_rates(zone) {
-            if (mob == $monster[none] || freq <= 0)
-                continue;
-            foreach idx, d in item_drops_array(mob) {
-                if (d.drop != it || d.rate <= 0 || d.type == "p" || d.type == "0")
-                    continue;
-                listed = true;
-                float chance = d.type == "f"
-                    ? to_float(d.rate)
-                    : to_float(d.rate) * (1.0 + stack / 100.0);
-                if (chance > 100.0)
-                    chance = 100.0;
-                if (chance <= 0)
-                    continue;
-                perTurn += (freq / 100.0) * (chance / 100.0);
-            }
-        }
-        if (!listed)
-            return -2.0;
-        if (perTurn <= 0)
-            return -1.0;
-        return 1.0 / perTurn;
-    }
+    // Items the run re-farms rather than does without, and so worth a turn to
+    // whistle back off a dolphin. Every one sits at a few percent behind a
+    // heavy zone penalty, which is more than the single turn the whistle fight
+    // costs at any item stack a Sea run reaches.
+    boolean [item] whistleWorthy = $items[Mer-kin prayerbeads, Mer-kin healscroll,
+        Mer-kin lockkey, Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig,
+        rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
+        sea cowbell, sea lasso];
 
-    // Says the estimate in words, so a log line exists whether or not what
-    // follows works.
-    string farmCost(item it, location zone) {
-        // Both inputs are named so a wrong answer is legible: a zone penalty
-        // reading 0% for a Sea zone means the Loc lookup missed.
-        string where = zone + " (item " + round(numeric_modifier("Item Drop"))
-            + "%, zone " + round(numeric_modifier("Loc:" + to_string(zone),
-                "Item Drop Penalty")) + "%)";
-        float cost = turnsToFarm(it, zone);
-        if (cost == -2.0)
-            return "mafia lists no " + it + " drop in " + where;
-        if (cost < 0)
-            return it + " cannot drop in " + where;
-        return it + " is about " + round(cost) + " turns each in " + where;
-    }
-
-    // Where the run would go to replace one of these. The zone a theft
-    // happened in is not always the one the item is farmed in.
-    location [item] farmedIn = {
-        $item[Mer-kin prayerbeads]:          $location[The Mer-Kin Outpost],
-        $item[Mer-kin healscroll]:           $location[The Mer-Kin Outpost],
-        $item[Mer-kin lockkey]:              $location[The Mer-Kin Outpost],
-        $item[Mer-kin hallpass]:             $location[Mer-kin Elementary School],
-        $item[Mer-kin cheatsheet]:           $location[Mer-kin Elementary School],
-        $item[Mer-kin bunwig]:               $location[Mer-kin Elementary School],
-        $item[rusty rivet]:                  $location[The Wreck of the Edgar Fitzsimmons],
-        $item[rusty porthole]:               $location[The Wreck of the Edgar Fitzsimmons],
-        $item[rusty broken diving helmet]:   $location[The Wreck of the Edgar Fitzsimmons],
-        $item[sea leather]:                  $location[The Coral Corral],
-        $item[sea cowbell]:                  $location[The Coral Corral],
-        $item[sea lasso]:                    $location[The Coral Corral]
-    };
-
-    // Holding the durable whistle is not the same as being able to blow it: its
+    // Holding the durable whistle is not the same as being able to blow it. Its
     // charges run out at seaPoints, which counts finished Sea runs and so is one
-    // on a second softcore pass. Asked in one place so the buy and the use
-    // cannot disagree about it.
+    // on a second softcore pass; and one sitting in Hagnk's cannot be used in
+    // Ronin, which have_item() would not tell apart from one in hand. Asked in
+    // one place so the buy and the use cannot disagree.
     boolean durableWhistleReady() {
-        return have_item($item[durable dolphin whistle])
+        return item_amount($item[durable dolphin whistle]) > 0
             && to_int(get_property("_durableDolphinWhistleUsed"))
                 < to_int(get_property("seaPoints"));
     }
 
-    // The last theft reported on. dolphinItem stays set until a whistle blows,
-    // so the block is re-entered every turn until one does; this keeps the
-    // retrying without also saying so every turn.
+    // The last theft reported on, and whether that report said a whistle was
+    // going to blow. dolphinItem stays set until one does, so the block is
+    // re-entered every turn until then: these keep it from saying so every turn
+    // while still letting a giving-up report be corrected if a whistle arrives.
     item dolphinSaid;
+    boolean dolphinSaidBlowing;
 
     // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
     // the damp old boot. Only the surplus buys whistles.
@@ -452,21 +388,27 @@ import <seedfinder/seedfinder.ash>;
         return n;
     }
 
-    // A zone loop that waits on a drop has no natural bound, so a run whose
-    // item stack cannot beat the zone's penalty spends the day in it and says
-    // nothing. Speak up every ten turns past the mark; the loop still decides
-    // for itself when to stop. The zone is passed in because post_adv() can
-    // adventure elsewhere before this is reached.
+    // A zone loop that waits on a drop or a noncombat has no natural bound, so a
+    // run whose stack cannot beat the zone spends the day in it and says nothing.
+    // Speak up every ten turns past the mark; the loop still decides when to
+    // stop. Reports measurements rather than an estimate: what governs a wait
+    // here is the forced-noncombat counter, the combat rate and the item stack
+    // against the zone's penalty, and each of those is a fact. The zone is
+    // passed in because post_adv() can adventure elsewhere before this runs.
     void zoneStall(string waitingFor, item gate, location zone, int spent, int mark) {
         if (spent < mark || (spent - mark) % 10 != 0)
             return;
+        string why;
         if (gate == $item[none])
-            print(spent + " turns in " + zone + " still waiting on " + waitingFor
-                + ". Noncombats are " + round(appearance_rates(zone)[$monster[none]])
-                + "% of visits here at the current -combat.", "red");
+            why = "forced noncombat in " + turns_until_forced_noncombat(zone)
+                + " turns, combat rate " + round(combat_rate_modifier()) + "%";
         else
-            print(spent + " turns in " + zone + " still waiting on " + waitingFor
-                + " -- " + farmCost(gate, zone) + ".", "red");
+            why = gate + " x" + item_amount(gate) + ", item "
+                + round(numeric_modifier("Item Drop")) + "% against this zone's "
+                + round(numeric_modifier("Loc:" + to_string(zone),
+                    "Item Drop Penalty")) + "%";
+        print(spent + " turns in " + zone + " still waiting on " + waitingFor
+            + " -- " + why + ".", "red");
     }
 
     string freeKill() {
