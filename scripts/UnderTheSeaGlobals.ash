@@ -357,7 +357,8 @@ import <seedfinder/seedfinder.ash>;
         return true;
     }
 
-    // Quest items worth a turn to whistle back rather than farm again.
+    // Quest items worth a turn to claim off a dolphin. A theft is a drop that
+    // missed, so the whistle is a second chance, not damage control.
     boolean [item] whistleWorthy = $items[Mer-kin prayerbeads, Mer-kin healscroll,
         Mer-kin lockkey, Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig,
         rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
