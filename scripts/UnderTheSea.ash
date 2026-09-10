@@ -309,14 +309,21 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 whistle = $item[durable dolphin whistle];
             else if (sober && item_amount($item[dolphin whistle]) > 0)
                 whistle = $item[dolphin whistle];
-            boolean blown;
+            // Captured to clear the error state, then not trusted: use() returns
+            // true having used nothing when a fight or choice is still open, and
+            // true as well when the thief fight is lost. Mafia empties the buffer
+            // on the fight redirect, so that is what says the whistle blew.
+            boolean ignored;
             if (whistle != $item[none])
-                blown = use(whistle);
+                ignored = use(whistle);
+            boolean blew = get_property("dolphinItem") == "";
             string why;
-            if (blown)
+            if (blew)
                 why = "blew the " + whistle;
             else if (whistle != $item[none])
                 why = "the " + whistle + " would not blow";
+            else if (!sober)
+                why = "falling-down drunk, which the disposable whistle refuses";
             else if (refused)
                 why = "Big Brother would not sell a whistle";
             else
@@ -327,9 +334,9 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 dolphinSaid = stolen;
                 dolphinSaidWhy = why;
             }
-            // A blown whistle clears dolphinItem, so a later theft of the same
-            // item is a new event and has to report again.
-            if (blown) {
+            // The buffer is empty once the whistle has blown, so a later theft of
+            // the same item is a new event and has to report again.
+            if (blew) {
                 dolphinSaid = $item[none];
                 dolphinSaidWhy = "";
             }

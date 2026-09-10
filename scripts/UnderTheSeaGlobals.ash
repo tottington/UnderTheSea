@@ -358,8 +358,9 @@ import <seedfinder/seedfinder.ash>;
         sea cowbell, sea lasso];
 
     // Holding the durable whistle is not the same as being able to blow it. Its
-    // charges run out at seaPoints, which counts finished Sea runs and so is one
-    // on a second softcore pass; and one sitting in Hagnk's cannot be used in
+    // charges run out at seaPoints, which is one per finished Sea run and two per
+    // hardcore one, so a second softcore pass has exactly one; and one sitting in
+    // Hagnk's cannot be used in
     // Ronin, which have_item() would not tell apart from one in hand. Asked in
     // one place so the buy and the use cannot disagree.
     boolean durableWhistleReady() {
@@ -383,9 +384,15 @@ import <seedfinder/seedfinder.ash>;
         if (available_amount($item[black glass]) == 0)
             n += 13;
         // Big Brother's own gate for the boot, so a boot already bought and
-        // spent does not keep 50 reserved for the rest of the run.
-        if (get_property("dampOldBootPurchased") == "false")
+        // spent does not keep 50 reserved. Tested against "true" rather than
+        // "false" so an unread preference reserves instead of releasing.
+        if (get_property("dampOldBootPurchased") != "true")
             n += 50;
+        // Bootstraps smith into the teflon swim fins, which are one of the
+        // tailpieces the run will settle for.
+        if (tailpiece() == $item[none]
+            && available_amount($item[waterlogged bootstraps]) == 0)
+            n += 10;
         return n;
     }
 
@@ -402,8 +409,11 @@ import <seedfinder/seedfinder.ash>;
             return;
         string why;
         if (gate == $item[none])
-            why = "forced noncombat in " + turns_until_forced_noncombat(zone)
-                + " turns, combat rate " + round(combat_rate_modifier()) + "%";
+            why = (turns_until_forced_noncombat(zone) < 0
+                    ? "no forced noncombat here"
+                    : "forced noncombat in " + turns_until_forced_noncombat(zone)
+                        + " turns")
+                + ", combat rate " + round(combat_rate_modifier()) + "%";
         else
             why = gate + " x" + item_amount(gate) + ", item "
                 + round(numeric_modifier("Item Drop")) + "% against this zone's "
