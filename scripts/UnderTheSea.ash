@@ -292,17 +292,18 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         // The buffer holds one item and the next theft overwrites it, so this
         // has to act now.
         item stolen = to_item(get_property("dolphinItem"));
-        if ((whistleWorthy contains stolen) && my_adventures() > 0) {
-            // Only the disposable is refused while falling-down drunk.
-            boolean sober = my_inebriety() <= inebriety_limit();
+        // Falling-down drunk means the next adventure fails anyway, so there is
+        // nothing left to recover the item for.
+        if ((whistleWorthy contains stolen) && my_adventures() > 0
+            && my_inebriety() <= inebriety_limit()) {
             boolean refused;
             if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
-                && sober && item_amount($item[sand dollar]) > sandDollarsOwed())
+                && item_amount($item[sand dollar]) > sandDollarsOwed())
                 refused = !buy($coinmaster[Big Brother], 1, $item[dolphin whistle]);
             item whistle;
             if (durableWhistleReady())
                 whistle = $item[durable dolphin whistle];
-            else if (sober && item_amount($item[dolphin whistle]) > 0)
+            else if (item_amount($item[dolphin whistle]) > 0)
                 whistle = $item[dolphin whistle];
             // use() returns true having used nothing mid-fight, and true on a lost
             // thief fight, so the emptied buffer is what says the whistle blew.
@@ -315,8 +316,6 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                 why = "blew the " + whistle;
             else if (whistle != $item[none])
                 why = "the " + whistle + " would not blow";
-            else if (!sober)
-                why = "falling-down drunk, which the disposable whistle refuses";
             else if (refused)
                 why = "Big Brother would not sell a whistle";
             else
