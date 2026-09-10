@@ -351,19 +351,28 @@ import <seedfinder/seedfinder.ash>;
     // What one more of a drop costs in turns here, for this account. The
     // zone's item penalty and the account's item stack both feed in, so the
     // same item is a few turns to one player and out of reach to another.
-    // Negative means it cannot land at all, which is the answer worth acting
-    // on. Pickpocket-only and unrated drops are not farmable by killing and
-    // count as out of reach; a fixed drop ignores the item stack.
+    // -1 means nothing there can drop it at this item stack; -2 means mafia
+    // lists no such drop in the zone at all, which is a different thing to
+    // report. Pickpocket-only and unrated drops are not farmable by killing;
+    // a fixed drop ignores the item stack.
     float turnsToFarm(item it, location zone) {
-        float stack = item_drop_modifier()
-            + numeric_modifier("Loc:" + to_string(zone), "Item Drop Penalty");
+        // item_drop_modifier() already carries the Loc penalty for wherever
+        // the character is standing, so swap that for the zone being costed
+        // rather than adding a second copy of it. The clamp mirrors how mafia
+        // composes the two, so penalty-offset gear counts once.
+        float stack = numeric_modifier("Item Drop")
+            + min(0.0, numeric_modifier("Item Drop Penalty")
+                - numeric_modifier("Loc:" + to_string(my_location()), "Item Drop Penalty")
+                + numeric_modifier("Loc:" + to_string(zone), "Item Drop Penalty"));
         float perTurn;
+        boolean listed;
         foreach mob, freq in appearance_rates(zone) {
             if (mob == $monster[none] || freq <= 0)
                 continue;
             foreach idx, d in item_drops_array(mob) {
                 if (d.drop != it || d.rate <= 0 || d.type == "p" || d.type == "0")
                     continue;
+                listed = true;
                 float chance = d.type == "f"
                     ? to_float(d.rate)
                     : to_float(d.rate) * (1.0 + stack / 100.0);
@@ -374,6 +383,8 @@ import <seedfinder/seedfinder.ash>;
                 perTurn += (freq / 100.0) * (chance / 100.0);
             }
         }
+        if (!listed)
+            return -2.0;
         if (perTurn <= 0)
             return -1.0;
         return 1.0 / perTurn;
@@ -383,11 +394,17 @@ import <seedfinder/seedfinder.ash>;
     // follows works.
     string farmCost(item it, location zone) {
         // Both inputs are named so a wrong answer is legible: a zone penalty
-        // reading 0% for a Sea zone means the Loc lookup missed.
-        string where = zone + " (item " + round(item_drop_modifier())
+        // reading 0% for a Sea zone means the Loc lookup missed. A zone whose
+        // combat rate mafia does not know is flagged too, because the estimate
+        // then leaves out the noncombat share and reads low.
+        string where = zone + " (item " + round(numeric_modifier("Item Drop"))
             + "%, zone " + round(numeric_modifier("Loc:" + to_string(zone),
                 "Item Drop Penalty")) + "%)";
+        if (appearance_rates(zone)[$monster[none]] < 0)
+            where += ", combat rate unknown so this reads low";
         float cost = turnsToFarm(it, zone);
+        if (cost == -2.0)
+            return "mafia lists no " + it + " drop in " + where;
         if (cost < 0)
             return it + " cannot drop in " + where;
         return it + " is about " + round(cost) + " turns each in " + where;
@@ -410,14 +427,20 @@ import <seedfinder/seedfinder.ash>;
         $item[sea lasso]:                    $location[The Coral Corral]
     };
 
+    // Set when a whistle could not be had for a stolen item, so the attempt is
+    // not repeated on every following turn: the preference stays set until a
+    // whistle actually blows.
+    item dolphinGaveUp;
+
     // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
     // the damp old boot. Only the surplus buys whistles.
     int sandDollarsOwed() {
         int n;
         if (available_amount($item[black glass]) == 0)
             n += 13;
-        if (available_amount($item[damp old boot]) == 0
-            && get_property("questS01OldGuy") == "started")
+        // Big Brother's own gate for the boot, so a boot already bought and
+        // spent does not keep 50 reserved for the rest of the run.
+        if (get_property("dampOldBootPurchased") == "false")
             n += 50;
         return n;
     }
