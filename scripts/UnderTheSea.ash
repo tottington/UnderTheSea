@@ -289,9 +289,14 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             use_skill($skill[rest upside down]);
         }
 
-        if ((get_property("dolphinItem") == "Mer-kin prayerbeads" || get_property("dolphinItem") == "rusty rivet") && 
-            have_item($item[durable dolphin whistle]) && lowShiny())
-            use($item[durable dolphin whistle]);
+        // Whether a stolen quest item is worth a whistle does not depend on how
+        // shiny the account is, and lowShiny() excludes anyone holding one of
+        // its three items however little else they own.
+        if (dolphinRecover contains to_item(get_property("dolphinItem"))
+            && have_item($item[durable dolphin whistle])
+            && !use($item[durable dolphin whistle]))
+            print("The dolphin kept the " + get_property("dolphinItem")
+                + "; the whistle wouldn't blow.", "blue");
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
@@ -1869,6 +1874,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         }
                     }
                 } else if (available_amount($item[mer-kin dreadscroll]) == 0 && available_amount($item[Mer-kin scholar tailpiece]) == 0){
+                    // Both loops below feed on the same zone, so they share a count.
+                    int schoolTurns;
                     while (get_property("merkinElementaryTeacherUnlock") == "false") {
                         put_closet(item_amount($item[mer-kin hallpass]), $item[mer-kin hallpass]);
                         string conditional;
@@ -1879,6 +1886,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                             + bathysphere($item[toy cupid bow]) + if_equip($item[M&ouml;bius ring]) + conditional);
                         mood("-combat");
                         adv($location[mer-kin elementary school]);
+                        schoolTurns += 1;
+                        zoneStall("the teacher's lounge noncombat", schoolTurns, 20);
                         put_closet(item_amount($item[mer-kin hallpass]),
                             $item[mer-kin hallpass]);
                         if ((available_amount($item[Mer-kin facecowl]) > 0 && available_amount($item[Mer-kin waistrope]) > 0))
@@ -1898,6 +1907,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         tempEquipment("item drop,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + "monodent of the sea,"
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
                         adv($location[mer-kin elementary school]);
+                        schoolTurns += 1;
+                        zoneStall("the scholar outfit pieces", schoolTurns, 20);
                     }
                 }
 
