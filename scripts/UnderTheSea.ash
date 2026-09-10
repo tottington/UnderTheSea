@@ -289,14 +289,18 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             use_skill($skill[rest upside down]);
         }
 
-        // Whether a stolen quest item is worth a whistle does not depend on how
-        // shiny the account is, and lowShiny() excludes anyone holding one of
-        // its three items however little else they own.
-        if (dolphinRecover contains to_item(get_property("dolphinItem"))
+        // Whether a stolen item is worth a whistle does not depend on how shiny
+        // the account is, and lowShiny() excludes anyone holding one of its
+        // three items however little else they own. None of the per-phase
+        // whistle sites are gated that way either.
+        // Kept to these two: a whistle costs a turn as well as a charge, and
+        // the phase sites spend the rest on the item that phase actually wants.
+        if ((get_property("dolphinItem") == "Mer-kin prayerbeads"
+                || get_property("dolphinItem") == "rusty rivet")
             && have_item($item[durable dolphin whistle])
-            && !use($item[durable dolphin whistle]))
-            print("The dolphin kept the " + get_property("dolphinItem")
-                + "; the whistle wouldn't blow.", "blue");
+            && to_int(get_property("_durableDolphinWhistleUsed"))
+                < to_int(get_property("seaPoints")))
+            use($item[durable dolphin whistle]);
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
@@ -1887,7 +1891,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         mood("-combat");
                         adv($location[mer-kin elementary school]);
                         schoolTurns += 1;
-                        zoneStall("the teacher's lounge noncombat", schoolTurns, 20);
+                        zoneStall("the teacher's lounge noncombat",
+                            $location[mer-kin elementary school], schoolTurns, 20);
                         put_closet(item_amount($item[mer-kin hallpass]),
                             $item[mer-kin hallpass]);
                         if ((available_amount($item[Mer-kin facecowl]) > 0 && available_amount($item[Mer-kin waistrope]) > 0))
@@ -1899,7 +1904,12 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         farmPrayerbeads();
                     cli_execute("uneffect the sonata of sneakiness");
                     while (available_amount($item[Mer-kin facecowl]) == 0 || available_amount($item[Mer-kin waistrope]) == 0){
-                        if ((available_amount($item[Mer-kin facecowl]) == 1 || available_amount($item[Mer-kin waistrope]) == 1) && available_amount($item[mer-kin hallpass]) == 0 && pulls_remaining( ) > reservedPulls())
+                        // The pieces come from the teacher's lounge, which wants a
+                        // hallpass to open. Waiting until one piece is already in
+                        // hand farms a 5% drop under the zone's -150% item penalty
+                        // for the pass that would have opened it in the first place.
+                        if (available_amount($item[mer-kin hallpass]) == 0
+                            && pulls_remaining( ) > reservedPulls())
                             pullSequence($item[mer-kin hallpass]);
                         use_familiar("itdrop");
                         mood("combat");
@@ -1908,7 +1918,8 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
                         adv($location[mer-kin elementary school]);
                         schoolTurns += 1;
-                        zoneStall("the scholar outfit pieces", schoolTurns, 20);
+                        zoneStall("the scholar outfit pieces",
+                            $location[mer-kin elementary school], schoolTurns, 20);
                     }
                 }
 

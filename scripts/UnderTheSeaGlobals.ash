@@ -357,25 +357,18 @@ import <seedfinder/seedfinder.ash>;
         return true;
     }
 
-    // A zone loop that waits on a drop or a noncombat has no natural bound, so
-    // a run whose item or noncombat stack is too thin for the zone's penalty
-    // spends the day in it and says nothing. Speak up every ten turns past the
-    // mark; the loop still decides for itself when to stop.
-    void zoneStall(string waitingFor, int spent, int mark) {
+    // A zone loop that waits on a drop has no natural bound, so a run whose
+    // item stack cannot beat the zone's penalty spends the day in it and says
+    // nothing. Speak up every ten turns past the mark; the loop still decides
+    // for itself when to stop. The zone is passed in because post_adv() can
+    // adventure elsewhere before this is reached.
+    void zoneStall(string waitingFor, location zone, int spent, int mark) {
         if (spent < mark || (spent - mark) % 10 != 0)
             return;
-        print("Still waiting on " + waitingFor + " after " + spent
-            + " turns in " + my_location() + ". This zone's drop and noncombat"
-            + " penalties are steep -- check what the run is bringing.", "red");
+        print(spent + " turns in " + zone + " still waiting on " + waitingFor
+            + ". This zone carries a steep item penalty, so a thin item stack"
+            + " can leave a drop out of reach however long you farm it.", "red");
     }
-
-    // Worth a whistle: what the run re-farms rather than does without. The
-    // whistle is reusable, capped per day at seaPoints, so a spent one just
-    // declines.
-    boolean [item] dolphinRecover = $items[Mer-kin prayerbeads, rusty rivet,
-        rusty porthole, rusty broken diving helmet, Mer-kin healscroll,
-        Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig, Mer-kin lockkey,
-        Mer-kin sneakmask, sea leather, sea cowbell, teflon ore];
 
     string freeKill() {
         if (have_effect($effect[everything looks red]) == 0 && available_amount($item[everfull dart holster]) > 0)
