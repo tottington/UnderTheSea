@@ -356,14 +356,15 @@ import <seedfinder/seedfinder.ash>;
     // report. Pickpocket-only and unrated drops are not farmable by killing;
     // a fixed drop ignores the item stack.
     float turnsToFarm(item it, location zone) {
-        // item_drop_modifier() already carries the Loc penalty for wherever
-        // the character is standing, so swap that for the zone being costed
-        // rather than adding a second copy of it. The clamp mirrors how mafia
-        // composes the two, so penalty-offset gear counts once.
+        // The costed zone's own penalty plus the item drop being carried.
+        // item_drop_modifier() is not used because it folds in the penalty of
+        // wherever the character stands, and that cannot be subtracted back
+        // out reliably: my_location() reads nextAdventure, which using an
+        // adventure-costing item clears, while the modifiers keep the zone.
+        // Gear that offsets an underwater penalty and a location-scoped item
+        // bonus are both left in, so this is close rather than exact.
         float stack = numeric_modifier("Item Drop")
-            + min(0.0, numeric_modifier("Item Drop Penalty")
-                - numeric_modifier("Loc:" + to_string(my_location()), "Item Drop Penalty")
-                + numeric_modifier("Loc:" + to_string(zone), "Item Drop Penalty"));
+            + numeric_modifier("Loc:" + to_string(zone), "Item Drop Penalty");
         float perTurn;
         boolean listed;
         foreach mob, freq in appearance_rates(zone) {
@@ -394,14 +395,10 @@ import <seedfinder/seedfinder.ash>;
     // follows works.
     string farmCost(item it, location zone) {
         // Both inputs are named so a wrong answer is legible: a zone penalty
-        // reading 0% for a Sea zone means the Loc lookup missed. A zone whose
-        // combat rate mafia does not know is flagged too, because the estimate
-        // then leaves out the noncombat share and reads low.
+        // reading 0% for a Sea zone means the Loc lookup missed.
         string where = zone + " (item " + round(numeric_modifier("Item Drop"))
             + "%, zone " + round(numeric_modifier("Loc:" + to_string(zone),
                 "Item Drop Penalty")) + "%)";
-        if (appearance_rates(zone)[$monster[none]] < 0)
-            where += ", combat rate unknown so this reads low";
         float cost = turnsToFarm(it, zone);
         if (cost == -2.0)
             return "mafia lists no " + it + " drop in " + where;
@@ -427,10 +424,10 @@ import <seedfinder/seedfinder.ash>;
         $item[sea lasso]:                    $location[The Coral Corral]
     };
 
-    // Set when a whistle could not be had for a stolen item, so the attempt is
-    // not repeated on every following turn: the preference stays set until a
-    // whistle actually blows.
-    item dolphinGaveUp;
+    // The last theft reported on. dolphinItem stays set until a whistle blows,
+    // so the block is re-entered every turn until one does; this keeps the
+    // retrying without also saying so every turn.
+    item dolphinSaid;
 
     // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
     // the damp old boot. Only the surplus buys whistles.

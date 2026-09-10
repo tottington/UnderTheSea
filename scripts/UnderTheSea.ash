@@ -296,30 +296,28 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         // rather than tested: there is no stack at which farming wins.
         item stolen = to_item(get_property("dolphinItem"));
         if (stolen != $item[none] && (farmedIn contains stolen)
-            && stolen != dolphinGaveUp) {
-            step("a dolphin took " + stolen + "; "
-                + farmCost(stolen, farmedIn[stolen]) + ".");
+            && my_adventures() > 0) {
+            if (stolen != dolphinSaid) {
+                step("a dolphin took " + stolen + "; "
+                    + farmCost(stolen, farmedIn[stolen]) + ".");
+                dolphinSaid = stolen;
+            }
+            // Buy only with none in hand. A whistle bought but not blown keeps
+            // for the next turn, and what changes between turns is whether one
+            // can be afforded at all -- so this retries rather than giving up.
+            if (item_amount($item[dolphin whistle]) == 0
+                && !have_item($item[durable dolphin whistle])
+                && item_amount($item[sand dollar]) > sandDollarsOwed()
+                && !buy($coinmaster[Big Brother], 1, $item[dolphin whistle]))
+                step("Big Brother would not sell a dolphin whistle.");
             if (have_item($item[durable dolphin whistle])
                 && to_int(get_property("_durableDolphinWhistleUsed"))
                     < to_int(get_property("seaPoints"))) {
-                if (!use($item[durable dolphin whistle])) {
-                    step("the durable whistle would not blow; leaving the " + stolen + ".");
-                    dolphinGaveUp = stolen;
-                }
-            } else if (item_amount($item[sand dollar]) > sandDollarsOwed()) {
-                if (!buy($coinmaster[Big Brother], 1, $item[dolphin whistle])) {
-                    step("Big Brother would not sell a whistle; leaving the " + stolen + ".");
-                    dolphinGaveUp = stolen;
-                } else if (!use($item[dolphin whistle])) {
-                    step("the dolphin whistle would not blow; leaving the " + stolen + ".");
-                    dolphinGaveUp = stolen;
-                }
-            } else {
-                step("no whistle, and " + item_amount($item[sand dollar])
-                    + " sand dollars against " + sandDollarsOwed()
-                    + " still owed; leaving the " + stolen + ".");
-                dolphinGaveUp = stolen;
-            }
+                if (!use($item[durable dolphin whistle]))
+                    step("the durable dolphin whistle would not blow.");
+            } else if (item_amount($item[dolphin whistle]) > 0
+                && !use($item[dolphin whistle]))
+                step("the dolphin whistle would not blow.");
         }
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{
