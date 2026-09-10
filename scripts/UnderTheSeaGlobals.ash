@@ -364,26 +364,6 @@ import <seedfinder/seedfinder.ash>;
         rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
         sea cowbell, sea lasso];
 
-    // How many of each the run wants. Absent means the need moves as the run
-    // goes, so it always counts as wanted.
-    int [item] whistleNeed = {
-        $item[rusty broken diving helmet]:   1,
-        $item[rusty porthole]:               1,
-        $item[rusty rivet]:                  8,
-        $item[Mer-kin prayerbeads]:          3,
-        $item[Mer-kin cheatsheet]:           9,
-        $item[Mer-kin bunwig]:               1,
-        $item[sea cowbell]:                  3,
-        $item[sea leather]:                  2
-    };
-
-    // available_amount counts what is worn, which prayerbeads are.
-    boolean stillWanted(item it) {
-        if (!(whistleNeed contains it))
-            return true;
-        return available_amount(it) < whistleNeed[it];
-    }
-
     // Charges cap at seaPoints, and one in Hagnk's is unusable in Ronin, so
     // possession is not readiness.
     boolean durableWhistleReady() {
@@ -906,6 +886,28 @@ boolean seaCowNeeded() {
 
 boolean prayerbeadsShort() {
     return available_amount($item[mer-kin prayerbeads]) < 3;
+}
+
+// Whether a dolphin's item is still worth a turn. The predicates above answer
+// that, so ask them rather than restating their numbers.
+boolean stillWanted(item it) {
+    switch (it) {
+    case $item[rusty broken diving helmet]:
+    case $item[rusty porthole]:
+    case $item[rusty rivet]:
+        return diverHuntActive();
+    case $item[sea leather]:
+        return seaCowNeeded();
+    case $item[Mer-kin cheatsheet]:
+        return cheatsheetsNeeded();
+    case $item[Mer-kin prayerbeads]:
+        return prayerbeadsShort();
+    case $item[Mer-kin bunwig]:
+        return available_amount($item[mer-kin bunwig]) == 0;
+    }
+    // The rest are thrown or spent, so what the run wants of them moves. The
+    // cowbell and the lasso outlive the seahorse as Yog-Urt delevelers.
+    return true;
 }
 
 // ─── THE FORCE BUDGET ─────────────────────────────────────────────────────────

@@ -832,8 +832,6 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         if (available_amount($item[cursed monkey's paw]) == 0 || to_int(get_property("_monkeyPawWishesUsed")) == 5){
             while (available_amount(it) == 0){
                 getMissingCorralItems();
-            if (get_property("dolphinItem") == to_string(it) && have_item($item[durable dolphin whistle]))
-                use($item[durable dolphin whistle]);
             }
         } else
             cli_execute("monkeypaw item " + it);
@@ -1538,8 +1536,6 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         if (str == "drop" && item_amount($item[sea lasso]) < 5 && to_int(get_property("lassoTrainingCount")) < 20){
             while (!have_item($item[cursed monkey's paw]) && item_amount($item[sea lasso]) < 6){
                 getMissingCorralItems();
-                if (get_property("dolphinItem") == "sea lasso" && have_item($item[durable dolphin whistle]))
-                    use($item[durable dolphin whistle]);
             }
             codpiece("none");
         }
@@ -1548,16 +1544,12 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             if (available_amount($item[sea chaps]) == 0 && tailpiece() == $item[none]) {
                 while (item_amount($item[sea leather]) < 1){
                     getMissingCorralItems();
-                    if (get_property("dolphinItem") == "sea leather" && have_item($item[durable dolphin whistle]))
-                        use($item[durable dolphin whistle]);
                 }
                 create($item[sea chaps]);
             }
             if (available_amount($item[sea cowboy hat]) == 0) {
                 while (item_amount($item[sea leather]) < 1){
                     getMissingCorralItems();
-                    if (get_property("dolphinItem") == "sea leather" && have_item($item[durable dolphin whistle]))
-                        use($item[durable dolphin whistle]);
                 }
                 create($item[sea cowboy hat]);
             }
@@ -1679,15 +1671,11 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
         if (get_property("seahorseName") == "" && item_amount($item[sea cowbell]) < wantCowbell){
             while (item_amount($item[sea cowbell]) < wantCowbell){
                 getMissingCorralItems();
-                if (get_property("dolphinItem") == "sea cowbell" && have_item($item[durable dolphin whistle]))
-                    use($item[durable dolphin whistle]);
             }
         }
         if (get_property("seahorseName") == "" && item_amount($item[sea lasso]) == 0){
             while (item_amount($item[sea lasso]) == 0){
                 getMissingCorralItems();
-                if (get_property("dolphinItem") == "sea lasso" && have_item($item[durable dolphin whistle]))
-                    use($item[durable dolphin whistle]);
             }
         }
     }
