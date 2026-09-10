@@ -424,6 +424,16 @@ import <seedfinder/seedfinder.ash>;
         $item[sea lasso]:                    $location[The Coral Corral]
     };
 
+    // Holding the durable whistle is not the same as being able to blow it: its
+    // charges run out at seaPoints, which counts finished Sea runs and so is one
+    // on a second softcore pass. Asked in one place so the buy and the use
+    // cannot disagree about it.
+    boolean durableWhistleReady() {
+        return have_item($item[durable dolphin whistle])
+            && to_int(get_property("_durableDolphinWhistleUsed"))
+                < to_int(get_property("seaPoints"));
+    }
+
     // The last theft reported on. dolphinItem stays set until a whistle blows,
     // so the block is re-entered every turn until one does; this keeps the
     // retrying without also saying so every turn.
@@ -450,8 +460,13 @@ import <seedfinder/seedfinder.ash>;
     void zoneStall(string waitingFor, item gate, location zone, int spent, int mark) {
         if (spent < mark || (spent - mark) % 10 != 0)
             return;
-        print(spent + " turns in " + zone + " still waiting on " + waitingFor
-            + (gate == $item[none] ? "" : " -- " + farmCost(gate, zone)) + ".", "red");
+        if (gate == $item[none])
+            print(spent + " turns in " + zone + " still waiting on " + waitingFor
+                + ". Noncombats are " + round(appearance_rates(zone)[$monster[none]])
+                + "% of visits here at the current -combat.", "red");
+        else
+            print(spent + " turns in " + zone + " still waiting on " + waitingFor
+                + " -- " + farmCost(gate, zone) + ".", "red");
     }
 
     string freeKill() {
