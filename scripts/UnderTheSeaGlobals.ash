@@ -348,17 +348,90 @@ import <seedfinder/seedfinder.ash>;
             ? castMathFloor : castMathFloor + 1);
     }
 
+    // What one more of a drop costs in turns here, for this account. The
+    // zone's item penalty and the account's item stack both feed in, so the
+    // same item is a few turns to one player and out of reach to another.
+    // Negative means it cannot land at all, which is the answer worth acting
+    // on. Pickpocket-only and unrated drops are not farmable by killing and
+    // count as out of reach; a fixed drop ignores the item stack.
+    float turnsToFarm(item it, location zone) {
+        float stack = item_drop_modifier()
+            + numeric_modifier("Loc:" + to_string(zone), "Item Drop Penalty");
+        float perTurn;
+        foreach mob, freq in appearance_rates(zone) {
+            if (mob == $monster[none] || freq <= 0)
+                continue;
+            foreach idx, d in item_drops_array(mob) {
+                if (d.drop != it || d.rate <= 0 || d.type == "p" || d.type == "0")
+                    continue;
+                float chance = d.type == "f"
+                    ? to_float(d.rate)
+                    : to_float(d.rate) * (1.0 + stack / 100.0);
+                if (chance > 100.0)
+                    chance = 100.0;
+                if (chance <= 0)
+                    continue;
+                perTurn += (freq / 100.0) * (chance / 100.0);
+            }
+        }
+        if (perTurn <= 0)
+            return -1.0;
+        return 1.0 / perTurn;
+    }
+
+    // Says the estimate in words, so a log line exists whether or not what
+    // follows works.
+    string farmCost(item it, location zone) {
+        // Both inputs are named so a wrong answer is legible: a zone penalty
+        // reading 0% for a Sea zone means the Loc lookup missed.
+        string where = zone + " (item " + round(item_drop_modifier())
+            + "%, zone " + round(numeric_modifier("Loc:" + to_string(zone),
+                "Item Drop Penalty")) + "%)";
+        float cost = turnsToFarm(it, zone);
+        if (cost < 0)
+            return it + " cannot drop in " + where;
+        return it + " is about " + round(cost) + " turns each in " + where;
+    }
+
+    // Where the run would go to replace one of these. The zone a theft
+    // happened in is not always the one the item is farmed in.
+    location [item] farmedIn = {
+        $item[Mer-kin prayerbeads]:          $location[The Mer-Kin Outpost],
+        $item[Mer-kin healscroll]:           $location[The Mer-Kin Outpost],
+        $item[Mer-kin lockkey]:              $location[The Mer-Kin Outpost],
+        $item[Mer-kin hallpass]:             $location[Mer-kin Elementary School],
+        $item[Mer-kin cheatsheet]:           $location[Mer-kin Elementary School],
+        $item[Mer-kin bunwig]:               $location[Mer-kin Elementary School],
+        $item[rusty rivet]:                  $location[The Wreck of the Edgar Fitzsimmons],
+        $item[rusty porthole]:               $location[The Wreck of the Edgar Fitzsimmons],
+        $item[rusty broken diving helmet]:   $location[The Wreck of the Edgar Fitzsimmons],
+        $item[sea leather]:                  $location[The Coral Corral],
+        $item[sea cowbell]:                  $location[The Coral Corral],
+        $item[sea lasso]:                    $location[The Coral Corral]
+    };
+
+    // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
+    // the damp old boot. Only the surplus buys whistles.
+    int sandDollarsOwed() {
+        int n;
+        if (available_amount($item[black glass]) == 0)
+            n += 13;
+        if (available_amount($item[damp old boot]) == 0
+            && get_property("questS01OldGuy") == "started")
+            n += 50;
+        return n;
+    }
+
     // A zone loop that waits on a drop has no natural bound, so a run whose
     // item stack cannot beat the zone's penalty spends the day in it and says
     // nothing. Speak up every ten turns past the mark; the loop still decides
     // for itself when to stop. The zone is passed in because post_adv() can
     // adventure elsewhere before this is reached.
-    void zoneStall(string waitingFor, location zone, int spent, int mark) {
+    void zoneStall(string waitingFor, item gate, location zone, int spent, int mark) {
         if (spent < mark || (spent - mark) % 10 != 0)
             return;
         print(spent + " turns in " + zone + " still waiting on " + waitingFor
-            + ". This zone carries a steep item penalty, so a thin item stack"
-            + " can leave a drop out of reach however long you farm it.", "red");
+            + (gate == $item[none] ? "" : " -- " + farmCost(gate, zone)) + ".", "red");
     }
 
     string freeKill() {

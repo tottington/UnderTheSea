@@ -289,18 +289,34 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
             use_skill($skill[rest upside down]);
         }
 
-        // Whether a stolen item is worth a whistle does not depend on how shiny
-        // the account is, and lowShiny() excludes anyone holding one of its
-        // three items however little else they own. None of the per-phase
-        // whistle sites are gated that way either.
-        // Kept to these two: a whistle costs a turn as well as a charge, and
-        // the phase sites spend the rest on the item that phase actually wants.
-        if ((get_property("dolphinItem") == "Mer-kin prayerbeads"
-                || get_property("dolphinItem") == "rusty rivet")
-            && have_item($item[durable dolphin whistle])
-            && to_int(get_property("_durableDolphinWhistleUsed"))
-                < to_int(get_property("seaPoints")))
-            use($item[durable dolphin whistle]);
+        // A dolphin's buffer holds one item -- the next theft overwrites it --
+        // so the choice has to be made now. Whistling costs a turn, so it is
+        // worth it only when farming another would cost more than that.
+        item stolen = to_item(get_property("dolphinItem"));
+        if (stolen != $item[none] && (farmedIn contains stolen)) {
+            float cost = turnsToFarm(stolen, farmedIn[stolen]);
+            if (cost >= 0 && cost <= 2)
+                step("a dolphin took " + stolen + "; " + farmCost(stolen, farmedIn[stolen])
+                    + ", so leaving it.");
+            else if (have_item($item[durable dolphin whistle])
+                && to_int(get_property("_durableDolphinWhistleUsed"))
+                    < to_int(get_property("seaPoints"))) {
+                step("a dolphin took " + stolen + "; " + farmCost(stolen, farmedIn[stolen])
+                    + ", so whistling it back.");
+                if (!use($item[durable dolphin whistle]))
+                    step("the durable dolphin whistle would not blow.");
+            } else if (item_amount($item[sand dollar]) > sandDollarsOwed()) {
+                step("a dolphin took " + stolen + "; " + farmCost(stolen, farmedIn[stolen])
+                    + ", so buying a whistle for it.");
+                if (!buy($coinmaster[Big Brother], 1, $item[dolphin whistle]))
+                    step("Big Brother would not sell a dolphin whistle.");
+                else if (!use($item[dolphin whistle]))
+                    step("the dolphin whistle would not blow.");
+            } else
+                step("a dolphin took " + stolen + "; " + farmCost(stolen, farmedIn[stolen])
+                    + ", but no whistle and only " + item_amount($item[sand dollar])
+                    + " sand dollars against " + sandDollarsOwed() + " still owed.");
+        }
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
@@ -1884,7 +1900,7 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         mood("-combat");
                         adv($location[mer-kin elementary school]);
                         schoolTurns += 1;
-                        zoneStall("the teacher's lounge noncombat",
+                        zoneStall("the teacher's lounge noncombat", $item[none],
                             $location[mer-kin elementary school], schoolTurns, 20);
                         put_closet(item_amount($item[mer-kin hallpass]),
                             $item[mer-kin hallpass]);
@@ -1911,7 +1927,9 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
                         adv($location[mer-kin elementary school]);
                         schoolTurns += 1;
-                        zoneStall("the scholar outfit pieces",
+                        // The lounge that hands them over wants a hallpass, so the
+                        // pass is what the wait is really on.
+                        zoneStall("the scholar outfit pieces", $item[Mer-kin hallpass],
                             $location[mer-kin elementary school], schoolTurns, 20);
                     }
                 }
