@@ -291,40 +291,48 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
 
         // A dolphin's buffer holds one item -- the next theft overwrites it --
         // so the choice has to be made now, and everything worth whistling for
-        // costs more than a turn to farm again. Reports are gated on the item so
-        // a retry does not speak every turn.
+        // costs more than the turn the whistle fight takes. What happened is
+        // rendered into one line and reported only when it differs from the last,
+        // so a retry stays quiet and any change becomes the standing word.
         item stolen = to_item(get_property("dolphinItem"));
-        if ((whistleWorthy contains stolen) && my_adventures() > 0
-            && my_inebriety() <= inebriety_limit()) {
-            // Buy only with none in hand and no usable durable. One bought but
-            // not blown keeps for the next turn, and what changes between turns
-            // is whether one can be afforded -- so this retries, quietly.
+        if ((whistleWorthy contains stolen) && my_adventures() > 0) {
+            // The disposable is refused while falling-down drunk; the durable is
+            // not, so only the disposable's paths ask about it. Buy with none in
+            // hand and no usable durable: one bought but not blown keeps.
+            boolean sober = my_inebriety() <= inebriety_limit();
+            boolean refused;
             if (item_amount($item[dolphin whistle]) == 0 && !durableWhistleReady()
-                && item_amount($item[sand dollar]) > sandDollarsOwed()
-                && !buy($coinmaster[Big Brother], 1, $item[dolphin whistle])
-                && stolen != dolphinSaid)
-                step("Big Brother would not sell a dolphin whistle.");
+                && sober && item_amount($item[sand dollar]) > sandDollarsOwed())
+                refused = !buy($coinmaster[Big Brother], 1, $item[dolphin whistle]);
             item whistle;
             if (durableWhistleReady())
                 whistle = $item[durable dolphin whistle];
-            else if (item_amount($item[dolphin whistle]) > 0)
+            else if (sober && item_amount($item[dolphin whistle]) > 0)
                 whistle = $item[dolphin whistle];
-            // Speak when the item changes, and again when a turn that had given
-            // up can now act, so "leaving it" is never the last word on an item
-            // that was recovered.
-            if (stolen != dolphinSaid
-                || (whistle != $item[none] && !dolphinSaidBlowing)) {
-                if (whistle == $item[none])
-                    step("a dolphin took " + stolen + "; no whistle and "
-                        + item_amount($item[sand dollar]) + " sand dollars against "
-                        + sandDollarsOwed() + " owed, so leaving it.");
-                else
-                    step("a dolphin took " + stolen + "; blowing the " + whistle + ".");
+            boolean blown;
+            if (whistle != $item[none])
+                blown = use(whistle);
+            string why;
+            if (blown)
+                why = "blew the " + whistle;
+            else if (whistle != $item[none])
+                why = "the " + whistle + " would not blow";
+            else if (refused)
+                why = "Big Brother would not sell a whistle";
+            else
+                why = "no whistle, and " + item_amount($item[sand dollar])
+                    + " sand dollars against " + sandDollarsOwed() + " owed";
+            if (stolen != dolphinSaid || why != dolphinSaidWhy) {
+                step("a dolphin took " + stolen + "; " + why + ".");
                 dolphinSaid = stolen;
-                dolphinSaidBlowing = whistle != $item[none];
+                dolphinSaidWhy = why;
             }
-            if (whistle != $item[none] && !use(whistle))
-                step("the " + whistle + " would not blow; leaving the " + stolen + ".");
+            // A blown whistle clears dolphinItem, so a later theft of the same
+            // item is a new event and has to report again.
+            if (blown) {
+                dolphinSaid = $item[none];
+                dolphinSaidWhy = "";
+            }
         }
         if (my_meat( ) < 300){
             foreach it in $items[dull fish scale, rough fish scale]{
@@ -1907,10 +1915,10 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         tempEquipment("-combat,sea", "monodent of the sea,crappy Mer-kin tailpiece,crappy Mer-kin mask," + if_equip($item[blood cubic zirconia])
                             + bathysphere($item[toy cupid bow]) + if_equip($item[M&ouml;bius ring]) + conditional);
                         mood("-combat");
-                        adv($location[mer-kin elementary school]);
-                        schoolTurns += 1;
                         zoneStall("the teacher's lounge noncombat", $item[none],
                             $location[mer-kin elementary school], schoolTurns, 20);
+                        adv($location[mer-kin elementary school]);
+                        schoolTurns += 1;
                         put_closet(item_amount($item[mer-kin hallpass]),
                             $item[mer-kin hallpass]);
                         if ((available_amount($item[Mer-kin facecowl]) > 0 && available_amount($item[Mer-kin waistrope]) > 0))
@@ -1934,12 +1942,12 @@ familiar chosenFamiliar = $familiar[none]; //For kidoblivious
                         mood("itdrop");
                         tempEquipment("item drop,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + "monodent of the sea,"
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
-                        adv($location[mer-kin elementary school]);
-                        schoolTurns += 1;
                         // The lounge that hands them over wants a hallpass, so the
                         // pass is what the wait is really on.
                         zoneStall("the scholar outfit pieces", $item[Mer-kin hallpass],
                             $location[mer-kin elementary school], schoolTurns, 20);
+                        adv($location[mer-kin elementary school]);
+                        schoolTurns += 1;
                     }
                 }
 

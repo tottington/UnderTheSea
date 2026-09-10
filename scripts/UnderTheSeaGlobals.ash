@@ -368,12 +368,13 @@ import <seedfinder/seedfinder.ash>;
                 < to_int(get_property("seaPoints"));
     }
 
-    // The last theft reported on, and whether that report said a whistle was
-    // going to blow. dolphinItem stays set until one does, so the block is
-    // re-entered every turn until then: these keep it from saying so every turn
-    // while still letting a giving-up report be corrected if a whistle arrives.
+    // The last theft reported on and the words used. dolphinItem stays set
+    // until a whistle blows, so the block is re-entered every turn until then;
+    // comparing the rendered reason means a retry stays quiet while any change
+    // -- a whistle arriving, dollars arriving, a refusal -- always becomes the
+    // standing word, without a flag per message.
     item dolphinSaid;
-    boolean dolphinSaidBlowing;
+    string dolphinSaidWhy;
 
     // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
     // the damp old boot. Only the surplus buys whistles.
@@ -393,8 +394,9 @@ import <seedfinder/seedfinder.ash>;
     // Speak up every ten turns past the mark; the loop still decides when to
     // stop. Reports measurements rather than an estimate: what governs a wait
     // here is the forced-noncombat counter, the combat rate and the item stack
-    // against the zone's penalty, and each of those is a fact. The zone is
-    // passed in because post_adv() can adventure elsewhere before this runs.
+    // against the zone's penalty, and each of those is a fact. Call it while the
+    // loop's own gear is on: the modifiers read here are whatever is worn, and
+    // post_adv() can re-dress and adventure elsewhere before returning.
     void zoneStall(string waitingFor, item gate, location zone, int spent, int mark) {
         if (spent < mark || (spent - mark) % 10 != 0)
             return;
