@@ -899,7 +899,9 @@ boolean stillWanted(item it) {
     case $item[sea leather]:
         return seaCowNeeded();
     case $item[Mer-kin cheatsheet]:
-        return cheatsheetsNeeded();
+        // One is consumed per wordquiz, and each quiz is ten of ninety mastery.
+        return item_amount($item[Mer-kin cheatsheet]) * 10
+            < 90 - to_int(get_property("merkinVocabularyMastery"));
     case $item[Mer-kin prayerbeads]:
         return prayerbeadsShort();
     case $item[Mer-kin bunwig]:
