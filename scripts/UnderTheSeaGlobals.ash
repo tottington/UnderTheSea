@@ -89,8 +89,27 @@ import <seedfinder/seedfinder.ash>;
     }
 
 // Account states
+    // The IOTM route runs on the Monodent's gear and skills. Without it the
+    // run follows the low IOTM guide route, which takes precedence over the other tiers.
+    // 1 or 0 once computed, cached for the script run.
+    int lowIOTMKnown = -1;
+    boolean lowIOTM() {
+        if (lowIOTMKnown < 0) {
+            lowIOTMKnown = 1;
+            foreach it in $items[monodent of the sea, packaged Monodent of the Sea]
+                if (have_item(it) || closet_amount(it) + display_amount(it) > 0)
+                    lowIOTMKnown = 0;
+        }
+        return lowIOTMKnown == 1;
+    }
+
+    boolean sealClubberRoute() {
+        return lowIOTM() && my_class() == $class[Seal Clubber];
+    }
+
     boolean highShiny() {
-        return to_int(get_property("garbo_valueOfFreeFight")) > to_int(get_property("valueOfAdventure"));
+        return !lowIOTM()
+            && to_int(get_property("garbo_valueOfFreeFight")) > to_int(get_property("valueOfAdventure"));
     }
 
     boolean lowShiny() {
@@ -176,6 +195,57 @@ import <seedfinder/seedfinder.ash>;
             return take_storage(1, it);
         }
         return false;
+    }
+
+    // Owned, already spent today, or mall-buyable with a pull left.
+    boolean nullDayAvailable() {
+        if (have_item($item[null-day exploit]) || pulledToday($item[null-day exploit])
+            || have_effect($effect[Null Afternoon]) > 0)
+            return true;
+        return pulls_remaining() != 0 && mall_price($item[null-day exploit]) > 0;
+    }
+
+    boolean colosseumSpellFamiliar() {
+        return (have_familiar($familiar[Foul Ball]) && have_skill($skill[Eggsplosion]))
+            || (have_familiar($familiar[Tiny Plastic Santa Claus Skeleton])
+                && have_skill($skill[Awesome Balls of Fire]));
+    }
+
+    item colosseumLantern() {
+        foreach it in $items[petrified wood wizard's pouch, Congressional Medal of Insanity,
+            petrified wood water purifier]
+            if (have_item(it))
+                return it;
+        return $item[none];
+    }
+
+    // Spell route hard requirements: a lantern familiar with its matching
+    // spell, a lantern item and a null-day exploit.
+    boolean colosseumSpellRoute() {
+        return colosseumSpellFamiliar() && colosseumLantern() != $item[none]
+            && nullDayAvailable();
+    }
+
+    // Furious Wallop trains the Mer-kin weapons in-run, so owning it is enough.
+    boolean colosseumCombatRoute() {
+        return !colosseumSpellRoute() && have_skill($skill[Furious Wallop])
+            && my_class() == $class[Seal Clubber];
+    }
+
+    // "spell", "combat" or "none". A found route is kept for the ascension, stored
+    // as "<ascension>:<route>", so spent pulls or mall prices can't switch it mid-run.
+    string colosseumRoute(boolean save) {
+        string [int] saved = split_string(get_property("uts_colosseumRoute"), ":");
+        if (count(saved) == 2 && to_int(saved[0]) == my_ascensions())
+            return saved[1];
+        string route = colosseumSpellRoute() ? "spell" : colosseumCombatRoute() ? "combat" : "none";
+        if (save && route != "none")
+            set_property("uts_colosseumRoute", my_ascensions() + ":" + route);
+        return route;
+    }
+
+    string colosseumRoute() {
+        return colosseumRoute(true);
     }
 
     void getLucky() {
@@ -2178,4 +2248,193 @@ void pullChecklist() {
         else
             print("✗ " + it + " — NOT mall-buyable, acquire before it's needed", "red");
     }
+}
+
+// ─── LOW IOTM CHECKLIST ───────────────────────────────────────────────────────
+// The low IOTM guide's perms and pulls. A line is met by owning any one of
+// its entries, or `need` of them for a skill line.
+record guideSkill {
+    boolean [skill] any;
+    int need;
+    string why;
+};
+
+guideSkill [int] guideSkills = {
+    new guideSkill($skills[The Sonata of Sneakiness], 1, "Noncombat rate."),
+    new guideSkill($skills[Smooth Movement], 1, "Noncombat rate."),
+    new guideSkill($skills[Hide From Seekers], 1, "Noncombat rate."),
+    new guideSkill($skills[Musk of the Moose], 1, "Combat rate."),
+    new guideSkill($skills[Carlweather's Cantata of Confrontation], 1, "Combat rate."),
+    new guideSkill($skills[The Ode to Booze], 1, "More adventures from the astral pilsners."),
+    new guideSkill($skills[Batter Up!], 1, "The route's unlimited banish, with a club and full Fury."),
+    new guideSkill($skills[Wrath of the Wolverine], 1, "Fills Fury for Batter Up!"),
+    new guideSkill($skills[Ire of the Orca], 1, "Fills Fury for Batter Up!"),
+    new guideSkill($skills[Snokebomb], 1, "Three banishes a day."),
+    new guideSkill($skills[Summon Leviatuga], 1, "Fish scales with the cozy scimitar, and it replaces the scale-mail underwear pull."),
+    new guideSkill($skills[Secret Door Awareness], 1, "Listed by the guide for elemental resistance."),
+    new guideSkill($skills[Elemental Saucesphere], 1, "Elemental resistance."),
+    new guideSkill($skills[Cold-Blooded Fearlessness, Hypersane, Bravery Gland], 1, "A passive spooky resistance perm."),
+    new guideSkill($skills[Who's Going to Pay This Drunken Sailor?, Mad Looting Skillz,
+        Fat Leon's Phat Loot Lyric, Donho's Bubbly Ballad, Powers of Observatiogn,
+        Singer's Faithful Ocelot, Object Quasi-Permanence], 2, "Item drop perms, at least two."),
+    new guideSkill($skills[The Polka of Plenty], 1, "Meat, to afford the 10,000 meat SCUBA tank."),
+    new guideSkill($skills[Saucestorm], 1, "A cheap elemental damage spell."),
+    new guideSkill($skills[Steely-Eyed Squint], 1, "Doubles item drops once a day."),
+    new guideSkill($skills[Shattering Punch], 1, "Three free kills a day."),
+    new guideSkill($skills[Torso Awareness], 1, "Lets you wear the shark jumper."),
+    new guideSkill($skills[Tongue of the Walrus], 1, "Healing, and clears Beaten Up."),
+    new guideSkill($skills[Cannelloni Cocoon], 1, "Healing."),
+};
+
+record guidePull {
+    boolean [item] any;
+    boolean flexible;
+    string why;
+};
+
+guidePull [int] guidePulls = {
+    new guidePull($items[shark jumper], false, "Elemental resistance, and the Mom fight."),
+    new guidePull($items[pro skateboard], false, "The McTwist on the unholy diver, for the diving helmet."),
+    new guidePull($items[pulled yellow taffy], false, "Used on the unholy diver after the McTwist."),
+    new guidePull($items[cozy scimitar], false, "Fish scales with Harpoon! and Summon Leviatuga."),
+    new guidePull($items[Centauri fish wine], false, "60 turns of Fishy."),
+    new guidePull($items[Aldebaran sardines], false, "60 turns of Fishy."),
+    new guidePull($items[Tubetto Gelatto, Frutti di Scatoletta, Pesto alla Marziano,
+        Arrattabbattabiata, Orzo di Riso, Pasta Grimavera, Linguini Ubriacapa,
+        Gnocci Domani, Formica e Pepe], false, "Fishy, doubled by eating it with your stomach."),
+    new guidePull($items[Bram's choker], false, "Noncombat rate."),
+    new guidePull($items[rusted-out shootin' iron], false, "Noncombat rate, and a club for Batter Up!"),
+    new guidePull($items[null-day exploit], false, "Null Afternoon for the Colosseum and Shub-Jigguwatt."),
+    new guidePull($items[patent aggression tonic, lion musk], false, "Combat rate."),
+    new guidePull($items[petrified wood wizard's pouch, Congressional Medal of Insanity,
+        petrified wood water purifier], false, "The lantern for the Colosseum spell route."),
+    new guidePull($items[large box], false, "A blessed large box of bang potions, for the seed finder."),
+    new guidePull($items[Mer-kin hallpass], true, "Skips most of the scholar route."),
+    new guidePull($items[hardened slime belt, six-rainbow shield], true, "Elemental resistance."),
+    new guidePull($items[Pocket Square of Loathing], true, "Elemental resistance."),
+    new guidePull($items[1\,970 carat gold], true, "Meat."),
+    new guidePull($items[bottle of Lambada Lambic], true, "Item drop for the Coral Corral."),
+    new guidePull($items[Mer-kin sneakmask], true, "Noncombat rate."),
+    new guidePull($items[peppermint parasol], true, "Free runaways, about 9 turns saved."),
+    new guidePull($items[lodestone], true, "Saves 5 turns."),
+    new guidePull($items[waffle], true, "Finds the seahorse sooner."),
+    new guidePull($items[stench jelly, Clara's bell, handheld Allied radio], true, "A noncombat forcer."),
+};
+
+string skillNames(boolean [skill] list) {
+    string out;
+    foreach sk in list
+        out += (out == "" ? "" : " or ") + sk;
+    return out;
+}
+
+string itemNames(boolean [item] list) {
+    string out;
+    foreach it in list
+        out += (out == "" ? "" : " or ") + it;
+    return out;
+}
+
+void printGuidePulls(boolean flexible) {
+    foreach num, gp in guidePulls {
+        if (gp.flexible != flexible)
+            continue;
+        boolean held;
+        boolean buyable;
+        foreach it in gp.any {
+            if (have_item(it) || pulledToday(it))
+                held = true;
+            if (is_tradeable(it))
+                buyable = true;
+        }
+        if (held)
+            print("✓ " + itemNames(gp.any) + ": " + gp.why, "blue");
+        else if (buyable)
+            print("✗ " + itemNames(gp.any) + ": " + gp.why + " Not in Hagnk's, mall-buyable.", "red");
+        else
+            print("✗ " + itemNames(gp.any) + ": " + gp.why + " NOT mall-buyable, get it before you ascend.", "red");
+    }
+}
+
+// Prints the low IOTM route's requirements and returns the hard blockers as
+// abort text, empty when the route can start. runStart is false for the sim report.
+string lowIOTMChecklist(boolean runStart) {
+    string blockers;
+    print("Low IOTM route: no Monodent of the Sea, so the run follows the low IOTM guide.", "blue");
+
+    if (!runStart)
+        print("Ascend as a Seal Clubber for best results. Batter Up!, its Fury skills and the Colosseum combat route are Seal Clubber skills.", "blue");
+    else if (my_class() == $class[Seal Clubber])
+        print("✓ Seal Clubber", "blue");
+    else
+        print("Warning: this low IOTM run is a " + my_class() + ", not a Seal Clubber. A one day run may not complete off Seal Clubber on a low IOTM account. Continuing.", "red");
+
+    if (runStart && in_hardcore()) {
+        print("✗ Hardcore: the low IOTM route is softcore only.", "red");
+        blockers += "The route is softcore only, it needs the guide's pulls. ";
+    }
+
+    // The ice house banish never resets, so mafia's record survives ascending.
+    monster iceHouse = banished("ice house");
+    if (iceHouse == $monster[Mer-kin rustler])
+        print("✓ Ice house: Mer-kin rustler", "blue");
+    else if (iceHouse == $monster[none])
+        print("✗ Ice house: mafia has no monster recorded there. The route assumes the Mer-kin rustler.", "red");
+    else
+        print("✗ Ice house: holds the " + iceHouse + ". The route assumes the Mer-kin rustler.", "red");
+
+    // Untradeable, so only Hagnk's can supply it. Pulled today or past day one,
+    // a missing scimitar has broken after its fights.
+    if (have_item($item[cozy scimitar]))
+        print("✓ cozy scimitar", "blue");
+    else if (runStart && (pulledToday($item[cozy scimitar]) || my_daycount() > 1))
+        print("✗ cozy scimitar: not held, so the run falls back to the script's other fish scale sources.", "red");
+    else
+        print("✗ cozy scimitar: NOT mall-buyable, make it from a scimitar cozy and a fish scimitar before you ascend. Without it the run falls back to the script's other fish scale sources.", "red");
+
+    string route = colosseumRoute(runStart);
+    if (route == "spell") {
+        print("✓ Colosseum: spell route, lantern " + colosseumLantern() + ".", "blue");
+        if (!have_skill($skill[Carol of the Hells]) && !have_skill($skill[Song of Sauce]))
+            print("✗ Carol of the Hells or Song of Sauce: a heavy spell damage buff for the spell route.", "red");
+    } else if (route == "combat") {
+        print("✓ Colosseum: combat route with Furious Wallop. The Mer-kin weapons are trained in-run.", "blue");
+        if (!nullDayAvailable())
+            print("✗ null-day exploit: none owned and none buyable with a pull. The combat route leans on Null Afternoon.", "red");
+    } else if (to_int(get_property("lastColosseumRoundWon")) >= 15) {
+        print("✓ Colosseum: already won.", "blue");
+    } else {
+        string missing;
+        if (!colosseumSpellFamiliar())
+            missing += " Foul Ball with Eggsplosion, or Tiny Plastic Santa Claus Skeleton with Awesome Balls of Fire.";
+        if (colosseumLantern() == $item[none])
+            missing += " A lantern item: petrified wood wizard's pouch, Congressional Medal of Insanity or petrified wood water purifier.";
+        if (!nullDayAvailable())
+            missing += " A null-day exploit, owned or mall-buyable with a pull.";
+        print("✗ Colosseum: no route yet, the run stops at the Colosseum without one. The spell route is missing:" + missing + " The combat route needs Furious Wallop on a Seal Clubber.", "red");
+    }
+
+    print("Low IOTM check, guide perms:");
+    int skillsMet;
+    foreach num, gs in guideSkills {
+        int owned;
+        foreach sk in gs.any
+            if (have_skill(sk))
+                owned += 1;
+        if (owned >= gs.need) {
+            skillsMet += 1;
+            print("✓ " + skillNames(gs.any) + ": " + gs.why, "blue");
+        } else
+            print("✗ " + skillNames(gs.any) + ": " + gs.why, "red");
+    }
+    print("Low IOTM check: " + skillsMet + " of " + count(guideSkills) + " guide perms owned.");
+
+    print("Low IOTM check, guide pulls (practically mandatory):");
+    printGuidePulls(false);
+    print("Low IOTM check, guide pulls (flexible):");
+    printGuidePulls(true);
+
+    if (blockers != "")
+        print("Low IOTM check: the run can't start. " + blockers, "red");
+    return blockers;
 }

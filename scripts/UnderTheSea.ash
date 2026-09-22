@@ -446,9 +446,15 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             abort("set autoSatisfyWithNPCs = true, the script isn't going to work if it's false");
 
         iotmChecklist();
-        skillChecklist();
-        if (my_path().id == 55)
-            pullChecklist();
+        if (lowIOTM() && my_path().id == 55) {
+            string blockers = lowIOTMChecklist(true);
+            if (blockers != "")
+                abort("The low IOTM route can't start. " + blockers);
+        } else {
+            skillChecklist();
+            if (my_path().id == 55)
+                pullChecklist();
+        }
 
         write_ccs(to_buffer("consult UnderTheSeaCCS.ash \n abort"), "temp");
         set_ccs("temp");
@@ -628,6 +634,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (it == $item[sea lasso] && (lowShiny() == true || (have_familiar($familiar[Sword of S Words]) && count_summons() >= 3)))
                         continue;
                     if (storage_amount(it) == 0){
+                        // The low IOTM route has other Colosseum lanterns.
+                        if (it == $item[Congressional Medal of Insanity] && lowIOTM())
+                            continue;
                         if (it == $item[Congressional Medal of Insanity])
                             abort("Get yer own CMOI, ya filthy animal!");
                         buy_using_storage(it);
@@ -2900,8 +2909,12 @@ void main(string... args) {
         // Report-only mode: the same ownership checklists the run prints at
         // startup and nothing else -- no pulls, no turns, no combat.
         iotmChecklist();
-        skillChecklist();
-        pullChecklist();
+        if (lowIOTM())
+            lowIOTMChecklist(false);
+        else {
+            skillChecklist();
+            pullChecklist();
+        }
         return;
     }
     if (command == "postloop") {
