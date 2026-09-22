@@ -31,12 +31,24 @@ string DropsItems;
         }
         if (mod == "exp"){
             //This is for the bosses to get some exp out of them, has to be a no attack fam
-            foreach fam in $familiars[chest mimic,Melodramedary,cooler yeti,cookbookbat,none]{
+            foreach fam in $familiars[chest mimic,Melodramedary,cooler yeti,cookbookbat]{
                 if (have_familiar(fam)){
                     use_familiar(fam);
                     return;
                 }
             }
+            // Any owned familiar that cannot hurt the monster, underwater ones first.
+            familiar calm = $familiar[none];
+            foreach fam in $familiars[] {
+                if (fam == $familiar[none] || !have_familiar(fam) || fam.physical_damage || fam.elemental_damage
+                    || fam.other_action_during_combat || fam.variable)
+                    continue;
+                if (calm == $familiar[none] || (fam.underwater && !calm.underwater))
+                    calm = fam;
+            }
+            if (!use_familiar(calm))
+                print("Could not switch to " + calm + "; keeping " + my_familiar() + ".", "red");
+            return;
         }
         familiar fam;
         if (mod == "itdrop"){
@@ -423,7 +435,7 @@ string DropsItems;
             use_familiar("itdrop");
             string conditional;
             if (!contains_text(get_property("banishedMonsters"), "school of many"))
-                conditional += "monodent of the sea,";
+                conditional += if_equip($item[monodent of the sea]);
             // A Peridot spent here frees its slot for the Sheriff props. The Monodent goes before the pistol, so it keeps a hand.
             tempEquipment("item drop,sea","shark jumper,scale-mail underwear,black glass,"
                 + (gotPeriled($location[The Caliginous Abyss]) ? "" : if_equip($item[peridot of peril]))
@@ -786,7 +798,7 @@ string DropsItems;
         use_familiar("-combat");
         // A Peridot spent here frees its slot for the Sheriff props.
         tempEquipment("item drop,sea","shark jumper,scale-mail underwear,black glass,"
-            + (gotPeriled($location[The Caliginous Abyss]) ? "" : if_equip($item[peridot of peril])) + "monodent of the sea,"
+            + (gotPeriled($location[The Caliginous Abyss]) ? "" : if_equip($item[peridot of peril])) + if_equip($item[monodent of the sea])
             + bathysphere($item[none]) + freeKill($location[The Caliginous Abyss]));
         if (have_effect($effect[jelly combed]) == 0 && pullSequence($item[comb jelly])) 
             use($item[comb jelly]);
@@ -805,7 +817,7 @@ string DropsItems;
         use_familiar("itdrop");
         string conditional;
         if (!contains_text(get_property("banishedMonsters"), "school of many"))
-            conditional += "monodent of the sea,";
+            conditional += if_equip($item[monodent of the sea]);
         tempEquipment("mys,sea","shark jumper,scale-mail underwear,black glass," + if_equip($item[Congressional Medal of Insanity])
             +bathysphere($item[none]) + if_equip($item[blood cubic zirconia]) + conditional);
         adv($location[The Caliginous Abyss]);
@@ -856,7 +868,7 @@ string DropsItems;
             && saberForcesFree() > 0 && available_amount($item[Fourth of May Cosplay Saber]) > 0;
         if (!saberForResearcher
             && (item_amount($item[mer-kin healscroll]) == 0 || ((item_amount($item[mer-kin killscroll]) == 0 || item_amount($item[mer-kin worktea]) == 0 || item_amount($item[mer-kin knucklebone]) == 0) && get_property("dreadScroll7") == "0")))
-            conditional += "monodent of the sea,";
+            conditional += if_equip($item[monodent of the sea]);
         else if (!saberForResearcher)
             conditional += delay();
         conditional += saberEquip($location[mer-kin library]);
@@ -936,7 +948,7 @@ string DropsItems;
         string trainer = to_int(get_property("lassoTrainingCount")) < 20
             && get_property("uts_saveSeadentWave") != "true"
             ? if_equip($item[sea cowboy hat]) + if_equip($item[sea chaps]) : "";
-        tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + "monodent of the sea," + trainer
+        tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + if_equip($item[monodent of the sea]) + trainer
             + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + riftFamiliarGear() + baseball_equip());
     }
 
@@ -963,7 +975,7 @@ string DropsItems;
             if (to_int(get_property("encountersUntilSRChoice")) > 9
                 && get_property("questRufus") == "unstarted"
                 && item_amount($item[Closed-circuit pay phone]) > 0) {
-                tempEquipment("item drop","Flash Liquidizer Ultra Dousing Accessory,monodent of the sea,"
+                tempEquipment("item drop","Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
                 + if_equip($item[bat wings]) + baseball_equip() + if_equip($item[Everfull Dart Holster]));
                 use($item[closed-circuit pay phone]);
             }
@@ -1000,28 +1012,28 @@ string DropsItems;
             mood("spookyres");
             use_familiar("itdrop");
             codpiece("blood cubic zirconia, peridot of peril");
-            tempEquipment("spooky res,sea", if_equip($item[The Eternity Codpiece]) + "monodent of the sea," + bathysphere($item[none]));
+            tempEquipment("spooky res,sea", if_equip($item[The Eternity Codpiece]) + if_equip($item[monodent of the sea]) + bathysphere($item[none]));
             adv1($location[Anemone Mine]);
         } else if (!contains_text(get_property("_perilLocations"), "195")){
             mood("hotres");
             use_familiar("itdrop");
             codpiece("blood cubic zirconia, peridot of peril");
-            tempEquipment("hot res,sea", if_equip($item[The Eternity Codpiece]) + "monodent of the sea," + bathysphere($item[none]));
+            tempEquipment("hot res,sea", if_equip($item[The Eternity Codpiece]) + if_equip($item[monodent of the sea]) + bathysphere($item[none]));
             adv1($location[the marinara trench]);
         } else if (!contains_text(get_property("_perilLocations"), "197")){
             mood("sleazeres");
             use_familiar("itdrop");
             codpiece("blood cubic zirconia, peridot of peril");
-            tempEquipment("sleaze res,sea", if_equip($item[The Eternity Codpiece]) + "monodent of the sea," + bathysphere($item[none]));
+            tempEquipment("sleaze res,sea", if_equip($item[The Eternity Codpiece]) + if_equip($item[monodent of the sea]) + bathysphere($item[none]));
             adv1($location[the dive bar]); 
         } else if (!contains_text(get_property("_perilLocations"), "196")){
             mood("spookyres");
             use_familiar("itdrop");
             codpiece("blood cubic zirconia, peridot of peril");
-            tempEquipment("spooky res,sea", if_equip($item[The Eternity Codpiece]) + "monodent of the sea," + bathysphere($item[none]));
+            tempEquipment("spooky res,sea", if_equip($item[The Eternity Codpiece]) + if_equip($item[monodent of the sea]) + bathysphere($item[none]));
             adv1($location[Anemone Mine]);
         } else {
-            tempEquipment("item drop","monodent of the sea");
+            tempEquipment("item drop", if_equip($item[monodent of the sea]));
             adv1($location[The Outskirts of Cobb's Knob]);
         }
         codpiece("none");
@@ -1110,7 +1122,7 @@ string DropsItems;
         if (to_int(get_property("_backUpUses")) < 11 && available_amount($item[backup camera]) > 0)
             conditional += "backup camera,";
         else if (have_skill($skill[Double-Fisted Skull Smashing]))
-            conditional += "monodent of the sea,";
+            conditional += if_equip($item[monodent of the sea]);
         if (item_amount($item[mer-kin bunwig]) == 0
             && !have_equipped($item[mer-kin bunwig]))
             conditionalMax += ", hat drop";
@@ -1200,7 +1212,7 @@ string DropsItems;
                     else
                         conditional += if_equip($item[designer sweatpants]);
                     while (get_property(questProp[ps]) == "started") {
-                        tempEquipment("item drop","monodent of the sea," + if_equip($item[M&ouml;bius ring]) + if_equip($item[everfull dart holster])
+                        tempEquipment("item drop",if_equip($item[monodent of the sea]) + if_equip($item[M&ouml;bius ring]) + if_equip($item[everfull dart holster])
                             + if_equip($item[toy cupid bow]) + conditional + delay() + reflexGear());
                         mood("itdrop");
                         adv1(questLoc[ps]);
@@ -1259,7 +1271,7 @@ string DropsItems;
                 if (to_int(get_property("rwbMonsterCount")) == 0 && !mapReady()){
                     print("Initiating banishes in Octopus Garden", "red");
                     if (highShiny())
-                        conditional += "monodent of the sea,";
+                        conditional += if_equip($item[monodent of the sea]);
                 }
 
                 tempEquipment(DropsItems, bathysphere($item[toy cupid bow]) + conditional + freeKill());
@@ -1281,7 +1293,7 @@ string DropsItems;
                 tempEquipment("item drop,sea, -equip peridot of peril", bathysphere($item[none]) + if_equip($item[M&ouml;bius ring]));
             } else {
                 use_familiar("-combat");
-                tempEquipment("-combat,sea, -equip peridot of peril", "monodent of the sea," + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
+                tempEquipment("-combat,sea, -equip peridot of peril", if_equip($item[monodent of the sea]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
                 mood("-combat");
             }
             adv($location[The Wreck of the Edgar Fitzsimmons]);
@@ -1315,7 +1327,7 @@ string DropsItems;
                     baseballD();
                 if (to_int(get_property("_bczSweatBulletsCasts")) < 9)
                     conditional += if_equip($item[blood cubic zirconia]);
-                tempEquipment("item drop, sea, -100 combat","monodent of the sea," + delay()
+                tempEquipment("item drop, sea, -100 combat",if_equip($item[monodent of the sea]) + delay()
                     + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]) + conditional);
                 mood("-combat");
                 adv(pearlLoc[ps]);
@@ -1464,7 +1476,7 @@ string DropsItems;
             if ((highShiny() || available_amount($item[closed-circuit pay phone]) == 0 || lowShiny()) && item_amount($item[pristine fish scale]) < 6)
                 mood("itdrop");
             if (my_familiar() != $familiar[Sword of S Words])
-                conditional += "monodent of the sea,";
+                conditional += if_equip($item[monodent of the sea]);
             if (get_property("merkinLockkeyMonster") != "") {
                 mood("-combat");
                 tempEquipment("-combat,sea", bathysphere($item[none]) + conditional + delay());
@@ -1580,7 +1592,7 @@ string DropsItems;
                             conditional += cloakeEquip($location[The Wreck of the Edgar Fitzsimmons]);
                             conditional += champagneEquip($location[The Wreck of the Edgar Fitzsimmons]);
                             conditional += gloveEquip($location[The Wreck of the Edgar Fitzsimmons]);
-                            tempEquipment("item drop,sea","monodent of the sea," + conditional + bathysphere($item[toy cupid bow]));
+                            tempEquipment("item drop,sea",if_equip($item[monodent of the sea]) + conditional + bathysphere($item[toy cupid bow]));
                             mood("itdrop");
                             mapMonster($location[The Wreck of the Edgar Fitzsimmons]);
                         } else if (highShiny()){
@@ -1645,7 +1657,7 @@ string DropsItems;
                         create($item[sea cowboy hat]);
                     string conditional;
                     if (!contains_text(get_property("banishedMonsters"), "school of many"))
-                        conditional += "monodent of the sea,";
+                        conditional += if_equip($item[monodent of the sea]);
                     if (to_int(get_property("lassoTrainingCount")) < 20 && available_amount($item[sea cowboy hat]) > 0)
                         conditional += "sea cowboy hat,";
                     if (have_effect($effect[driving waterproofly]) == 0){
@@ -1667,7 +1679,7 @@ string DropsItems;
                 while (!contains_text(get_property("banishedPhyla"), "construct")
                     && $location[madness bakery].turns_spent < 3) {
                     use_familiar($familiar[patriotic eagle]);
-                    tempEquipment("item drop", "monodent of the sea");
+                    tempEquipment("item drop", if_equip($item[monodent of the sea]));
                     adv($location[madness bakery]);
                 }
             }
@@ -1679,7 +1691,7 @@ string DropsItems;
                 && to_int(get_property("_cyberFreeFights")) < 10
                 && to_int(get_property("momSeaMonkeeProgress")) < 40) {
                 use_familiar($familiar[glover]);
-                tempEquipment("moxie", "shark jumper,scale-mail underwear,monodent of the sea");
+                tempEquipment("moxie", "shark jumper,scale-mail underwear," + if_equip($item[monodent of the sea]));
                 if (my_buffedstat($stat[moxie]) < 500)
                     abort("Need 500 moxie here to be safe");
                 adv($location[Cyberzone 1]);
@@ -1714,7 +1726,7 @@ string DropsItems;
             } else {
                 if (have_skill($skill[steely-eyed squint]) && have_item($item[cursed monkey's paw]))
                     pullSequence($item[software glitch]);
-                tempEquipment("item drop, sea, -equip peridot of peril, equip monodent of the sea", if_equip(divingHelmet()) + "pro skateboard," + if_equip($item[The Eternity Codpiece]));
+                tempEquipment("item drop, sea, -equip peridot of peril" + (available_amount($item[monodent of the sea]) > 0 ? ", equip monodent of the sea" : ""), if_equip(divingHelmet()) + "pro skateboard," + if_equip($item[The Eternity Codpiece]));
             }
             mood("itdrop");
             adv($location[The Coral Corral]);
@@ -1752,7 +1764,7 @@ string DropsItems;
                     print("No oversized sparkler; continuing without one.", "gray");
                 if (item_amount($item[lump of loyal latite]) > 0)
                     use($item[lump of loyal latite]);
-                tempEquipment("item drop", "Flash Liquidizer Ultra Dousing Accessory,monodent of the sea,"
+                tempEquipment("item drop", "Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
                     + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]));
                 mood("itdrop");
                 if (!highShiny() && available_amount($item[closed-circuit pay phone]) > 0)
@@ -1853,7 +1865,7 @@ string DropsItems;
             use_familiar("itdrop");
             if (available_amount($item[pristine fish scale]) < 6)
                 mood("itdrop");
-            tempEquipment(pearlRes[ps]+",sea","monodent of the sea,sea cowboy hat,sea chaps," + bathysphere($item[none]));
+            tempEquipment(pearlRes[ps]+",sea",if_equip($item[monodent of the sea]) + "sea cowboy hat,sea chaps," + bathysphere($item[none]));
             adv(pearlLoc[ps]);
         }
     }
@@ -1899,13 +1911,13 @@ string DropsItems;
             if (item_amount($item[waffle]) == 0 && my_path().id == 55)
                 pullSequence($item[waffle]);
             if (!have_item($item[august scepter])){
-                conditional += "monodent of the sea,";
+                conditional += if_equip($item[monodent of the sea]);
                 conditional += if_equip($item[heartstone]);
             } else if (available_amount($item[Miniature crystal ball]) > 0){
                 conditional += "Miniature crystal ball,";
             }
             if (get_property("_curveballFightsLeft").to_int() > 0 && get_property("_curveballMonster") == "some fish")
-                conditional += "monodent of the sea,";
+                conditional += if_equip($item[monodent of the sea]);
             // All three non-seahorse monsters banished — equip tearaway pants
             if (contains_text(get_property("banishedMonsters"), "Mer-kin rustler")
                 && contains_text(get_property("banishedMonsters"), "sea cowboy")
@@ -2049,7 +2061,7 @@ string DropsItems;
                         if (to_int(get_property("_backUpUses")) < 11 && available_amount($item[backup camera]) > 0)
                             conditional += "backup camera,";
                         else if (have_skill($skill[Double-Fisted Skull Smashing]))
-                            conditional += "monodent of the sea,";
+                            conditional += if_equip($item[monodent of the sea]);
                         if (to_int(get_property("_clubEmBattlefieldUsed")) < 5)
                             conditional += if_equip($item[legendary seal-clubbing club]);
                         else if (baseballPlayers() < 9 || !contains_text(get_property("baseballTeam"),"838"))
@@ -2105,7 +2117,7 @@ string DropsItems;
                                 string conditional;
                                 if (to_int(get_property("_backUpUses")) < 11 && available_amount($item[backup camera]) > 0)
                                     conditional += "backup camera,";
-                                tempEquipment("item drop,sea", "mer-kin scholar mask,mer-kin scholar tailpiece,monodent of the sea,"
+                                tempEquipment("item drop,sea", "mer-kin scholar mask,mer-kin scholar tailpiece," + if_equip($item[monodent of the sea])
                                     + if_equip($item[blood cubic zirconia]) + conditional);
                                 useMapIfAvailable();
                                 adv($location[mer-kin library]);
@@ -2122,7 +2134,7 @@ string DropsItems;
                         if (baseballPlayers() < 9 || !contains_text(get_property("baseballTeam"),"838"))
                             conditional += if_equip($item[baseball diamond]);
                         use_familiar("-combat");
-                        tempEquipment("-combat,sea", "monodent of the sea,crappy Mer-kin tailpiece,crappy Mer-kin mask," + if_equip($item[blood cubic zirconia])
+                        tempEquipment("-combat,sea", if_equip($item[monodent of the sea]) + "crappy Mer-kin tailpiece,crappy Mer-kin mask," + if_equip($item[blood cubic zirconia])
                             + bathysphere($item[toy cupid bow]) + if_equip($item[M&ouml;bius ring]) + conditional);
                         mood("-combat");
                         zoneStall("the teacher's lounge noncombat", $item[none],
@@ -2148,7 +2160,7 @@ string DropsItems;
                         use_familiar("itdrop");
                         mood("combat");
                         mood("itdrop");
-                        tempEquipment("item drop,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + "monodent of the sea,"
+                        tempEquipment("item drop,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + if_equip($item[monodent of the sea])
                             + if_equip($item[Blood Cubic Zirconia]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
                         // The lounge wants a hallpass, so that is the real gate.
                         zoneStall("the scholar outfit pieces", $item[Mer-kin hallpass],
@@ -2282,7 +2294,8 @@ string DropsItems;
             // YogUrt fight
             int hpCheckPasses;
             while (get_property("yogUrtDefeated") == "false") {
-                cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir; cast cannel");
+                cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir"
+                    + (have_skill($skill[Cannelloni Cocoon]) ? "; cast cannel" : ""));
                 // Null Afternoon stands in for the delevelers while it lasts.
                 if (have_effect($effect[null afternoon]) == 0) {
                     if (delevelers() < 2 && !pulledToday($item[null-day exploit]) && pulls_remaining() > 0 && !lowShiny()
@@ -2527,9 +2540,9 @@ string DropsItems;
                 set_property("hpAutoRecoveryTarget", "1");
                 set_property("mpAutoRecovery", "-0.05");
                 set_property("mpAutoRecoveryTarget", "-0.05");
-                while (my_hp() < my_maxhp())
+                while (have_skill($skill[Cannelloni Cocoon]) && my_hp() < my_maxhp())
                     use_skill($skill[Cannelloni Cocoon]);
-                cli_execute("recover hp; cast * polka of plenty");
+                cli_execute("recover hp" + (have_skill($skill[The Polka of Plenty]) ? "; cast * polka of plenty" : ""));
                 adv($location[Mer-kin Temple (Left Door)]);
             }
         }
