@@ -1,5 +1,32 @@
 import UnderTheSeaGlobals.ash;
 
+// True when the skill is known or the fight page's skill dropdown lists its id.
+// Matches the id because %fn and *dent names differ from the page text.
+boolean skillOffered(string page_text, skill sk) {
+    if (have_skill(sk))
+        return true;
+    int start = index_of(page_text, "<select name=whichskill>");
+    if (start < 0)
+        start = index_of(page_text, "<select name=\"whichskill\">");
+    if (start < 0)
+        return false;
+    int stop = index_of(page_text, "</select>", start);
+    if (stop < 0)
+        return false;
+    return contains_text(substring(page_text, start, stop), "value=\"" + to_int(sk) + "\"");
+}
+
+// Throws both items in one round with Ambidextrous Funkslinging, otherwise one per round.
+void throwPair(item a, item b) {
+    if (have_skill($skill[Ambidextrous Funkslinging])) {
+        throw_items(a, b);
+        return;
+    }
+    throw_item(a);
+    if (current_round() > 0)
+        throw_item(b);
+}
+
 // Attempt a free kill using available skills/items.
 // Pass drop=true to skip items that interfere with item drops.
 void free_kill(string ptext, boolean drop) {
@@ -74,7 +101,7 @@ void free_run(string ptext, boolean banish) {
             The Haunted Pantry] contains my_location()
             && freeskill == $skill[snokebomb])
             return;
-        if (banish && freeskill == $skill[spring away])
+        if (banish && freeskill == $skill[spring away] && skillOffered(ptext, $skill[spring kick]))
             use_skill($skill[spring kick]);
         use_skill(freeskill);
     }
@@ -100,14 +127,33 @@ boolean bcz_gaze_ready() {
     return (my_basestat($stat[submysticality]) - 40000) > BCZcost("RefractedGazeCasts");
 }
 
+void attackCleanUp() {
+    int loopCount = 0;
+    while (current_round() > 0) {
+        int round = current_round();
+        attack();
+        if (round == current_round()) {
+            loopCount += 1;
+            if (loopCount > 3)
+                abort("May be stuck in an infinite attack loop");
+        }
+    }
+}
+
 // Finish off the enemy with saucegeyser, guarded against infinite loops
 void cleanUp() {
     int loopCount = 0;  // declared outside loop so the guard actually works
     if (item_amount($item[pulled red taffy]) > 0 && my_location().environment == "underwater")
         throw_item($item[pulled red taffy]);
+    boolean geyser = have_skill($skill[saucegeyser]) && last_monster() != $monster[Yog-Urt, Elder Goddess of Hatred];
+    // Without either spell the fight is melee; with one, low MP still hands the fight back.
+    if (!geyser && !have_skill($skill[saucestorm])) {
+        attackCleanUp();
+        return;
+    }
     while (current_round() > 0) {
         int round = current_round();
-        if (have_skill($skill[saucegeyser]) && last_monster() != $monster[Yog-Urt, Elder Goddess of Hatred]){
+        if (geyser){
             use_skill($skill[saucegeyser]);
         } else {
             if (have_skill($skill[Stuffed Mortar Shell]))
@@ -121,19 +167,6 @@ void cleanUp() {
         }
         if (my_mp() < 24)
             break;
-    }
-}
-
-void attackCleanUp() {
-    int loopCount = 0;
-    while (current_round() > 0) {
-        int round = current_round();
-        attack();
-        if (round == current_round()) {
-            loopCount += 1;
-            if (loopCount > 3)
-                abort("May be stuck in an infinite attack loop");
-        }
     }
 }
 
@@ -172,19 +205,38 @@ boolean yogDocPair() {
         && yogUnused($item[Doc Galaktik's Pungent Unguent]);
 }
 
+// Both Doc Galaktik items with Ambidextrous Funkslinging, otherwise either one.
+boolean yogDocReady() {
+    if (have_skill($skill[Ambidextrous Funkslinging]))
+        return yogDocPair();
+    return yogUnused($item[Doc Galaktik's Homeopathic Elixir])
+        || yogUnused($item[Doc Galaktik's Pungent Unguent]);
+}
+
+// One round's Doc Galaktik throw; call only when yogDocReady().
+void yogDocThrow() {
+    if (have_skill($skill[Ambidextrous Funkslinging]))
+        throw_items($item[Doc Galaktik's Homeopathic Elixir], $item[Doc Galaktik's Pungent Unguent]);
+    else if (yogUnused($item[Doc Galaktik's Homeopathic Elixir]))
+        throw_item($item[Doc Galaktik's Homeopathic Elixir]);
+    else
+        throw_item($item[Doc Galaktik's Pungent Unguent]);
+}
+
 // One action under More Like a Suckrament. Nothing thrown may damage Yog-Urt.
 void yogSuckramentAction(boolean needHeal) {
     item heal = yogHealing();
     if (needHeal && heal != $item[none]) {
         item dlv = yogDeleveler();
-        if (dlv != $item[none])
+        // Without Funkslinging the heal goes alone; the filler round may throw the deleveler.
+        if (dlv != $item[none] && have_skill($skill[Ambidextrous Funkslinging]))
             throw_items(dlv, heal);
         else
             throw_item(heal);
     } else if (!needHeal && yogDeleveler() != $item[none]) {
         throw_item(yogDeleveler());
-    } else if (yogDocPair()) {
-        throw_items($item[Doc Galaktik's Homeopathic Elixir], $item[Doc Galaktik's Pungent Unguent]);
+    } else if (yogDocReady()) {
+        yogDocThrow();
     } else if (heal != $item[none]) {
         throw_item(heal);
     } else {
@@ -211,8 +263,8 @@ void yogUrtFight() {
     while (current_round() > 0 && guard < 40) {
         guard += 1;
         // Her own hits run up to about 11 once the effect is gone.
-        if (my_hp() < 15 && yogDocPair()) {
-            throw_items($item[Doc Galaktik's Homeopathic Elixir], $item[Doc Galaktik's Pungent Unguent]);
+        if (my_hp() < 15 && yogDocReady()) {
+            yogDocThrow();
         } else if (my_hp() < 15 && yogHealing() != $item[none]) {
             throw_item(yogHealing());
         } else if (!mortared && have_skill($skill[Stuffed Mortar Shell])
@@ -451,7 +503,8 @@ void main(int round, monster mob, string page_text) {
             } else if (!free_monster(last_monster())) {
                 if (have_equipped($item[spring shoes]) && !banishUsedAtYourLocation("Spring Kick") && highShiny()) {
                     use_skill($skill[spring kick]);
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                    if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                        use_skill($skill[Sea *dent: Talk to Some Fish]);
                 } else {
                     free_run(page_text, true);
                 }
@@ -466,10 +519,12 @@ void main(int round, monster mob, string page_text) {
                         use_skill($skill[spring kick]);
                     else 
                         use_if_have_skill(page_text,$skill[Sea *dent: Throw a Lightning Bolt]);
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                    if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                        use_skill($skill[Sea *dent: Talk to Some Fish]);
                 }
                 if (last_monster() == $monster[Mine crab]){
-                    use_skill($skill[Heartstone: %banish]);
+                    if (skillOffered(page_text, $skill[Heartstone: %banish]))
+                        use_skill($skill[Heartstone: %banish]);
                     use_if_have_skill(page_text,$skill[Sea *dent: Throw a Lightning Bolt]);
                 }
             }
@@ -535,6 +590,12 @@ void main(int round, monster mob, string page_text) {
             cleanUp();
             break;
 
+        case $location[Madness Reef]:
+        case $location[The Briniest Deepests]:
+        case $location[The Limerick Dungeon]:
+            cleanUp();
+            break;
+
         case $location[The Mer-Kin Outpost]:
             if (my_path().id == 0 && to_int(get_property("lassoTrainingCount")) < 20)
                 throw_item($item[sea lasso]);
@@ -571,7 +632,8 @@ void main(int round, monster mob, string page_text) {
                     run_combat();
                 }
                 if (my_familiar() != $familiar[sword of s words] && (highShiny() || !have_item($item[closed-circuit pay phone]) || lowShiny()) && available_amount($item[pristine fish scale]) < 6 && !free_monster(last_monster())){
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                    if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                        use_skill($skill[Sea *dent: Talk to Some Fish]);
                     free_kill(page_text,true);
                     cleanUp();
                 }
@@ -579,7 +641,8 @@ void main(int round, monster mob, string page_text) {
                     && item_amount($item[mer-kin prayerbeads]) < 2) {
                     if (have_equipped($item[baseball diamond]) || (get_property("_curveballMonster") == "some fish"
                             && to_int(get_property("_curveballFightsLeft")) > 0))
-                        use_skill($skill[Sea *dent: Talk to Some Fish]);
+                        if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                            use_skill($skill[Sea *dent: Talk to Some Fish]);
                     free_kill(page_text, true);
                     if (to_int(get_property("_backUpUses")) < 7 && have_equipped($item[backup camera])) {
                         use_skill($skill[Back-Up to your Last Enemy]);
@@ -590,7 +653,8 @@ void main(int round, monster mob, string page_text) {
                 } else if (last_monster() == $monster[Mer-kin burglar]
                     || last_monster() == $monster[Mer-kin raider]) {
                     if ((highShiny() || !have_item($item[closed-circuit pay phone])) && my_familiar() == $familiar[sword of s words] && !banishUsedAtYourLocation("Sea *dent"))
-                        use_skill($skill[sea *dent: throw a lightning bolt]);
+                        if (skillOffered(page_text, $skill[sea *dent: throw a lightning bolt]))
+                            use_skill($skill[sea *dent: throw a lightning bolt]);
                     free_run(page_text, true);
                 }
                 if (!free_monster(last_monster()))
@@ -599,7 +663,8 @@ void main(int round, monster mob, string page_text) {
             } else {
                 // turns_spent >= 24 and no lockkey monster
                 if (my_familiar() != $familiar[sword of s words] && (highShiny() || !have_item($item[closed-circuit pay phone]) || lowShiny()) && available_amount($item[pristine fish scale]) < 6 && !free_monster(last_monster())){
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                    if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                        use_skill($skill[Sea *dent: Talk to Some Fish]);
                     free_kill(page_text,true);
                     cleanUp();
                 }
@@ -629,8 +694,8 @@ void main(int round, monster mob, string page_text) {
 
         case $location[The Coral Corral]:
             if (last_monster() == $monster[wild seahorse] && item_amount($item[sea cowbell]) >= 3 && item_amount($item[sea lasso]) >= 1 && to_int(get_property("lassoTrainingCount")) == 20){
-                throw_items($item[sea cowbell], $item[sea cowbell]);
-                throw_items($item[sea cowbell], $item[sea lasso]);
+                throwPair($item[sea cowbell], $item[sea cowbell]);
+                throwPair($item[sea cowbell], $item[sea lasso]);
                 if (current_round() != 0){
                     abort("For some reason seahorse wasn't tamed, check that out");
                 }
@@ -644,7 +709,8 @@ void main(int round, monster mob, string page_text) {
             if (get_property("_epicMcTwistUsed") == "false" && have_equipped($item[pro skateboard])) {
                 if (have_equipped($item[backup camera])) {
                     if (last_monster() == $monster[mer-kin rustler])
-                        use_skill($skill[spring kick]);
+                        if (skillOffered(page_text, $skill[spring kick]))
+                            use_skill($skill[spring kick]);
                     use_skill($skill[Back-Up to your Last Enemy]);
                     use_skill($skill[BCZ: Refracted Gaze]);
                     use_skill($skill[Do an epic McTwist!]);
@@ -653,7 +719,8 @@ void main(int round, monster mob, string page_text) {
                 } else {
                     if (last_monster().phylum != $phylum[fish]){
                         if (last_monster() == $monster[mer-kin rustler])
-                            use_skill($skill[spring kick]);
+                            if (skillOffered(page_text, $skill[spring kick]))
+                                use_skill($skill[spring kick]);
                         use_if_have_skill(page_text, $skill[Sea *dent: Talk to some fish]);
                         use_skill($skill[BCZ: Refracted Gaze]);
                         use_if_have_skill(page_text, $skill[Do an epic McTwist!]);
@@ -696,9 +763,11 @@ void main(int round, monster mob, string page_text) {
                                     use_skill($skill[heartstone: %banish]);
                                 } 
                             } else if (last_monster() == $monster[sea cowboy]){
-                                use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
+                                if (skillOffered(page_text, $skill[Sea *dent: Throw a Lightning Bolt]))
+                                    use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
                             } else if (last_monster() == $monster[sea cow]){
-                                use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
+                                if (skillOffered(page_text, $skill[Sea *dent: Throw a Lightning Bolt]))
+                                    use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
                             }
                         }
                 }
@@ -775,8 +844,9 @@ void main(int round, monster mob, string page_text) {
                 }
                 if (last_monster() == $monster[school of many]) {
                     use_if_have_skill(page_text, $skill[Sea *dent: Throw a Lightning Bolt]);
-                    for i from 1 to 4
-                        use_skill($skill[garbage nova]);
+                    if (skillOffered(page_text, $skill[garbage nova]))
+                        for i from 1 to 4
+                            use_skill($skill[garbage nova]);
                 }
                 free_kill(page_text, false);
                 cleanUp();
@@ -823,7 +893,8 @@ void main(int round, monster mob, string page_text) {
             if (current_round() > 0)
                 feelNostalgic(last_monster(), page_text);
             if (bcz_gaze_ready() && get_property("NCtoC") != "true") {
-                use_skill($skill[Sea *dent: Talk to Some Fish]);
+                if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                    use_skill($skill[Sea *dent: Talk to Some Fish]);
                 if (to_monster(get_property("lastEncounter")) != $monster[none] && item_amount($item[mer-kin cheatsheet]) < 10)
                     use_skill($skill[BCZ: Refracted Gaze]);
             }
@@ -852,11 +923,13 @@ void main(int round, monster mob, string page_text) {
                 } else {
                     if (item_amount($item[mer-kin knucklebone]) == 0) {
                         if (bcz_gaze_ready()) {
-                            use_skill($skill[Sea *dent: Talk to Some Fish]);
+                            if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                                use_skill($skill[Sea *dent: Talk to Some Fish]);
                             use_skill($skill[BCZ: Refracted Gaze]);
                         }
                     } else if (last_monster() == $monster[Mer-kin alphabetizer]) {
-                        use_skill($skill[spring kick]);
+                        if (skillOffered(page_text, $skill[spring kick]))
+                            use_skill($skill[spring kick]);
                     } else if (last_monster() == $monster[Mer-kin drifter]) {
                         free_run(page_text, true);
                     }
@@ -871,7 +944,8 @@ void main(int round, monster mob, string page_text) {
                     use_skill($skill[BCZ: Refracted Gaze]);
                 } else {
                     if (bcz_gaze_ready() && (item_amount($item[mer-kin killscroll]) == 0 || item_amount($item[mer-kin healscroll]) == 0 || item_amount($item[mer-kin worktea]) == 0 || item_amount($item[mer-kin knucklebone]) == 0)) {
-                        use_skill($skill[Sea *dent: Talk to Some Fish]);
+                        if (skillOffered(page_text, $skill[Sea *dent: Talk to Some Fish]))
+                            use_skill($skill[Sea *dent: Talk to Some Fish]);
                         use_skill($skill[BCZ: Refracted Gaze]);
                     }
                     free_kill(page_text, true);
@@ -922,14 +996,14 @@ void main(int round, monster mob, string page_text) {
             if (have_effect($effect[null afternoon]) == 0){
                 if (item_amount($item[crayon shavings]) >= 8){
                     for i from 1 to 4
-                        throw_items($item[crayon shavings], $item[crayon shavings]);
+                        throwPair($item[crayon shavings], $item[crayon shavings]);
                 } else {
                     while (delevelers() > 0 && (my_basestat($stat[moxie]) + 10 < monster_attack( ) || my_basestat($stat[muscle]) - 30 < monster_defense( ))){
                         foreach _, pair in candidates {
                             if (item_amount(pair.a) > 0 && item_amount(pair.b) > 0) {
                                 if (pair.a == pair.b && item_amount(pair.a) < 2)
                                     continue;
-                                throw_items(pair.a, pair.b);
+                                throwPair(pair.a, pair.b);
                                 break;
                             }
                         }
@@ -960,10 +1034,10 @@ void main(int round, monster mob, string page_text) {
                 if (my_maxhp() > 311)
                     abort("Too much HP to beat Yogurt (need < 312 after debuff) — check what's granting HP");
                 if (available_amount($item[crayon shavings]) >= 9)
-                    throw_items($item[crayon shavings], $item[mer-kin healscroll]);
+                    throwPair($item[crayon shavings], $item[mer-kin healscroll]);
                 else 
-                    throw_items($item[table tennis ball], $item[mer-kin healscroll]);
-                throw_items($item[Mer-kin mouthsoap], $item[waterlogged scroll of healing]);
+                    throwPair($item[table tennis ball], $item[mer-kin healscroll]);
+                throwPair($item[Mer-kin mouthsoap], $item[waterlogged scroll of healing]);
                 throw_item($item[sea gel]);
                 if (equipped_amount($item[mer-kin prayerbeads]) < 3)
                     throw_item($item[New Age healing crystal]);
@@ -976,7 +1050,7 @@ void main(int round, monster mob, string page_text) {
             }
             if (last_monster() == $monster[Shub-Jigguwatt, Elder God of Violence]){
                 for i from 1 to 4
-                    throw_items($item[crayon shavings], $item[crayon shavings]);
+                    throwPair($item[crayon shavings], $item[crayon shavings]);
                 while (current_round() > 0)
                     attack();
             }
@@ -999,7 +1073,8 @@ void main(int round, monster mob, string page_text) {
                 "black crayon golem:mchugelarge slash")) {
                 foreach sk in $skills[Gallapagosian Mating Call, MCHUGELARGE SLASH]
                     use_if_have_skill(page_text, sk);
-                use_skill($skill[Club 'Em Into Next Week]);
+                if (skillOffered(page_text, $skill[Club 'Em Into Next Week]))
+                    use_skill($skill[Club 'Em Into Next Week]);
             }
             // In-place summons (the Shub shavings fallback) reach this case
             // with no location logic to finish the fight; a no-op when a
