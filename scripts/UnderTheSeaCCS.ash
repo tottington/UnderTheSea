@@ -43,7 +43,7 @@ void throwPair(item a, item b) {
 
 // Harpoon! and Summon Leviatuga shake scales off the cozy scimitar, once each per fight.
 void harpoonScales() {
-    if (!lowIOTM() || current_round() < 1 || !have_equipped($item[cozy scimitar])
+    if (!guideRoute() || current_round() < 1 || !have_equipped($item[cozy scimitar])
         || !scaleFight(my_location(), last_monster()) || scalesNeeded() == 0)
         return;
     foreach sk in $skills[Harpoon!, Summon Leviatuga] {
@@ -61,7 +61,7 @@ void harpoonScales() {
 // The guide's banish for this zone: Batter Up! with full Fury and a club, Snokebomb on its
 // own targets, or on Batter Up! targets when snokebombReserved() allows. True once the fight ends.
 boolean guideBanish(string page_text) {
-    if (!lowIOTM() || current_round() < 1)
+    if (!guideRoute() || current_round() < 1)
         return false;
     location loc = my_location();
     monster mob = last_monster();
@@ -91,7 +91,7 @@ void free_kill(string ptext, boolean drop) {
     if (free_monster(last_monster()))
         return;
     harpoonScales();
-    if (lowIOTM() && current_round() < 1)
+    if (guideRoute() && current_round() < 1)
         return;
     if (highShiny()){
         if (contains_text(ptext, "Darts: Aim for the Bullseye")
@@ -179,10 +179,10 @@ void free_run(string ptext, boolean banish) {
         if (item_amount(freecombat) == 0) continue;
         if (!banish && $items[anchor bomb, stuffed yam stinkbomb,
             handful of split pea soup] contains freecombat) continue;
-        // The low IOTM route keeps the parasol for the Corral and the guide's Gymnasium.
-        if (freecombat == $item[peppermint parasol] && lowIOTM()
+        // The guide route keeps the parasol for the Corral and the Gymnasium.
+        if (freecombat == $item[peppermint parasol] && guideRoute()
             && my_location() != $location[The Coral Corral]
-            && !(guideRoute() && my_location() == $location[Mer-kin Gymnasium])) continue;
+            && my_location() != $location[Mer-kin Gymnasium]) continue;
         if (freecombat == $item[peppermint parasol]
             && to_int(get_property("parasolUsed")) >= parasolCap()) continue;
         if (freecombat == $item[mer-kin pinkslip]
@@ -329,8 +329,8 @@ item yogDeleveler(){
     // Null Afternoon zeroes enemy Attack and Defense; mafia's monster stats do not show it.
     if (have_effect($effect[null afternoon]) > 0)
         return $item[none];
-    // The low IOTM guide fights Yog-Urt without delevelers.
-    if (lowIOTM())
+    // The guide fights Yog-Urt without delevelers.
+    if (guideRoute())
         return $item[none];
     if (my_basestat($stat[moxie]) + 10 > monster_attack( ) && my_basestat($stat[muscle]) - 30 > monster_defense( ))
         return $item[none];
@@ -425,6 +425,9 @@ void yogUrtFight() {
             mortared = true;
         } else if (have_skill($skill[saucestorm]) && my_mp() >= mp_cost($skill[saucestorm])) {
             use_skill($skill[saucestorm]);
+        } else if (guideRoute() && have_skill($skill[Saucegeyser]) && my_mp() >= mp_cost($skill[Saucegeyser])) {
+            // Without Saucestorm the guide route's elemental kill is Saucegeyser.
+            use_skill($skill[Saucegeyser]);
         } else {
             // One swing per pass so the HP check above still runs.
             attack();
@@ -1149,7 +1152,8 @@ void main(int round, monster mob, string page_text) {
                         school of many] contains last_monster())
                     throw_item($item[spooky VHS tape]);
                 if (get_property("_monsterHabitatsRecalled") != "3" && get_property("_monsterHabitatsFightsLeft") == "0" && !highShiny() && (have_item($item[server room key]) || $location[The Mer-Kin Outpost].turns_spent < 29)) {
-                    if ($monsters[slithering thing, eye in the darkness] contains last_monster())
+                    if (($monsters[slithering thing, eye in the darkness] contains last_monster())
+                        && skillOffered(page_text, $skill[RECALL FACTS: MONSTER HABITATS]))
                         use_skill($skill[RECALL FACTS: MONSTER HABITATS]);
                 }
                 if (last_monster() == $monster[school of many]) {

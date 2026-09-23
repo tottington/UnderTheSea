@@ -103,17 +103,13 @@ import <seedfinder/seedfinder.ash>;
         return lowIOTMKnown == 1;
     }
 
-    boolean sealClubberRoute() {
-        return lowIOTM() && my_class() == $class[Seal Clubber];
-    }
-
     // The low IOTM guide's own steps only run inside 11037 Leagues Under the Sea.
     boolean guideRoute() {
         return lowIOTM() && my_path().id == 55;
     }
 
     boolean highShiny() {
-        return !lowIOTM()
+        return !guideRoute()
             && to_int(get_property("garbo_valueOfFreeFight")) > to_int(get_property("valueOfAdventure"));
     }
 
@@ -174,11 +170,13 @@ import <seedfinder/seedfinder.ash>;
 
     int reservedPulls(){
         int n;
-        if (available_amount($item[mer-kin prayerbeads]) < 3 && !pulledToday($item[mer-kin prayerbeads]))
+        // The guide route farms its prayerbeads, cowbells and comb jelly, so it holds no pull for them.
+        boolean guide = guideRoute();
+        if (!guide && available_amount($item[mer-kin prayerbeads]) < 3 && !pulledToday($item[mer-kin prayerbeads]))
             n += 1;
-        if (item_amount($item[sea cowbell]) < 3 && !pulledToday($item[sea cowbell]))
+        if (!guide && item_amount($item[sea cowbell]) < 3 && !pulledToday($item[sea cowbell]))
             n += 1;
-        if (!lowShiny() && have_effect($effect[Jelly Combed]) == 0 && available_amount($item[comb jelly]) == 0 && !pulledToday($item[comb jelly]))
+        if (!guide && !lowShiny() && have_effect($effect[Jelly Combed]) == 0 && available_amount($item[comb jelly]) == 0 && !pulledToday($item[comb jelly]))
             n += 1;
         if (get_property("shubJigguwattDefeated") == "false" && item_amount($item[crayon shavings]) < 4
             && item_amount($item[null-day exploit]) == 0 && !pulledToday($item[null-day exploit]))
@@ -512,6 +510,16 @@ import <seedfinder/seedfinder.ash>;
             return it.to_string() + ",";
     }
 
+    // The Abyss resistance gear when held: the scale-mail underwear, and the shark jumper with a skill to wear a shirt.
+    string abyssGear() {
+        string gear;
+        if (can_equip($item[scale-mail underwear]))
+            gear += if_equip($item[scale-mail underwear]);
+        if ((have_skill($skill[Torso Awareness]) || have_skill($skill[Best Dressed])) && can_equip($item[shark jumper]))
+            gear += if_equip($item[shark jumper]);
+        return gear;
+    }
+
     string bathysphere(item it) {
         if (!my_familiar().underwater && have_effect($effect[driving waterproofly]) == 0)
             return "little bitty bathysphere,";
@@ -649,10 +657,41 @@ import <seedfinder/seedfinder.ash>;
     item dolphinSaid;
     string dolphinSaidWhy;
 
+    // The 50 sand dollar map to Anemone Mine a guide route non-Muscle class still needs for its teflon ore,
+    // while the digpick can be wielded.
+    int anemoneMapOwed() {
+        if (!guideRoute() || my_primestat() == $stat[muscle]
+            || get_property("mapToAnemoneMinePurchased") == "true"
+            || tailpiece() != $item[none] || item_amount($item[teflon ore]) > 0
+            || !can_equip($item[Mer-kin digpick]))
+            return 0;
+        return 50;
+    }
+
+    // Unbought pearl zone maps at 50 sand dollars each, skipping zones Little Brother opens for this class.
+    // None once five pearls are held or the center door is under way.
+    int pearlMapsOwed() {
+        if (!guideRoute() || item_amount($item[unblemished pearl]) >= 5 || get_property("questL13Final") != "unstarted")
+            return 0;
+        int n;
+        if (get_property("mapToMadnessReefPurchased") != "true")
+            n += 50;
+        if (my_primestat() != $stat[mysticality] && get_property("mapToTheMarinaraTrenchPurchased") != "true")
+            n += 50;
+        if (my_primestat() != $stat[moxie] && get_property("mapToTheDiveBarPurchased") != "true")
+            n += 50;
+        // anemoneMapOwed() already holds these dollars while the map is wanted for teflon ore.
+        if (my_primestat() != $stat[muscle] && get_property("mapToAnemoneMinePurchased") != "true" && anemoneMapOwed() == 0)
+            n += 50;
+        return n;
+    }
+
     // Sand dollars Big Brother is still owed: 13 for the black glass, 50 for
     // the damp old boot. Only the surplus buys whistles.
     int sandDollarsOwed() {
         int n;
+        // The Anemone Mine map ranks first: no map, no teflon ore, and no crappy tailpiece.
+        n += anemoneMapOwed();
         if (available_amount($item[black glass]) == 0)
             n += 13;
         // Against "true" so an unread preference reserves rather than releases.
@@ -662,6 +701,8 @@ import <seedfinder/seedfinder.ash>;
         if (tailpiece() == $item[none]
             && available_amount($item[waterlogged bootstraps]) == 0)
             n += 10;
+        // The pearl zone maps come after the purchases above, ahead of the Skate Park map and the whistles.
+        n += pearlMapsOwed();
         return n;
     }
 
@@ -794,7 +835,7 @@ import <seedfinder/seedfinder.ash>;
             }
         }
         // A two-handed weapon leaves no off-hand to fill.
-        if (lowIOTM() && weapon_hands(equipmentSelection[$slot[weapon]]) > 1)
+        if (guideRoute() && weapon_hands(equipmentSelection[$slot[weapon]]) > 1)
             remove equipmentSelection[$slot[off-hand]];
         foreach slo in equipmentSelection{
             if (available_amount(equipmentSelection[slo]) == 0)
@@ -1145,6 +1186,9 @@ import <seedfinder/seedfinder.ash>;
         3:1
     };
 
+    // Defined with the low IOTM pulls.
+    boolean guidePullOne(item it);
+
     int YogHealingsOwned(){
         int n;
         foreach it in $items[sea gel,mer-kin healscroll,waterlogged scroll of healing,soggy used band-aid,New Age healing crystal]{
@@ -1176,8 +1220,13 @@ import <seedfinder/seedfinder.ash>;
         if (predictedHP*0.9*2 > (predictedHP+maxHeal)){
             if (have_effect($effect[gummiheart]) > 0) {
                 if (item_amount($item[soft green echo eyedrop antidote]) == 0
-                    && pulls_remaining() > reservedPulls())
-                    pullSequence($item[soft green echo eyedrop antidote]);
+                    && pulls_remaining() > reservedPulls()) {
+                    // The guide route's pull skips a price over autoBuyPriceLimit instead of prompting.
+                    if (guideRoute()) {
+                        boolean pulled = guidePullOne($item[soft green echo eyedrop antidote]);
+                    } else
+                        pullSequence($item[soft green echo eyedrop antidote]);
+                }
                 if (item_amount($item[soft green echo eyedrop antidote]) > 0)
                     cli_execute("uneffect gummiheart");
             } else
@@ -2040,7 +2089,6 @@ void briefcase() {
 // remains.
 
 boolean restWouldCostFury();
-boolean guidePullOne(item it);
 
 boolean guideForcerUsable(item it) {
     if (it == $item[stench jelly])
@@ -2470,10 +2518,10 @@ boolean batterUpPending(location loc) {
     return false;
 }
 
-// On the low IOTM route Snokebomb goes to the guide's own targets, and to Batter Up! targets
+// On the guide route Snokebomb goes to the guide's own targets, and to Batter Up! targets
 // only when Batter Up! is out of reach and a Snokebomb is left over after the targets ahead.
 boolean snokebombReserved(location loc, monster mob) {
-    if (!lowIOTM() || (snokeTargets(loc) contains mob))
+    if (!guideRoute() || (snokeTargets(loc) contains mob))
         return false;
     return batterUpPossible() || !(batterTargets(loc) contains mob) || snokebombsSpare() < 1;
 }
@@ -2481,7 +2529,7 @@ boolean snokebombReserved(location loc, monster mob) {
 // A rest empties Fury, so it waits while a Batter Up! banish is due here, and in the
 // untamed pearl zones where Fury is saved for the banishes after the seahorse.
 boolean restWouldCostFury() {
-    if (!lowIOTM() || my_fury() < 1 || !batterUpPossible())
+    if (!guideRoute() || my_fury() < 1 || !batterUpPossible())
         return false;
     if (get_property("seahorseName") == ""
         && ($locations[The Marinara Trench, The Dive Bar, Madness Reef, The Briniest Deepests] contains my_location()))
@@ -2492,7 +2540,7 @@ boolean restWouldCostFury() {
 // Club when a banish is due and Fury is full, cozy scimitar while scales are short, else the
 // maximizer's pick. Sneak legs take the shootin' iron's -5% combat over the scimitar.
 string guideWeapon(location loc, boolean sneak) {
-    if (!lowIOTM())
+    if (!guideRoute())
         return "";
     item iron = $item[rusted-out shootin' iron];
     if (sneak && available_amount(iron) > 0 && can_equip(iron))
@@ -3434,6 +3482,26 @@ void lowIOTMFishy() {
                 eatSushi();
             return;
         }
+}
+
+// Fishy from a pull when nothing held gives it: Aldebaran sardines, eaten after a held legendary pasta,
+// else Centauri fish wine. Each pull is one per item per day and capped at autoBuyPriceLimit.
+boolean lowIOTMFishyPull() {
+    if (have_effect($effect[Fishy]) > 0)
+        return true;
+    if (!fishyFoodsAllowed())
+        return false;
+    item sardines = $item[Aldebaran sardines];
+    item wine = $item[Centauri fish wine];
+    if (fullness_limit() - my_fullness() >= sardines.fullness && guidePullOne(sardines))
+        eatPastaAndSardines();
+    if (have_effect($effect[Fishy]) == 0 && inebriety_limit() - my_inebriety() >= wine.inebriety
+        && guidePullOne(wine)) {
+        odeUp();
+        if (!drink(1, wine))
+            print("Couldn't drink the " + wine + ".", "red");
+    }
+    return have_effect($effect[Fishy]) > 0;
 }
 
 // More adventures at zero on the low IOTM route: kelp pucks, then Ocean-Touched

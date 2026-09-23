@@ -205,14 +205,18 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             boolean talked = contains_text(",step11,step12,finished,", "," + get_property("questS02Monkees") + ",");
             if (available_amount($item[black glass]) > 0 || !talked)
                 return;
-            if (item_amount($item[sand dollar]) < sandDollarsOwed())
+            int owed = sandDollarsOwed() - pearlMapsOwed();
+            if (item_amount($item[sand dollar]) < owed)
                 print("Big Brother didn't hand over the " + $item[black glass] + ", and " + item_amount($item[sand dollar])
-                    + " sand dollars can't buy it with " + sandDollarsOwed() + " owed.", "red");
+                    + " sand dollars can't buy it with " + owed + " owed.", "red");
             else if (!buy($coinmaster[Big Brother], 1, $item[black glass]))
                 print("Couldn't buy the " + $item[black glass] + " from Big Brother.", "red");
         } else if (available_amount($item[black glass]) == 0) 
             buy($coinmaster[Big Brother], 1, $item[black glass]);
     }
+
+    // Defined with the quest steps below.
+    void oldGuy();
 
     void post_adv() {
         if (get_property("_lastCombatLost") == "true"){
@@ -259,7 +263,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (have_skill($skill[The Ode to Booze]))
                         use_skill($skill[the ode to booze]);
                     drink($item[astral pilsner]);
-                } else if (!lowIOTM() || !lowIOTMTopUp()) {
+                } else if (!guideRoute() || !lowIOTMTopUp()) {
                     abort("no more easy diet");
                 }
             }
@@ -280,8 +284,24 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (item_amount($item[fishy pipe]) == 0)
                         cli_execute("pull fishy pipe");
                     use($item[fishy pipe]);
-                } else if (lowIOTM()) {
+                } else if (guideRoute()) {
                     lowIOTMFishy();
+                    // The old man's crate of fish meat is tried again whenever Fishy runs out, then Lutz, then a pull.
+                    if (have_effect($effect[fishy]) == 0 && get_property("questS01OldGuy") == "started") {
+                        oldGuy();
+                        lowIOTMFishy();
+                    }
+                    if (have_effect($effect[fishy]) == 0 && get_property("skateParkStatus") == "ice"
+                        && get_property("_skateBuff1") == "false" && !cli_execute("skate lutz"))
+                        print("Couldn't get Fishy from Lutz, the Ice Skate.", "red");
+                    if (have_effect($effect[fishy]) == 0 && !lowIOTMFishyPull())
+                        abort("No Fishy and nothing left to give it. No " + $item[Aldebaran sardines] + " or "
+                            + $item[Centauri fish wine] + " held or pullable: one of each a day, " + pulls_remaining()
+                            + " pulls left, autoBuyPriceLimit " + get_property("autoBuyPriceLimit") + ", "
+                            + (fullness_limit() - my_fullness()) + " fullness and " + (inebriety_limit() - my_inebriety())
+                            + " inebriety free. The old man's " + $item[crate of fish meat] + " is "
+                            + (get_property("questS01OldGuy") == "finished" ? "used up" : "not claimed, see the message above")
+                            + ". Get Fishy by hand, then rerun.");
                 } else if (highShiny() || lowShiny() && !pulledToday($item[Aldebaran sardines])){
                     item cheap_pasta;
                     int lowest_value = 999999999;
@@ -372,7 +392,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 dolphinSaidWhy = "";
             }
         }
-        if (my_meat( ) < 300 && (!lowIOTM() || pristineScalesWanted() == 0)){
+        if (my_meat( ) < 300 && (!guideRoute() || pristineScalesWanted() == 0)){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
             }
@@ -385,7 +405,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 use_familiar($familiar[sword of s words]);
             else
                 use_familiar("itdrop");
-            tempEquipment(pearlRes[ps] + ",sea",if_equip($item[legendary seal-clubbing club]) + "shark jumper,scale-mail underwear," + bathysphere($item[none]));
+            tempEquipment(pearlRes[ps] + ",sea",if_equip($item[legendary seal-clubbing club]) + abyssGear() + bathysphere($item[none]));
             adv1(pearlLoc[ps]);
         }
 
@@ -396,7 +416,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             string conditional;
             if (!contains_text(get_property("banishedMonsters"), "school of many"))
                 conditional += if_equip($item[monodent of the sea]);
-            tempEquipment("item drop,sea","shark jumper,scale-mail underwear,black glass,"+ if_equip($item[peridot of peril]) 
+            tempEquipment("item drop,sea",abyssGear() + "black glass,"+ if_equip($item[peridot of peril]) 
                 + freeKill() + bathysphere($item[toy cupid bow]) + conditional);
             adv1($location[The Caliginous Abyss]);
         }
@@ -412,11 +432,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             }
         }
 
-        float mpTar = min(1, (lowIOTM() ? 400 : 250) / to_float(my_maxmp()));
-        // Low IOTM: free rests, then mafia's recovery, once MP drops under a scale fight or 125,
+        float mpTar = min(1, (guideRoute() ? 400 : 250) / to_float(my_maxmp()));
+        // Guide route: free rests, then mafia's recovery, once MP drops under a scale fight or 125,
         // capped at half of max MP.
-        int mpFloor = lowIOTM() ? min(max(scaleFightMP(), 125), my_maxmp() / 2) : 0;
-        if (lowIOTM() && my_mp() < mpFloor)
+        int mpFloor = guideRoute() ? min(max(scaleFightMP(), 125), my_maxmp() / 2) : 0;
+        if (guideRoute() && my_mp() < mpFloor)
             lowIOTMRestMP();
         float hpTar;
         if (my_location() == $location[mer-kin colosseum]){
@@ -429,7 +449,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         string hpAutoRecovery = to_float(round(hpTar * 0.75 * 10000))/10000;
         string hpAutoRecoveryTarget = to_float(round(hpTar * 10000))/10000;
         string mpAutoRecovery = to_float(round(mpTar * 0.5 * 10000))/10000;
-        if (lowIOTM())
+        if (guideRoute())
             mpAutoRecovery = to_float(round(min(mpTar, mpFloor / to_float(my_maxmp())) * 10000))/10000;
         string mpAutoRecoveryTarget = to_float(round(mpTar * 10000))/10000;
         set_property("hpAutoRecovery",       hpAutoRecovery);
@@ -467,7 +487,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             abort("set autoSatisfyWithNPCs = true, the script isn't going to work if it's false");
 
         iotmChecklist();
-        if (lowIOTM() && my_path().id == 55) {
+        if (guideRoute()) {
             string blockers = lowIOTMChecklist(true);
             if (blockers != "")
                 abort("The low IOTM route can't start. " + blockers);
@@ -647,7 +667,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
             step("initialization: storage pulls");
             // The low IOTM route pulls the guide's list instead.
-            if (lowIOTM()) {
+            if (guideRoute()) {
                 lowIOTMFortuneCookie();
                 lowIOTMPulls();
             } else
@@ -660,7 +680,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         continue;
                     if (storage_amount(it) == 0){
                         // The low IOTM route has other Colosseum lanterns.
-                        if (it == $item[Congressional Medal of Insanity] && lowIOTM())
+                        if (it == $item[Congressional Medal of Insanity] && guideRoute())
                             continue;
                         if (it == $item[Congressional Medal of Insanity])
                             abort("Get yer own CMOI, ya filthy animal!");
@@ -670,11 +690,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }
             }
             if (available_amount($item[large box]) > 0
-                && (!lowIOTM() || available_amount($item[ten-leaf clover]) > 0))
+                && (!guideRoute() || available_amount($item[ten-leaf clover]) > 0))
                 create($item[blessed large box]);
             if (available_amount($item[blessed large box]) > 0)
                 use($item[blessed large box]);
-            if (lowIOTM())
+            if (guideRoute())
                 lowIOTMBreakfast();
         }
         // Asdon martin refuel with soda bread only after prism break
@@ -780,6 +800,41 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         gymnasium("");
     }
 
+    // Buys one of Big Brother's zone maps from sand dollars beyond what the route still owes. True once the zone is open.
+    boolean spareDollarMap(item map, string prop, location zone) {
+        if (can_adventure(zone) || get_property(prop) == "true")
+            return can_adventure(zone);
+        int price = sell_price($coinmaster[Big Brother], map);
+        // A pearl zone map may spend what is held for the pearl zone maps, and the Anemone Mine map its teflon reservation.
+        int owed = sandDollarsOwed();
+        if ($items[map to Madness Reef, map to the Marinara Trench, map to the Dive Bar, map to Anemone Mine] contains map)
+            owed -= pearlMapsOwed();
+        if (map == $item[map to Anemone Mine])
+            owed -= anemoneMapOwed();
+        if (price <= 0 || item_amount($item[sand dollar]) - owed < price)
+            return false;
+        equipSwimTrunks();
+        if (!buy($coinmaster[Big Brother], 1, map))
+            print("Big Brother didn't sell the " + map + ".", "red");
+        return can_adventure(zone);
+    }
+
+    boolean skateParkClosedNoted;
+
+    // The guide route's Skate Park, with Big Brother's map bought from spare sand dollars. The closed park is noted once.
+    boolean guideSkateParkOpen() {
+        location park = $location[The Skate Park];
+        if (spareDollarMap($item[map to the Skate Park], "mapToTheSkateParkPurchased", park))
+            return true;
+        if (!skateParkClosedNoted) {
+            skateParkClosedNoted = true;
+            print("The Skate Park is closed: no " + $item[map to the Skate Park] + ", which Big Brother sells for "
+                + sell_price($coinmaster[Big Brother], $item[map to the Skate Park]) + " sand dollars, with "
+                + (item_amount($item[sand dollar]) - sandDollarsOwed()) + " spare. The run goes on without the Rumble Near the Fountain.", "red");
+        }
+        return false;
+    }
+
     void skatePark() {
         visit_url("sea_skatepark.php");
         if (get_property("skateParkStatus") != "war")
@@ -794,7 +849,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             gymnasium();
         else if (!parkaForceAvailable() && !leftSkiAvailable() && have_item($item[allied radio backpack]))
             cli_execute("alliedradio misc sniper");
-        if ((pulls_remaining( ) > reservedPulls() || it == $item[skate board]) && available_amount(it) == 0)
+        // The guide route takes its skate blade from the weapon choice.
+        if (!guideRoute() && (pulls_remaining( ) > reservedPulls() || it == $item[skate board]) && available_amount(it) == 0)
             pullSequence(it);
         if (get_property("noncombatForcerActive") == "true"){
             equipSwimTrunks();
@@ -810,6 +866,21 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             mood("-combat");
         }
         adv($location[The Skate Park]);
+    }
+
+    // The guide's Rumble Near the Fountain after Yog-Urt, while the park is open.
+    void guideSkatePark() {
+        int visits;
+        while (get_property("skateParkStatus") == "war" && guideSkateParkOpen()) {
+            if (my_adventures() < 1)
+                abort("Out of adventures in The Skate Park.");
+            if (visits >= 40) {
+                print("40 visits to The Skate Park and the war goes on. Moving on without it.", "red");
+                return;
+            }
+            visits += 1;
+            skatePark();
+        }
     }
 
     void recallCaliginous(){
@@ -841,7 +912,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if (!contains_text(get_property("banishedMonsters"), "school of many"))
             conditional += if_equip($item[monodent of the sea]);
         tempEquipment("mys,sea", guideWeapon($location[The Caliginous Abyss], false)
-            + "shark jumper,scale-mail underwear,black glass," + if_equip($item[Congressional Medal of Insanity])
+            + abyssGear() + "black glass," + if_equip($item[Congressional Medal of Insanity])
             +bathysphere($item[none]) + if_equip($item[blood cubic zirconia]) + conditional);
         adv($location[The Caliginous Abyss]);
     }
@@ -926,13 +997,15 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
     void oldGuy(){
-        // The boot trade ends the quest, and with it the tank offer, so the tank comes first.
-        if (guideRoute() && !buyOldScubaTank())
+        // The boot trade ends the quest, and with it the tank offer, so the tank comes first while the lasso still trains.
+        if (guideRoute() && get_property("seahorseName") == "" && !buyOldScubaTank())
             return;
-        while (item_amount($item[sand dollar]) < 50
+        // The guide route's boot waits behind the map to Anemone Mine.
+        while (item_amount($item[sand dollar]) < 50 + anemoneMapOwed()
             && (!guideRoute() || available_amount($item[damp old boot]) == 0)) {
             if (guideRoute() && !guideSandDollar()) {
-                print(item_amount($item[sand dollar]) + " of 50 sand dollars for the " + $item[damp old boot]
+                print(item_amount($item[sand dollar]) + " of " + (50 + anemoneMapOwed()) + " sand dollars for the " + $item[damp old boot]
+                    + (anemoneMapOwed() > 0 ? ", with 50 held for the " + $item[map to Anemone Mine] : "")
                     + ", so the old man's trade waits.", "red");
                 return;
             }
@@ -949,7 +1022,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             }
         }
         visit_url("place.php?whichplace=sea_oldman&action=oldman_oldman"
-            + "&preaction=pickreward&whichreward=" + (lowIOTM() ? "6312" : "6313"));
+            + "&preaction=pickreward&whichreward=" + (guideRoute() ? "6312" : "6313"));
     }
 
     void merkinLib(){
@@ -1252,16 +1325,18 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             while (item_amount($item[mer-kin killscroll]) == 0){
                 if (item_amount($item[mer-kin thingpouch]) > 0)
                     use(item_amount($item[mer-kin thingpouch]), $item[mer-kin thingpouch]);
-                else if (lowShiny() == false && pulls_remaining() > reservedPulls())
+                else if (lowShiny() == false && pulls_remaining() > reservedPulls() && !guideRoute())
                     pullSequence($item[mer-kin killscroll]);
+                else if (lowShiny() == false && pulls_remaining() > reservedPulls() && guidePullOne($item[mer-kin killscroll])) {}
                 else
                     farmPrayerbeads();
             }
         }
         if (get_property("dreadScroll2") == "0"){
             while (item_amount($item[mer-kin healscroll]) == 0){
-                if (lowShiny() == false && pulls_remaining() > reservedPulls())
+                if (lowShiny() == false && pulls_remaining() > reservedPulls() && !guideRoute())
                     pullSequence($item[mer-kin healscroll]);
+                else if (lowShiny() == false && pulls_remaining() > reservedPulls() && guidePullOne($item[mer-kin healscroll])) {}
                 else
                     farmPrayerbeads();
             }
@@ -1284,7 +1359,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
     void unlockGuild(){
-        if (get_property("questG03Ego") == "unstarted" && item_amount($item[Closed-circuit pay phone]) > 0 && my_path().id == 55 && !highShiny()) {
+        // Shadow bricks serve the shadow rift, which the guide route doesn't use.
+        if (get_property("questG03Ego") == "unstarted" && item_amount($item[Closed-circuit pay phone]) > 0 && my_path().id == 55 && !highShiny()
+            && !guideRoute()) {
             step("phase: guild unlock");
             if (get_property(questProp[ps]) != "finished") {
                 // Moxie shortcut — tearaway pants skip the grind
@@ -1433,6 +1510,37 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         return item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none];
     }
 
+    // Why Anemone Mine gives no teflon ore, or empty when mining just found none.
+    string teflonBlocked() {
+        item pick = $item[Mer-kin digpick];
+        if (!can_adventure($location[Anemone Mine]))
+            return "Anemone Mine is closed" + (anemoneMapOwed() > 0 ? ", and the " + $item[map to Anemone Mine] + " costs "
+                + anemoneMapOwed() + " sand dollars with " + item_amount($item[sand dollar]) + " held." : ".");
+        if (!can_equip(pick))
+            return "the " + pick + " needs more Muscle than you have.";
+        if (guideMinesDone() >= 30)
+            return "all 30 mines of this ascension are used.";
+        if (available_amount(pick) == 0)
+            return "no " + pick + " dropped in Anemone Mine.";
+        return "";
+    }
+
+    // A non-Muscle class buys the map to Anemone Mine from Big Brother, ahead of every other sand dollar use.
+    boolean guideAnemoneMap() {
+        location mine = $location[Anemone Mine];
+        if (can_adventure(mine) || anemoneMapOwed() == 0)
+            return can_adventure(mine);
+        item pouch = $item[Mer-kin thingpouch];
+        if (item_amount(pouch) > 0 && !use(item_amount(pouch), pouch))
+            print("Couldn't open the " + pouch + ".", "red");
+        if (item_amount($item[sand dollar]) >= anemoneMapOwed()) {
+            equipSwimTrunks();
+            if (!buy($coinmaster[Big Brother], 1, $item[map to Anemone Mine]))
+                print("Big Brother didn't sell the " + $item[map to Anemone Mine] + ".", "red");
+        }
+        return can_adventure(mine);
+    }
+
     // Low IOTM Anemone Mine after Grandpa: item drop at 18 spooky resistance until the
     // digpick drops and the zone's pearl is claimed, then mining for teflon ore.
     void anemoneGuide() {
@@ -1441,9 +1549,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         location mine = $location[Anemone Mine];
         item pick = $item[Mer-kin digpick];
         // Grandpa must be found first, and Little Brother opens the mine for Muscle classes only.
-        if (contains_text(",unstarted,started,step1,step2,step3,step4,", "," + get_property("questS02Monkees") + ",")
-            || !can_adventure(mine)) {
+        if (contains_text(",unstarted,started,step1,step2,step3,step4,", "," + get_property("questS02Monkees") + ",")) {
             print("Anemone Mine isn't open yet, so no digpick and no teflon ore.", "red");
+            return;
+        }
+        if (!guideAnemoneMap()) {
+            print("No digpick and no teflon ore yet: " + teflonBlocked(), "red");
             return;
         }
         if (!can_equip(pick)) {
@@ -1513,6 +1624,29 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if (available_amount(straps) > 0 && item_amount($item[teflon ore]) > 0
             && (creatable_amount(fins) < 1 || !create(1, fins)))
             print("Couldn't smith the " + fins + ".", "red");
+    }
+
+    // Pulls the teflon swim fins, else the ore, when mining gave none. Before the last mining trip it waits
+    // while the mine is open with mines left and a wieldable digpick.
+    void guideTeflonFallback(boolean last) {
+        if (!guideRoute() || !teflonNeeded())
+            return;
+        string why = teflonBlocked();
+        if (why == "")
+            why = "mining found none.";
+        if (!last && can_adventure($location[Anemone Mine]) && can_equip($item[Mer-kin digpick]) && guideMinesDone() < 30) {
+            print("No teflon ore from Anemone Mine yet: " + why + " The pull waits for one more try after the seahorse.", "red");
+            return;
+        }
+        print("No teflon ore from Anemone Mine: " + why + " Trying a pull.", "red");
+        if (guidePullOne($item[teflon swim fins]))
+            return;
+        if (guidePullOne($item[teflon ore])) {
+            outpostGuidePrep();
+            return;
+        }
+        print("Neither the " + $item[teflon swim fins] + " nor teflon ore could be pulled. The run goes on and stops at "
+            + "Grandma's crappy outfit if the fins are still missing.", "red");
     }
 
     void fitzsimmons(){
@@ -1792,7 +1926,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         use_familiar("itdrop");
                         if (!highShiny()){
                             if ((get_property("_monsterHabitatsMonster") == "eye in the darkness" || get_property("_monsterHabitatsMonster") == "slithering thing") && get_property("_monsterHabitatsFightsLeft") > 0)
-                                conditional += "shark jumper,scale-mail underwear,";
+                                conditional += guideRoute() ? abyssGear() : "shark jumper,scale-mail underwear,";
                             if (!gotPeriled($location[The Wreck of the Edgar Fitzsimmons]))
                                 conditional += if_equip($item[peridot of peril]);
                             if (banishGear($location[The Wreck of the Edgar Fitzsimmons]) == $item[spring shoes] && available_amount($item[spring shoes]) > 0){
@@ -1986,15 +2120,17 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
     // Big Brother's Madness Reef map, bought only with sand dollars beyond what the route still owes.
     void madnessReefMap() {
-        item map = $item[map to Madness Reef];
-        if (get_property("mapToMadnessReefPurchased") == "true")
-            return;
-        int price = sell_price($coinmaster[Big Brother], map);
-        if (price <= 0 || item_amount($item[sand dollar]) - sandDollarsOwed() < price)
-            return;
-        equipSwimTrunks();
-        if (!buy($coinmaster[Big Brother], 1, map))
-            print("Big Brother didn't sell the " + map + ".", "red");
+        boolean reefOpen = spareDollarMap($item[map to Madness Reef], "mapToMadnessReefPurchased", $location[Madness Reef]);
+    }
+
+    // Big Brother's pearl zone maps from spare sand dollars: Madness Reef, the Marinara Trench, the Dive Bar,
+    // then Anemone Mine for a non-Muscle class.
+    void guidePearlMaps() {
+        madnessReefMap();
+        boolean trench = spareDollarMap($item[map to the Marinara Trench], "mapToTheMarinaraTrenchPurchased", $location[The Marinara Trench]);
+        boolean bar = spareDollarMap($item[map to the Dive Bar], "mapToTheDiveBarPurchased", $location[The Dive Bar]);
+        boolean mine = my_primestat() == $stat[muscle]
+            || spareDollarMap($item[map to Anemone Mine], "mapToAnemoneMinePurchased", $location[Anemone Mine]);
     }
 
     // A skipped Lucky! trip is reported once a day, recorded in _utsCorralLuckyNoted.
@@ -2184,17 +2320,31 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if (available_amount(underwear) == 0)
             print("No " + underwear + " yet: " + item_amount($item[dull fish scale]) + "/25 dull and "
                 + item_amount(pristine) + " pristine fish scales.", "red");
+        string teflonWhy;
+        if (!tailOwned && available_amount($item[teflon swim fins]) == 0) {
+            if (item_amount($item[teflon ore]) > 0 && available_amount($item[waterlogged bootstraps]) == 0)
+                teflonWhy = "Teflon ore is held but no " + $item[waterlogged bootstraps] + " to smith it with: "
+                    + item_amount($item[sand dollar]) + " of the 10 sand dollars Big Brother wants. ";
+            else if (item_amount($item[teflon ore]) > 0)
+                teflonWhy = "Teflon ore and the " + $item[waterlogged bootstraps] + " are held, but the fins weren't smithed. ";
+            else {
+                teflonWhy = teflonBlocked();
+                teflonWhy = "No teflon ore for the fins: " + (teflonWhy == "" ? "mining found none." : teflonWhy)
+                    + " Neither the fins nor the ore could be pulled. ";
+            }
+        }
         if (!maskOwned || !tailOwned)
             abort("Grandma's crappy Mer-kin outfit is short: " + (maskOwned ? "" : "the mask needs the "
                 + $item[aerated diving helmet] + " (" + available_amount($item[aerated diving helmet]) + ") and 3 "
                 + pristine + ". ") + (tailOwned ? "" : "The tailpiece needs the sea chaps ("
                 + available_amount($item[sea chaps]) + "), the teflon swim fins (" + available_amount($item[teflon swim fins])
-                + ") and 3 " + pristine + ". ") + "Held: " + item_amount(pristine) + " " + pristine + ".");
+                + ") and 3 " + pristine + ". " + teflonWhy) + "Held: " + item_amount(pristine) + " " + pristine + ".");
     }
 
     void shadowTeflon(){
         step("phase: shadow rift prep");
-        if (my_path().id == 55 && !highShiny()){
+        // The guide route uses no shadow rift.
+        if (my_path().id == 55 && !highShiny() && !guideRoute()){
             if (to_int(get_property("encountersUntilSRChoice")) > 9
                 && get_property("questRufus") == "unstarted"
                 && item_amount($item[Closed-circuit pay phone]) > 0) {
@@ -2218,10 +2368,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
         step("phase: teflon ore");
         if (guideRoute()) {
-            // The guide's mining, capped per ascension, then the fins from the ore.
-            anemoneGuide();
-            guideTeflon();
+            // Smithing and pulls only. The mining runs before the diver and after the seahorse.
             outpostGuidePrep();
+            guideTeflonFallback(false);
         } else if (item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none]) {
             if (available_amount($item[mer-kin digpick]) == 0 && lowShiny() == false
                 && pulls_remaining() > reservedPulls()){
@@ -2259,13 +2408,16 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             }
 
             // ── Lasso training via shadow rift ────────────────────────────────────────
-            step("phase: lasso training");
-            while (to_int(get_property("lassoTrainingCount")) < 20 && !highShiny() && (have_effect($effect[shadow affinity]) > 0 || get_property("_shadowAffinityToday") == "false") && have_item($item[closed-circuit pay phone]))
-                shadowRift();
-
-            if ((my_turncount( ) > 25 || !have_item($item[Miniature crystal ball])) && !highShiny() && have_item($item[closed-circuit pay phone])){
-                while ((have_effect($effect[shadow affinity]) > 0 || get_property("_shadowAffinityToday") == "false"))
+            // The guide route trains the lasso in the Corral and the pearl zones instead.
+            if (!guideRoute()) {
+                step("phase: lasso training");
+                while (to_int(get_property("lassoTrainingCount")) < 20 && !highShiny() && (have_effect($effect[shadow affinity]) > 0 || get_property("_shadowAffinityToday") == "false") && have_item($item[closed-circuit pay phone]))
                     shadowRift();
+
+                if ((my_turncount( ) > 25 || !have_item($item[Miniature crystal ball])) && !highShiny() && have_item($item[closed-circuit pay phone])){
+                    while ((have_effect($effect[shadow affinity]) > 0 || get_property("_shadowAffinityToday") == "false"))
+                        shadowRift();
+                }
             }
 
             // ── Teflon ore second attempt (post-lodestone) ────────────────────────────
@@ -2330,6 +2482,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         step("phase: seahorse taming");
         if (guideRoute()) {
             corralGuide(true);
+            // A last try for the teflon ore once the seahorse is tamed.
+            anemoneGuide();
+            guideTeflon();
+            outpostGuidePrep();
+            guideTeflonFallback(true);
             guideCityGear();
             return;
         }
@@ -2419,17 +2576,20 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
     void postSeahorse(){
         // ── Drain remaining shadow affinity ──────────────────────────────────────
-        while (have_effect($effect[shadow affinity]) > 0){
-            while (get_property("_curveballFightsLeft").to_int() > 0 && get_property("_curveballMonster") == "some fish"){
-                curveballBurn();
+        // The guide route uses no shadow rift.
+        if (!guideRoute()) {
+            while (have_effect($effect[shadow affinity]) > 0){
+                while (get_property("_curveballFightsLeft").to_int() > 0 && get_property("_curveballMonster") == "some fish"){
+                    curveballBurn();
+                }
+                shadowRift();
             }
-            shadowRift();
-        }
-        if (get_property("encountersUntilSRChoice") == "0")
-            adv($location[Shadow Rift (The Misspelled Cemetary)]);
-        if (get_property("questRufus") == "step1") {
-            use($item[closed-circuit pay phone]);
-            adv($location[Shadow Rift (The Misspelled Cemetary)]);
+            if (get_property("encountersUntilSRChoice") == "0")
+                adv($location[Shadow Rift (The Misspelled Cemetary)]);
+            if (get_property("questRufus") == "step1") {
+                use($item[closed-circuit pay phone]);
+                adv($location[Shadow Rift (The Misspelled Cemetary)]);
+            }
         }
 
         // ── Buy crappy disguise if no tailpiece ───────────────────────────────────
@@ -2452,7 +2612,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             if (available_amount($item[crappy Mer-kin mask]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
                     if (to_int(get_property("_cloversPurchased")) < 3
-                        || (lowIOTM() && item_amount($item[11-leaf clover]) > 0)) {
+                        || (guideRoute() && item_amount($item[11-leaf clover]) > 0)) {
                         getLucky();
                         equip ($slot[acc3],$item[black glass]);
                     } else
@@ -2466,7 +2626,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             if (available_amount($item[crappy Mer-kin tailpiece]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
                     if (to_int(get_property("_cloversPurchased")) < 3
-                        || (lowIOTM() && item_amount($item[11-leaf clover]) > 0)){
+                        || (guideRoute() && item_amount($item[11-leaf clover]) > 0)){
                         getLucky();
                         equip ($slot[acc3],$item[black glass]);
                     } else
@@ -2492,6 +2652,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
     // Defined with the pearl zones below.
     boolean guidePearlTurn(string why);
+    int pearlsHeld();
+    string guidePearlShortfall();
     void pearlStage2();
     int guideDungeonSeeds(int seeds);
     void gladiatorTrainingSink();
@@ -2549,7 +2711,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     int guideLibraryClues(int seeds) {
         item bone = $item[Mer-kin knucklebone];
         if (seeds > 1 && get_property("dreadScroll4") == "0") {
-            if (item_amount(bone) == 0 && pulls_remaining() > reservedPulls() && !pullSequence(bone))
+            if (item_amount(bone) == 0 && pulls_remaining() > reservedPulls() && !guidePullOne(bone))
                 print("Couldn't pull a " + bone + " for dreadscroll clue 4.", "red");
             if (item_amount(bone) > 0) {
                 if (use(1, bone))
@@ -2615,8 +2777,55 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         foreach sc in $items[scroll of sea smarts, scroll of sea smarm]
             if (have_effect(effect_modifier(sc, "Effect")) == 0 && (!retrieve_item(1, sc) || !use(1, sc)))
                 print("Couldn't use a " + sc + " before Yog-Urt.", "red");
-        if (!have_skill($skill[Saucestorm]))
-            print("Yog-Urt takes no physical damage and the guide kills her with Saucestorm, which you don't know. The fight relies on elemental weapon damage.", "red");
+    }
+
+    // Yog-Urt's gear before the prayerbeads: Moxie and elemental weapon damage, with little HP.
+    void yogUrtGear() {
+        string conditional;
+        conditional += if_equip($item[bat wings]);
+        use_familiar("exp");
+        tempEquipment("moxie, hot damage, cold damage, spooky damage, sleaze damage, stench damage, -hp, -equip tiny yam cannon,sea",
+            "Mer-kin scholar mask, Mer-kin scholar tailpiece," + bathysphere($item[toy cupid bow]) + conditional);
+    }
+
+    // Elemental damage on the worn gear.
+    int elementalWeaponDamage() {
+        int dmg;
+        foreach el in $strings[Hot, Cold, Spooky, Sleaze, Stench]
+            dmg += to_int(numeric_modifier(el + " Damage"));
+        return dmg;
+    }
+
+    // Call sites that already printed the Yog-Urt melee estimate.
+    string yogFinisherNoted;
+
+    // Yog-Urt takes no physical damage. Without Saucestorm or Saucegeyser the kill is the worn gear's elemental
+    // damage, and the run stops before the fight when that can't finish her.
+    void guideYogFinisher(string site) {
+        if (have_skill($skill[Saucestorm]) || have_skill($skill[Saucegeyser]))
+            return;
+        monster yog = $monster[Yog-Urt, Elder Goddess of Hatred];
+        int dmg = elementalWeaponDamage();
+        if (dmg < 1)
+            abort("Yog-Urt takes no physical damage, and there is no Saucestorm, no Saucegeyser and no hot, cold, spooky, sleaze or stench damage "
+                + "on the Yog-Urt gear. Learn Saucestorm, or get a weapon or accessory with elemental damage, then rerun.");
+        stat hitStat = weapon_type(equipped_item($slot[weapon])) == $stat[moxie] ? $stat[moxie] : $stat[muscle];
+        int hits = ceil(to_float(yog.base_hp) / dmg);
+        int defense = monster_defense(yog);
+        string levers = " Learn Saucestorm, or add hot, cold, spooky, sleaze or stench damage, or raise " + hitStat
+            + " without Muscle or HP buffs that break the HP check, then rerun.";
+        if (hits > 27)
+            abort("Yog-Urt takes no physical damage and there is no Saucestorm or Saucegeyser: " + yog.base_hp + " HP against "
+                + dmg + " elemental damage a hit is about " + hits + " hits, more than a fight lasts." + levers);
+        // Below three quarters of her Defense, few swings land.
+        if (my_buffedstat(hitStat) * 4 < defense * 3)
+            abort("Yog-Urt takes no physical damage and there is no Saucestorm or Saucegeyser, and your " + my_buffedstat(hitStat)
+                + " " + hitStat + " is far below her " + defense + " Defense, so few of the " + hits + " hits needed would land." + levers);
+        if (contains_text(yogFinisherNoted, "," + site + ","))
+            return;
+        yogFinisherNoted += "," + site + ",";
+        print("No Saucestorm or Saucegeyser: Yog-Urt's " + yog.base_hp + " HP against " + dmg + " elemental damage a hit is about "
+            + hits + " hits, with your " + my_buffedstat(hitStat) + " " + hitStat + " against her " + defense + " Defense.", "red");
     }
 
     // The guide starts Yog-Urt with more than 100 MP.
@@ -2878,7 +3087,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                             // The guide waits Deep-Tainted Mind out in the pearl zones.
                             if (guideRoute() && guidePearlTurn("waiting out Deep-Tainted Mind"))
                                 continue;
-                            if (get_property("skateParkStatus") == "war") {
+                            if (get_property("skateParkStatus") == "war" && (!guideRoute() || guideSkateParkOpen())) {
                                 skatePark();
                             } else if (item_amount($item[Mer-kin thighguard]) == 0
                                 || item_amount($item[Mer-kin headguard]) == 0) {
@@ -2898,12 +3107,14 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }
             }
 
-            // Skate park war cleanup
-            while (get_property("skateParkStatus") == "war")
-                skatePark();
-            if (get_property("_skateBuff1") == "false" && !highShiny()){
-                equipSwimTrunks();
-                visit_url("sea_skatepark.php?action=state2buff1");
+            // Skate park war cleanup. The guide route has it after Yog-Urt.
+            if (!guideRoute()) {
+                while (get_property("skateParkStatus") == "war")
+                    skatePark();
+                if (get_property("_skateBuff1") == "false" && !highShiny()){
+                    equipSwimTrunks();
+                    visit_url("sea_skatepark.php?action=state2buff1");
+                }
             }
 
             if (!guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3 && (lowShiny() || pulls_remaining() == 0)){
@@ -2911,9 +3122,19 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     farmPrayerbeads();
             }
 
-            // Healscroll pull
-            if (item_amount($item[mer-kin healscroll]) == 0)
-                pullSequence($item[mer-kin healscroll]);
+            // Healscroll pull. The guide route pulls one only while Yog-Urt's heals are short, within autoBuyPriceLimit.
+            if (item_amount($item[mer-kin healscroll]) == 0) {
+                if (!guideRoute())
+                    pullSequence($item[mer-kin healscroll]);
+                else if (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > 0) {
+                    boolean pulled = guidePullOne($item[mer-kin healscroll]);
+                }
+            }
+            // Checked before any Yog-Urt turn is spent.
+            if (guideRoute() && !have_skill($skill[Saucestorm]) && !have_skill($skill[Saucegeyser])) {
+                yogUrtGear();
+                guideYogFinisher("prep");
+            }
 
             // YogUrt fight
             int hpCheckPasses;
@@ -2938,7 +3159,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     abort("Couldn't buy the Yog-Urt healing items or cast Cannelloni Cocoon; see the message above.");
                 // Null Afternoon stands in for the delevelers while it lasts.
                 // The low IOTM guide fights Yog-Urt without delevelers.
-                if (have_effect($effect[null afternoon]) == 0 && !lowIOTM()) {
+                if (have_effect($effect[null afternoon]) == 0 && !guideRoute()) {
                     if (delevelers() < 2 && !pulledToday($item[null-day exploit]) && pulls_remaining() > 0 && !lowShiny()){
                         pullSequence($item[null-day exploit]);
                         use($item[null-day exploit]);
@@ -2982,12 +3203,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }  
                 if (guideRoute())
                     guideYogBuffs();
-                string conditional;
-                conditional += if_equip($item[bat wings]);
-
-                use_familiar("exp");
-                tempEquipment("moxie, hot damage, cold damage, spooky damage, sleaze damage, stench damage, -hp, -equip tiny yam cannon,sea",
-                    "Mer-kin scholar mask, Mer-kin scholar tailpiece," + bathysphere($item[toy cupid bow]) + conditional);
+                yogUrtGear();
                 equip($slot[acc1], $item[mer-kin prayerbeads]);
 
                 if (available_amount($item[mer-kin prayerbeads]) >= 3) {
@@ -3035,10 +3251,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     continue;
                 }
                 // Prayerbead farming can outlast Null Afternoon; restock delevelers first.
-                if (have_effect($effect[null afternoon]) == 0 && delevelers() < 2 && !lowIOTM())
+                if (have_effect($effect[null afternoon]) == 0 && delevelers() < 2 && !guideRoute())
                     continue;
-                if (guideRoute())
+                if (guideRoute()) {
+                    guideYogFinisher("fight");
                     guideYogMP();
+                }
                 adv($location[Mer-kin Temple (Right Door)]);
             }
         }
@@ -3049,9 +3267,14 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             abort("Passing over yogUrt too early — rerun script");
         if (my_path().id == 55){
             // ── Post-YogUrt skate park / gladiator gear ───────────────────────────────
-            while (get_property("skateParkStatus") == "war")
-                skatePark();
-            if (get_property("_skateBuff1") == "false" && !highShiny()){
+            if (guideRoute()) {
+                guideSkatePark();
+            } else {
+                while (get_property("skateParkStatus") == "war")
+                    skatePark();
+            }
+            if (get_property("_skateBuff1") == "false" && !highShiny()
+                && (!guideRoute() || get_property("mapToTheSkateParkPurchased") == "true")){
                 equipSwimTrunks();
                 visit_url("sea_skatepark.php?action=state2buff1");
             }
@@ -3059,7 +3282,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             // Late pulls. The comfort/cleanup items wait until Shub is dead:
             // they once ate the last pull slots right before a Shub retry needed
             // the null-day exploit.
-            if (pulls_remaining() > 0) {
+            // The guide route pulls its null-day exploit on demand and makes none of the optional pulls.
+            if (pulls_remaining() > 0 && !guideRoute()) {
                 if (item_amount($item[crayon shavings]) < 8)
                     pullSequence($item[null-day exploit]);
                 foreach it in $items[peppermint parasol, ink bladder, Mer-kin pinkslip, stuffed yam stinkbomb, Louder Than Bomb, anchor bomb] {
@@ -3374,19 +3598,24 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             print("Going into Shub-Jigguwatt with " + my_mp() + " MP; the fight opens by taking half of it as HP.", "red");
     }
 
-    // Estimated standard attacks to take Shub-Jigguwatt's 10000 HP. Each hit over 500 is cut to 500 + (hit - 500)^0.6.
-    int shubHitsNeeded() {
+    // Estimated standard attacks to take hp with the worn gear. When capped, each hit over 500 is cut to 500 + (hit - 500)^0.6.
+    int meleeHitsNeeded(int hp, boolean capped) {
         item weapon = equipped_item($slot[weapon]);
         float base = weapon_type(weapon) == $stat[moxie] ? my_buffedstat($stat[moxie]) * 0.75 : my_buffedstat($stat[muscle]);
         if (weapon == $item[none])
             base = my_buffedstat($stat[muscle]) * 0.25 + 1;
         float hit = (base + get_power(weapon) / 10.0 + numeric_modifier("Weapon Damage"))
             * (1 + numeric_modifier("Weapon Damage Percent") / 100);
-        if (hit > 500)
+        if (capped && hit > 500)
             hit = 500 + floor((hit - 500) ** 0.6);
         if (hit < 1)
             hit = 1;
-        return ceil(10000 / hit);
+        return ceil(hp / hit);
+    }
+
+    // Shub-Jigguwatt's 10000 HP, with his damage cap.
+    int shubHitsNeeded() {
+        return meleeHitsNeeded(10000, true);
     }
 
     // The guide's Shub-Jigguwatt: Null Afternoon, a familiar that can't hurt him, no MP, standard attacks only.
@@ -3404,6 +3633,10 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if ((fam.physical_damage || fam.elemental_damage || fam.other_action_during_combat || fam.variable)
             && !use_familiar($familiar[none]))
             abort("The " + fam + " can hurt Shub-Jigguwatt, who hits back for it, and couldn't be put away. Take a harmless familiar, then rerun.");
+        // A bound pasta thrall acts in the fight too.
+        thrall bound = my_thrall();
+        if (bound != $thrall[none] && !use_skill(1, $skill[Dismiss Pasta Thrall]))
+            abort("Couldn't dismiss the " + bound + ", which would act against Shub-Jigguwatt. Dismiss it, then rerun.");
         string attackStat = my_buffedstat($stat[moxie]) > my_buffedstat($stat[muscle]) ? "mox" : "mus";
         tempEquipment(attackStat + ", weapon damage, weapon damage percent, effective, sea, -equip Pigsticker of Violence, "
             + "-equip spiky turtle shoulderpads, -equip plastic pumpkin bucket, -equip moveable feast, -equip V for Vivala mask, "
@@ -3481,6 +3714,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     abyssPasses += 1;
                     finishCaliginous();
                 }
+                // The Colosseum, Shub-Jigguwatt and the Sorceress share one Null Afternoon, so a pearl shortfall stops the run first.
+                if (pearlsHeld() < 5 && have_effect($effect[Null Afternoon]) == 0 && get_property("questL13Final") == "unstarted"
+                    && (to_int(get_property("lastColosseumRoundWon")) < 15 || get_property("shubJigguwattDefeated") != "true"))
+                    abort("Only " + pearlsHeld() + " of the 5 unblemished pearls the center door needs, and no pearl zone is left today."
+                        + guidePearlShortfall() + " The Colosseum, Shub-Jigguwatt and the Sorceress share one Null Afternoon, "
+                        + "so the run stops before the Colosseum. Rerun tomorrow to finish the pearls.");
             }
 
             refresh_status();
@@ -3587,15 +3826,27 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         abort("The center door needs 5 unblemished pearls and you hold "
                             + item_amount($item[unblemished pearl]) + ". Finish the pearl zones, then rerun.");
                 }
+                boolean guideMelee;
                 if (guideRoute()) {
                     if (!guideNullAfternoon(1))
                         abort("Null Afternoon has run out and no null-day exploit is left for the Nautical Seaceress: Attack 2000, "
                             + "Defense 2500, 4000 HP. Get a null-day exploit, one pull a day, then rerun.");
-                    int goal = min(my_maxmp(), 150);
-                    if (my_mp() < goal && !restore_mp(goal))
+                    // The spells go first while MP lasts, so MP is filled for them. Without one the kill is melee.
+                    guideMelee = !have_skill($skill[Saucegeyser]) && !have_skill($skill[Saucestorm]);
+                    if (!guideMelee && my_mp() < my_maxmp() && !restore_mp(my_maxmp()))
                         print("Couldn't restore MP before the Nautical Seaceress.", "red");
                 }
-                if (to_int(get_property("_batWingsFreeFights")) < 5) {
+                if (guideMelee) {
+                    string attackStat = my_buffedstat($stat[moxie]) > my_buffedstat($stat[muscle]) ? "mox" : "mus";
+                    tempEquipment(attackStat + ", weapon damage, weapon damage percent, sea", "Mer-kin gladiator mask,Mer-kin gladiator tailpiece,"
+                        + bathysphere($item[toy cupid bow]));
+                    // Null Afternoon zeroes her Defense, so every swing lands.
+                    int hits = meleeHitsNeeded(4000, false);
+                    if (hits > 27)
+                        abort("The Nautical Seaceress looks like about " + hits + " standard attacks at these stats, more than a fight lasts, and there is no "
+                            + "Saucegeyser or Saucestorm. Raise " + (attackStat == "mox" ? "Moxie" : "Muscle")
+                            + " or weapon damage and weapon damage percent, or learn Saucestorm, then rerun.");
+                } else if (to_int(get_property("_batWingsFreeFights")) < 5) {
                     tempEquipment("spell damage percent, mys,sea", "Mer-kin gladiator mask,Mer-kin gladiator tailpiece," + if_equip($item[bat wings])
                         + if_equip($item[Congressional Medal of Insanity]) + bathysphere($item[toy cupid bow]));
                 } else {
@@ -3712,6 +3963,26 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         return $location[none];
     }
 
+    // Each pearl zone that can't give its pearl today, and why.
+    string guidePearlShortfall() {
+        item [location] zoneMap = {
+            $location[The Marinara Trench]: $item[map to the Marinara Trench],
+            $location[The Dive Bar]: $item[map to the Dive Bar],
+            $location[Madness Reef]: $item[map to Madness Reef],
+            $location[Anemone Mine]: $item[map to Anemone Mine]
+        };
+        string why;
+        foreach i, zone in guidePearlOrder {
+            if (get_property(pearlClaimed[zone]) == "true")
+                continue;
+            if (!can_adventure(zone))
+                why += " " + zone + " is closed" + ((zoneMap contains zone) ? ", no " + zoneMap[zone] + " from Big Brother." : ".");
+            else if (guidePearlTurns[zone] >= 40)
+                why += " " + zone + " took 40 visits without its pearl.";
+        }
+        return why;
+    }
+
     // The zone's 18 resistance first, then item drop for the comb jelly, ink bladders and pinkslips.
     void guidePearlGear(location zone, string extra) {
         string res = pearlZoneRes[zone];
@@ -3795,6 +4066,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             return;
         // Pearls mounted in the codpiece count toward the five.
         codpiece("none");
+        guidePearlMaps();
         if (pearlsHeld() < 5) {
             step("phase: pearl zones stage 2, " + pearlsHeld() + " of 5 unblemished pearls");
             // The combat route trains its Mer-kin weapons in these fights too.
@@ -3925,7 +4197,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         step("phase: pearl zones stage 1, comb jelly, lasso training and pristine scales");
         location trench = $location[The Marinara Trench];
         location reef = $location[Madness Reef];
-        madnessReefMap();
+        guidePearlMaps();
         // Grandpa's story about scales puts the Economist in Madness Reef.
         if (to_int(get_property("uts_lowIOTMGrandpaScales")) != my_ascensions()) {
             equipSwimTrunks();
@@ -4374,6 +4646,12 @@ void seaMonkees() {
 
     if (get_property("questS01OldGuy") == "started") 
         oldGuy();
+    // With the Outpost's sand dollars in, the mine gets its map, and teflon is settled or pulled before the diver.
+    if (guideRoute()) {
+        anemoneGuide();
+        outpostGuidePrep();
+        guideTeflonFallback(false);
+    }
 
     // If high shiny --> s word sea cow --> (scuba) caliginous --> max item mctwist unholy diver (or Feesh and refract merkin) and lasso as necessary --> finish corral
     // Mid shiny if has cyberrealm and shadow rift and bcz --> max item summon unholy diver --> cyberrealm caliginous --> backup/software glitch mctwist sea cow --> shadow rift lasso --> delay until seahorse
