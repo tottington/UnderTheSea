@@ -294,7 +294,7 @@ string DropsItems;
                     if (have_skill($skill[The Ode to Booze]))
                         use_skill($skill[the ode to booze]);
                     drink($item[astral pilsner]);
-                } else {
+                } else if (!lowIOTM() || !lowIOTMTopUp()) {
                     abort("no more easy diet");
                 }
             }
@@ -316,6 +316,8 @@ string DropsItems;
                     if (item_amount($item[fishy pipe]) == 0)
                         cli_execute("pull fishy pipe");
                     use($item[fishy pipe]);
+                } else if (lowIOTM()) {
+                    lowIOTMFishy();
                 } else if (highShiny() || lowShiny() && !pulledToday($item[Aldebaran sardines])){
                     item cheap_pasta;
                     int lowest_value = 999999999;
@@ -691,7 +693,11 @@ string DropsItems;
             }
 
             step("initialization: storage pulls");
-            // Storage pulls for sea gear
+            // The low IOTM route pulls the guide's list instead.
+            if (lowIOTM()) {
+                lowIOTMFortuneCookie();
+                lowIOTMPulls();
+            } else
             foreach it in $items[mer-kin sneakmask, sea lasso, shark jumper,ten-leaf clover,large box,
                 scale-mail underwear, Congressional Medal of Insanity,Flash Liquidizer Ultra Dousing Accessory] {
                 if (available_amount(it) == 0 && !pulledToday(it)) {
@@ -710,10 +716,13 @@ string DropsItems;
                     take_storage(1, it);
                 }
             }
-            if (available_amount($item[large box]) > 0)
+            if (available_amount($item[large box]) > 0
+                && (!lowIOTM() || available_amount($item[ten-leaf clover]) > 0))
                 create($item[blessed large box]);
             if (available_amount($item[blessed large box]) > 0)
                 use($item[blessed large box]);
+            if (lowIOTM())
+                lowIOTMBreakfast();
         }
         // Asdon martin refuel with soda bread only after prism break
         if (get_workshed() == $item[Asdon Martin keyfob (on ring)] && !highShiny()
@@ -853,7 +862,7 @@ string DropsItems;
         if (available_amount($item[damp old boot]) == 0 && get_property("questS01OldGuy") == "started") 
             buy($coinmaster[Big Brother], 1, $item[damp old boot]);
         visit_url("place.php?whichplace=sea_oldman&action=oldman_oldman"
-            + "&preaction=pickreward&whichreward=6313");
+            + "&preaction=pickreward&whichreward=" + (lowIOTM() ? "6312" : "6313"));
     }
 
     void merkinLib(){
@@ -1986,7 +1995,8 @@ string DropsItems;
             cli_execute("unequip sea chaps; unequip aerated diving helmet");
             if (available_amount($item[crappy Mer-kin mask]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
-                    if (to_int(get_property("_cloversPurchased")) < 3) {
+                    if (to_int(get_property("_cloversPurchased")) < 3
+                        || (lowIOTM() && item_amount($item[11-leaf clover]) > 0)) {
                         getLucky();
                         equip ($slot[acc3],$item[black glass]);
                     } else
@@ -1999,7 +2009,8 @@ string DropsItems;
             }
             if (available_amount($item[crappy Mer-kin tailpiece]) == 0){
                 while (available_amount($item[pristine fish scale]) < 3){
-                    if (to_int(get_property("_cloversPurchased")) < 3){
+                    if (to_int(get_property("_cloversPurchased")) < 3
+                        || (lowIOTM() && item_amount($item[11-leaf clover]) > 0)){
                         getLucky();
                         equip ($slot[acc3],$item[black glass]);
                     } else
@@ -2306,7 +2317,8 @@ string DropsItems;
                 cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir"
                     + (have_skill($skill[Cannelloni Cocoon]) ? "; cast cannel" : ""));
                 // Null Afternoon stands in for the delevelers while it lasts.
-                if (have_effect($effect[null afternoon]) == 0) {
+                // The low IOTM guide fights Yog-Urt without delevelers.
+                if (have_effect($effect[null afternoon]) == 0 && !lowIOTM()) {
                     if (delevelers() < 2 && !pulledToday($item[null-day exploit]) && pulls_remaining() > 0 && !lowShiny()
                             && pullSequence($item[null-day exploit])) {
                             use($item[null-day exploit]);
@@ -2383,7 +2395,7 @@ string DropsItems;
                     continue;
                 }
                 // Prayerbead farming can outlast Null Afternoon; restock delevelers first.
-                if (have_effect($effect[null afternoon]) == 0 && delevelers() < 2)
+                if (have_effect($effect[null afternoon]) == 0 && delevelers() < 2 && !lowIOTM())
                     continue;
                 adv($location[Mer-kin Temple (Right Door)]);
             }
