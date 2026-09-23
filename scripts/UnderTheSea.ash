@@ -874,30 +874,34 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             return false;
         }
         string page = visit_url("place.php?whichplace=sea_oldman&action=oldman_oldman");
-        int at = index_of(page, "buytank");
+        // Positions come from the lowercased page so uppercase tags are found too.
+        string low = to_lower_case(page);
+        int at = index_of(low, "buytank");
         if (at < 0) {
             print("The old man's page offers no " + tank + "; buy it by hand at his shack.", "red");
             return false;
         }
         string url;
-        int start = last_index_of(substring(page, 0, at), "<form");
-        int stop = index_of(page, "</form>", at);
-        if (start >= 0 && stop > at && index_of(substring(page, start, at), "</form>") < 0) {
+        int start = last_index_of(substring(low, 0, at), "<form");
+        int stop = index_of(low, "</form>", at);
+        if (start >= 0 && stop > at && index_of(substring(low, start, at), "</form>") < 0) {
             string form = substring(page, start, stop);
-            matcher act = create_matcher("action=[\"']?([^\"' >]+)", form);
-            url = act.find() ? act.group(1) : "place.php";
+            // Group 2 is the attribute value: quoted up to its closing quote, unquoted up to
+            // whitespace or the tag end, without a self-closing slash.
+            matcher act = create_matcher("(?is)action=([\"']?)(.*?)\\1(?=\\s|/?>)", form);
+            url = act.find() && act.group(2) != "" ? act.group(2) : "place.php";
             string query;
-            matcher tag = create_matcher("<input[^>]*>", form);
+            matcher tag = create_matcher("(?i)<input[^>]*>", form);
             while (tag.find()) {
-                matcher fieldName = create_matcher("name=[\"']?([^\"' >]+)", tag.group(0));
-                matcher fieldValue = create_matcher("value=[\"']?([^\"'\\s>]*)", tag.group(0));
+                matcher fieldName = create_matcher("(?is)name=([\"']?)(.+?)\\1(?=\\s|/?>)", tag.group(0));
+                matcher fieldValue = create_matcher("(?is)value=([\"']?)(.*?)\\1(?=\\s|/?>)", tag.group(0));
                 if (fieldName.find())
-                    query += (query == "" ? "" : "&") + fieldName.group(1) + "=" + url_encode(fieldValue.find() ? fieldValue.group(1) : "");
+                    query += (query == "" ? "" : "&") + fieldName.group(2) + "=" + url_encode(fieldValue.find() ? fieldValue.group(2) : "");
             }
             if (query != "")
                 url += (contains_text(url, "?") ? "&" : "?") + query;
         } else {
-            matcher link = create_matcher("href=[\"']?([^\"' >]*buytank[^\"' >]*)", page);
+            matcher link = create_matcher("(?i)href=[\"']?([^\"' >]*buytank[^\"' >]*)", page);
             if (link.find())
                 url = link.group(1);
         }
@@ -2894,12 +2898,16 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         int noticeAt = 10;
                         while (delevelers() < 2) {
                             getMissingCorralItems();
+                            // At 0 adventures adv1 idles; on this path the next pass's post_adv drinks a held pilsner.
+                            if (delevelers() < 2 && my_adventures() < 1 && (my_path().id != 55
+                                || item_amount($item[astral pilsner]) + item_amount($item[astral six-pack]) == 0))
+                                abort("Out of adventures farming delevelers for Yog-Urt; " + why + ".");
                             int farmed = turns_played() - farmStart;
                             if (farmed > noticeAt) {
                                 print("Deleveler farming: " + farmed + " turns in The Coral Corral for delevelers. "
                                     + "Yog-Urt needs 2 delevelers and " + delevelers() + " are on hand; "
                                     + why + ".", "red");
-                                noticeAt = farmed + 10 - farmed % 10;
+                                noticeAt = (farmed / 10 + 1) * 10;
                             }
                         }
                     }

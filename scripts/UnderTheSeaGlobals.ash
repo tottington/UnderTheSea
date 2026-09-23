@@ -2129,7 +2129,7 @@ boolean batterUpPending(location loc) {
         || (targets contains to_monster(get_property("_utsBatterTried"))))
         return false;
     foreach mob in targets
-        if (!contains_text(get_property("banishedMonsters"), mob + ":"))
+        if (!create_matcher("(?:^|:)\\Q" + mob + ":\\E", get_property("banishedMonsters")).find())
             return true;
     return false;
 }
