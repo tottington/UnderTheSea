@@ -237,10 +237,23 @@ string DropsItems;
     // The MP recovery target setMPRecovery() last wrote.
     string mpTargetSet;
 
+    // Low IOTM recovery floor: a scale fight or 125 MP, capped at half of max MP.
+    int lowIOTMMPFloor() {
+        return min(max(scaleFightMP(), 125), my_maxmp() / 2);
+    }
+
     // MP recovery up to 250 or what meat buys, starting before a fight's kill casts run short.
+    // Low IOTM: up to 400, starting under lowIOTMMPFloor().
     void setMPRecovery() {
-        float mpTar = min(1, affordableMP(250) / to_float(my_maxmp()));
-        float mpLow = min(mpTar, max(mpTar * 0.5, fightMP() / to_float(my_maxmp())));
+        float mpTar;
+        float mpLow;
+        if (lowIOTM()) {
+            mpTar = min(1, 400 / to_float(my_maxmp()));
+            mpLow = min(mpTar, lowIOTMMPFloor() / to_float(my_maxmp()));
+        } else {
+            mpTar = min(1, affordableMP(250) / to_float(my_maxmp()));
+            mpLow = min(mpTar, max(mpTar * 0.5, fightMP() / to_float(my_maxmp())));
+        }
         string mpAutoRecovery = to_float(round(mpLow * 10000))/10000;
         string mpAutoRecoveryTarget = to_float(round(mpTar * 10000))/10000;
         set_property("mpAutoRecovery",       mpAutoRecovery);
@@ -365,7 +378,7 @@ string DropsItems;
             }
         }
 
-        if (available_amount($item[bat wings]) > 0
+        if (available_amount($item[bat wings]) > 0 && !restWouldCostFury()
             && (my_mp() < (my_maxmp() - 1000) || my_mp() < 150)) {
             equip($item[bat wings]);
             use_skill($skill[rest upside down]);
@@ -414,7 +427,7 @@ string DropsItems;
                 dolphinSaidWhy = "";
             }
         }
-        if (my_meat( ) < 300){
+        if (my_meat( ) < 300 && (!lowIOTM() || pristineScalesWanted() == 0)){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
             }
@@ -456,6 +469,10 @@ string DropsItems;
             }
         }
 
+        // Low IOTM: free rests, then mafia's recovery, once MP drops under a scale fight or 125,
+        // capped at half of max MP.
+        if (lowIOTM() && my_mp() < lowIOTMMPFloor())
+            lowIOTMRestMP();
         float hpTar;
         if (my_location() == $location[mer-kin colosseum]){
             hpTar = 1;
@@ -836,7 +853,8 @@ string DropsItems;
         string conditional;
         if (!contains_text(get_property("banishedMonsters"), "school of many"))
             conditional += if_equip($item[monodent of the sea]);
-        tempEquipment("mys,sea","shark jumper,scale-mail underwear,black glass," + if_equip($item[Congressional Medal of Insanity])
+        tempEquipment("mys,sea", guideWeapon($location[The Caliginous Abyss], false)
+            + "shark jumper,scale-mail underwear,black glass," + if_equip($item[Congressional Medal of Insanity])
             +bathysphere($item[none]) + if_equip($item[blood cubic zirconia]) + conditional);
         adv($location[The Caliginous Abyss]);
     }
@@ -929,7 +947,8 @@ string DropsItems;
         conditional += saberEquip($location[The Coral Corral]);
         conditional += cloakeEquip($location[The Coral Corral]);
         conditional += champagneEquip($location[The Coral Corral]);
-        tempEquipment("item drop,sea", if_equip($item[legendary seal-clubbing club]) + bathysphere($item[toy cupid bow]) + conditional);
+        tempEquipment("item drop,sea", guideWeapon($location[The Coral Corral], false)
+            + if_equip($item[legendary seal-clubbing club]) + bathysphere($item[toy cupid bow]) + conditional);
         if (!doneWithSeaCow())
             set_property("choiceAdventure1589","1&victim=775");
         else if (!doneWithCowboy())
@@ -1292,7 +1311,8 @@ string DropsItems;
                         conditional += if_equip($item[monodent of the sea]);
                 }
 
-                tempEquipment(DropsItems, bathysphere($item[toy cupid bow]) + conditional + freeKill());
+                tempEquipment(DropsItems, guideWeapon($location[An octopus's garden], false)
+                    + bathysphere($item[toy cupid bow]) + conditional + freeKill());
                 if (to_int(get_property("rwbMonsterCount")) == 0)
                     mapMonster($location[An octopus's garden]);
                 adv($location[An octopus's garden]);
@@ -1308,10 +1328,12 @@ string DropsItems;
             if (NCForceEstimate() >= 4){
                 if (get_property("noncombatForcerActive") != "true")
                     NCforce();
-                tempEquipment("item drop,sea, -equip peridot of peril", bathysphere($item[none]) + if_equip($item[M&ouml;bius ring]));
+                tempEquipment("item drop,sea, -equip peridot of peril", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], false)
+                    + bathysphere($item[none]) + if_equip($item[M&ouml;bius ring]));
             } else {
                 use_familiar("-combat");
-                tempEquipment("-combat,sea, -equip peridot of peril", if_equip($item[monodent of the sea]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
+                tempEquipment("-combat,sea, -equip peridot of peril", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], true)
+                    + if_equip($item[monodent of the sea]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
                 mood("-combat");
             }
             adv($location[The Wreck of the Edgar Fitzsimmons]);
@@ -1345,7 +1367,7 @@ string DropsItems;
                     baseballD();
                 if (to_int(get_property("_bczSweatBulletsCasts")) < 9)
                     conditional += if_equip($item[blood cubic zirconia]);
-                tempEquipment("item drop, sea, -100 combat",if_equip($item[monodent of the sea]) + delay()
+                tempEquipment("item drop, sea, -100 combat", guideWeapon(pearlLoc[ps], true) + if_equip($item[monodent of the sea]) + delay()
                     + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]) + conditional);
                 mood("-combat");
                 adv(pearlLoc[ps]);
@@ -1497,12 +1519,14 @@ string DropsItems;
                 conditional += if_equip($item[monodent of the sea]);
             if (get_property("merkinLockkeyMonster") != "") {
                 mood("-combat");
-                tempEquipment("-combat,sea", bathysphere($item[none]) + conditional + delay());
+                tempEquipment("-combat,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
+                    + bathysphere($item[none]) + conditional + delay());
             } else {
                 // The trainer's chaps share the pants slot with scale-mail underwear.
                 if (outpostLassoTraining() && !contains_text(conditional, "scale-mail underwear"))
                     conditional += "sea cowboy hat,sea chaps,";
-                tempEquipment("item drop,sea", bathysphere($item[toy cupid bow]) + conditional + freeKill());
+                tempEquipment("item drop,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
+                    + bathysphere($item[toy cupid bow]) + conditional + freeKill());
                 if (!contains_text(conditional, "roman candelabra") && !contains_text(conditional, "backup camera")) {
                     if (acornOutpostWanted())
                         acornOutpostDress(conditional, false);
@@ -1590,7 +1614,8 @@ string DropsItems;
                     string conditional;
                     if (total_turns_played( ) >= to_int(get_property("_lastFitzsimmonsHatch")) + 20){
                         use_familiar("-combat");
-                        tempEquipment("-combat,sea", bathysphere($item[toy cupid bow]));
+                        tempEquipment("-combat,sea", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], true)
+                            + bathysphere($item[toy cupid bow]));
                         mood("-combat");
                         if (NCForceEstimate() > 4)
                             NCforce();
@@ -1610,7 +1635,8 @@ string DropsItems;
                             conditional += cloakeEquip($location[The Wreck of the Edgar Fitzsimmons]);
                             conditional += champagneEquip($location[The Wreck of the Edgar Fitzsimmons]);
                             conditional += gloveEquip($location[The Wreck of the Edgar Fitzsimmons]);
-                            tempEquipment("item drop,sea",if_equip($item[monodent of the sea]) + conditional + bathysphere($item[toy cupid bow]));
+                            tempEquipment("item drop,sea", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], false)
+                                + if_equip($item[monodent of the sea]) + conditional + bathysphere($item[toy cupid bow]));
                             mood("itdrop");
                             mapMonster($location[The Wreck of the Edgar Fitzsimmons]);
                         } else if (highShiny()){
@@ -1943,7 +1969,7 @@ string DropsItems;
                 && available_amount($item[tearaway pants]) > 0) {
                 conditional += "tearaway pants,";
             }
-            tempEquipment(DropsItems,conditional + delay());
+            tempEquipment(DropsItems, guideWeapon($location[The Coral Corral], false) + conditional + delay());
             
             while (item_amount($item[sea lasso]) == 0)
                 monkeypaw($item[sea lasso]);
