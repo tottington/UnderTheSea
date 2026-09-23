@@ -176,6 +176,37 @@ void main(int whichchoice, string page) {
             run_choice(2);
             break;
 
+        // ── Daily Dungeon ─────────────────────────────────────────────────
+        // The guide's walk only; elsewhere mafia's own settings answer these.
+        // Chests are left shut, which costs no turn and skips no chamber.
+        case 690:
+        case 691:
+            if (guideRoute())
+                run_choice(3);
+            break;
+        // Doors: lockpicks, then a skeleton key, then the best stat at 30 or more, then the doorknob and its trap.
+        case 692:
+            if (!guideRoute())
+                break;
+            int door = 1;
+            stat doorStat = $stat[muscle];
+            foreach st in $stats[mysticality, moxie]
+                if (my_buffedstat(st) > my_buffedstat(doorStat))
+                    doorStat = st;
+            if (item_amount($item[Pick-O-Matic lockpicks]) > 0)
+                door = 3;
+            else if (item_amount($item[skeleton key]) > 0)
+                door = 2;
+            else if (my_buffedstat(doorStat) >= 30)
+                door = doorStat == $stat[muscle] ? 4 : (doorStat == $stat[mysticality] ? 5 : 6);
+            run_choice(door);
+            break;
+        // Traps: the eleven-foot pole when it is offered, otherwise the trap and its damage.
+        case 693:
+            if (guideRoute())
+                run_choice((available_choice_options() contains 2) ? 2 : 1);
+            break;
+
         // ── Dread scroll puzzle ───────────────────────────────────────────
         case 703:
             int Scroll7;

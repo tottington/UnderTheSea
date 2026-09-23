@@ -2493,6 +2493,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     // Defined with the pearl zones below.
     boolean guidePearlTurn(string why);
     void pearlStage2();
+    int guideDungeonSeeds(int seeds);
     void gladiatorTrainingSink();
 
     boolean facecowlHeld() {
@@ -2543,6 +2544,35 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // The library's own clues while seedfinder leaves several answers: the knucklebone for clue 4,
+    // then up to 10 library turns for the catalog clues 1, 6 and 8. Returns the answers left.
+    int guideLibraryClues(int seeds) {
+        item bone = $item[Mer-kin knucklebone];
+        if (seeds > 1 && get_property("dreadScroll4") == "0") {
+            if (item_amount(bone) == 0 && pulls_remaining() > reservedPulls() && !pullSequence(bone))
+                print("Couldn't pull a " + bone + " for dreadscroll clue 4.", "red");
+            if (item_amount(bone) > 0) {
+                if (use(1, bone))
+                    seeds = dreadAnswersLeft();
+                else
+                    print("Couldn't use the " + bone + " for dreadscroll clue 4.", "red");
+            }
+        }
+        int turns;
+        while (seeds > 1 && (get_property("dreadScroll1") == "0" || get_property("dreadScroll6") == "0" || get_property("dreadScroll8") == "0")) {
+            if (my_adventures() < 1)
+                abort("Out of adventures in the Mer-kin Library looking for dreadscroll clues, with " + seeds + " different answers left.");
+            if (turns >= 10) {
+                print("10 library turns without dreadscroll clues 1, 6 and 8; moving on with " + seeds + " different answers left.", "red");
+                break;
+            }
+            merkinLib();
+            turns += 1;
+            seeds = dreadAnswersLeft();
+        }
+        return seeds;
+    }
+
     // The guide's library: the dreadscroll on the sixth encounter, then seedfinder's answers.
     void guideLibrary() {
         location library = $location[Mer-kin Library];
@@ -2557,26 +2587,27 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             merkinLib();
             libraryTurns += 1;
         }
+        // All eight set means one answer, or answers entered by hand after a stop below.
+        if (dreadAnswered())
+            return;
         dreadSeedCheck();
-        int seeds = seedPoss();
+        int seeds = dreadAnswersLeft();
         if (seeds > 1 && get_property("dreadScroll3") == "0" && have_skill($skill[Deep Dark Visions])) {
             deepDarkVisions(true);
-            dreadSeedCheck();
-            seeds = seedPoss();
+            seeds = dreadAnswersLeft();
         }
-        // All eight set means one seed, or answers entered by hand after a stop below.
-        boolean answered = true;
-        for x from 1 to 8
-            if (get_property("dreadScroll" + x) == "0")
-                answered = false;
-        if (answered)
+        if (seeds > 1)
+            seeds = guideLibraryClues(seeds);
+        if (seeds > 1)
+            seeds = guideDungeonSeeds(seeds);
+        if (dreadAnswered())
             return;
         if (seeds == 0)
             abort("seedfinder matches no ascension seed. Check the identified bang potions and the seahorse name, then run seedfinder find by hand.");
-        abort("seedfinder still lists " + seeds + " possible seeds, so the dreadscroll answers are unknown. "
-            + "The guide: take the Gelatinous Cubeling with the bathysphere through the pearl zones for its three Daily Dungeon drops, "
-            + "then walk the Daily Dungeon and run seedfinder find after each room until one seed is left. "
-            + "Set dreadScroll1 through dreadScroll8 from that seed and rerun.");
+        // The guide tries one of the seeds left after the Daily Dungeon.
+        if (!dreadGuessNext())
+            abort("seedfinder still leaves " + seeds + " different dreadscroll answers and none fits the clues and rejected answers. "
+                + "Run seedfinder find by hand, set dreadScroll1 through dreadScroll8 and rerun. Answers set by hand end the seed guessing.");
     }
 
     // The guide's Yog-Urt buffs: Sea Smarts and Sea Smarm, with no Muscle or HP buffs.
@@ -2821,10 +2852,26 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         string answer;
                         for x from 1 to 8
                             answer += get_property("dreadScroll" + x);
-                        if (guideRoute() && contains_text("," + get_property("dreadScrollGuesses"), "," + answer + ":"))
+                        // A rejected seed guess moves on to the next seed that fits.
+                        boolean guessing = guideRoute() && dreadGuessActive() != "";
+                        boolean rejected = contains_text("," + get_property("dreadScrollGuesses"), "," + answer + ":")
+                            || (guessing && dreadAscList(get_property("utsDreadLastUse"), my_ascensions()) == answer);
+                        if (guideRoute() && rejected && guessing) {
+                            set_property("utsDreadRejected", dreadAscAdd(get_property("utsDreadRejected"), my_ascensions(), answer));
+                            if (count(split_string(get_property("_utsDreadTriedSeeds"), ",")) >= 5)
+                                abort("Five ascension seed guesses failed today. Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8. "
+                                    + "Answers set by hand end the seed guessing.");
+                            if (!dreadGuessNext())
+                                abort("The dreadscroll rejected " + answer + " and no other seedfinder seed fits the clues and rejected answers. "
+                                    + "Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8. Answers set by hand end the seed guessing.");
+                            continue;
+                        }
+                        if (guideRoute() && rejected)
                             abort("The dreadscroll already rejected the answers " + answer
                                 + ". Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8.");
-                        use($item[mer-kin dreadscroll]);
+                        if (!use($item[mer-kin dreadscroll]))
+                            abort("Couldn't use the dreadscroll; see the message above.");
+                        set_property("utsDreadLastUse", my_ascensions() + ":" + answer);
                         post_adv();
                     } else {
                         while (have_effect($effect[Deep-Tainted Mind]) > 0) {
@@ -3646,6 +3693,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     // Visits this script run has made to each pearl zone.
     int [location] guidePearlTurns;
     location guidePearlLast;
+    // Takes the place of the item drop familiar in the pearl zones when set.
+    familiar guidePearlFamiliar = $familiar[none];
 
     int pearlsHeld() {
         return item_amount($item[unblemished pearl]);
@@ -3667,7 +3716,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     void guidePearlGear(location zone, string extra) {
         string res = pearlZoneRes[zone];
         set_location(zone);
-        use_familiar("itdrop");
+        if (guidePearlFamiliar == $familiar[none] || !use_familiar(guidePearlFamiliar))
+            use_familiar("itdrop");
         mood(to_string(replace_string(res, " ", "")));
         mood("itdrop");
         tempEquipment("200 " + res + " 18 max, item drop, sea", extra + guideWeapon(zone, false) + bathysphere($item[none]));
@@ -3759,6 +3809,99 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 print("No pearl zone left to finish today, with " + pearlsHeld() + " of 5 unblemished pearls.", "red");
         }
         gladiatorTrainingSink();
+    }
+
+    // The guide's Gelatinous Cubeling: pearl zone fights with the bathysphere until its three Daily Dungeon drops are held.
+    void guideCubelingDrops() {
+        familiar cube = $familiar[Gelatinous Cubeling];
+        if (cubelingDropsHeld() == 3)
+            return;
+        if (!have_familiar(cube)) {
+            print("No Gelatinous Cubeling, so the Daily Dungeon's traps and doors cost turns.", "red");
+            return;
+        }
+        if (available_amount($item[little bitty bathysphere]) == 0 && have_effect($effect[driving waterproofly]) == 0) {
+            print("No little bitty bathysphere for the Gelatinous Cubeling underwater, so the Daily Dungeon is walked without its drops.", "red");
+            return;
+        }
+        step("phase: Gelatinous Cubeling drops, " + cubelingDropsHeld() + " of 3 held");
+        int fights;
+        guidePearlFamiliar = cube;
+        try {
+            while (cubelingDropsHeld() < 3) {
+                // The drops come on the cubeling's 6th, 9th and 12th fights of the ascension.
+                if (to_int(get_property("cubelingProgress")) >= 15) {
+                    print("The Gelatinous Cubeling has fought " + get_property("cubelingProgress") + " times with " + cubelingDropsHeld()
+                        + " of 3 drops held; walking the Daily Dungeon without the rest.", "red");
+                    break;
+                }
+                if (fights >= 20) {
+                    print("20 pearl zone turns with the Gelatinous Cubeling and " + cubelingDropsHeld()
+                        + " of 3 drops held; walking the Daily Dungeon without the rest.", "red");
+                    break;
+                }
+                if (my_adventures() < 1)
+                    abort("Out of adventures collecting the Gelatinous Cubeling drops, " + cubelingDropsHeld() + " of 3 held.");
+                fights += 1;
+                if (guidePearlTurn("collecting the Gelatinous Cubeling drops"))
+                    continue;
+                location zone = $location[none];
+                foreach i, z in guidePearlOrder
+                    if (zone == $location[none] && can_adventure(z))
+                        zone = z;
+                if (zone == $location[none]) {
+                    print("No pearl zone is open for the Gelatinous Cubeling; walking the Daily Dungeon with "
+                        + cubelingDropsHeld() + " of 3 drops.", "red");
+                    break;
+                }
+                guidePearlGear(zone, "");
+                adv(zone);
+            }
+        } finally {
+            guidePearlFamiliar = $familiar[none];
+        }
+    }
+
+    // The guide's Daily Dungeon walk: seedfinder again after every chamber through the 14th,
+    // until one dreadscroll answer is left. Returns the answers left.
+    int guideDungeonSeeds(int seeds) {
+        location dungeon = $location[The Daily Dungeon];
+        int chamber = to_int(get_property("_lastDailyDungeonRoom"));
+        if (seeds <= 1 || get_property("dailyDungeonDone") == "true" || chamber >= 14)
+            return seeds;
+        if (!can_adventure(dungeon)) {
+            print(dungeon + " is not open, so the dreadscroll answers come from a seed guess.", "red");
+            return seeds;
+        }
+        guideCubelingDrops();
+        step("phase: Daily Dungeon for the ascension seed, " + seeds + " different answers left");
+        int visits;
+        int idle;
+        while (seeds > 1 && get_property("dailyDungeonDone") != "true" && chamber < 14) {
+            if (my_adventures() < 1)
+                abort("Out of adventures in " + dungeon + " after chamber " + chamber + " with " + seeds + " different dreadscroll answers left.");
+            if (visits >= 20)
+                abort("20 visits to " + dungeon + " and " + seeds + " different dreadscroll answers left. Check the dungeon, then rerun.");
+            if (idle >= 3)
+                abort("3 visits to " + dungeon + " without a new chamber after chamber " + chamber + ". Check the dungeon, then rerun.");
+            use_familiar("itdrop");
+            tempEquipment("mainstat, 0.5 hp", "");
+            visits += 1;
+            if (!adv1(dungeon, -1, ""))
+                print("The visit to " + dungeon + " did not finish; see the message above.", "red");
+            post_adv();
+            int now = to_int(get_property("_lastDailyDungeonRoom"));
+            if (now > chamber) {
+                chamber = now;
+                idle = 0;
+            } else {
+                idle += 1;
+            }
+            seeds = dreadAnswersLeft();
+            print("Daily Dungeon chamber " + chamber + ": " + seeds + " different dreadscroll answers left, rooms "
+                + get_property("dailyDungeonRooms") + ".", "blue");
+        }
+        return seeds;
     }
 
     // Turns left on the sea cow's Snokebomb, or -1 when mafia has none recorded.

@@ -696,6 +696,10 @@ void main(int round, monster mob, string page_text) {
         case $location[The Skeleton Store]:
             cleanUp();
             break;
+        case $location[The Daily Dungeon]:
+            cleanUp();
+            attackCleanUp();
+            break;
         case $location[The Outskirts of Cobb's Knob]:
         case $location[The Sleazy Back Alley]:
         case $location[The Haunted Pantry]:

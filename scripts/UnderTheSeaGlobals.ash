@@ -937,6 +937,187 @@ import <seedfinder/seedfinder.ash>;
         }
     }
 
+    // The eight dreadScroll properties as digits, 0 where the answer is unknown.
+    string dreadClues() {
+        string clues;
+        for x from 1 to 8
+            clues += to_string(to_int(get_property("dreadScroll" + x)));
+        return clues;
+    }
+
+    // Positions where two eight digit dreadscroll answers differ.
+    int dreadMismatches(string a, string b) {
+        if (length(a) != 8 || length(b) != 8)
+            return 8;
+        int miss;
+        for i from 0 to 7
+            if (char_at(a, i) != char_at(b, i))
+                miss += 1;
+        return miss;
+    }
+
+    // True when the answers agree with every known clue digit.
+    boolean dreadFitsClues(string answers, string clues) {
+        if (length(answers) != 8 || length(clues) != 8)
+            return false;
+        for i from 0 to 7
+            if (char_at(clues, i) != "0" && char_at(clues, i) != char_at(answers, i))
+                return false;
+        return true;
+    }
+
+    // True when the answers fit every rejected "answers:wrong" entry of dreadScrollGuesses.
+    boolean dreadFitsGuesses(string answers, string guesses) {
+        foreach i, entry in split_string(guesses, ",") {
+            string [int] part = split_string(entry, ":");
+            if (part[0] == "")
+                continue;
+            int wrong = count(part) > 1 ? to_int(part[1]) : 0;
+            int miss = dreadMismatches(answers, part[0]);
+            if (miss == 0 || (wrong > 0 && miss != wrong))
+                return false;
+        }
+        return true;
+    }
+
+    boolean dreadSeedTried(int seed, string tried) {
+        return contains_text("," + tried + ",", "," + seed + ",");
+    }
+
+    string dreadTriedAdd(string tried, int seed) {
+        return tried == "" ? to_string(seed) : tried + "," + seed;
+    }
+
+    // A seed worth trying: it fits the clues and the rejected guesses, and was not tried today.
+    boolean dreadCandidate(string answers, int seed, string clues, string tried, string guesses) {
+        return dreadFitsClues(answers, clues) && !dreadSeedTried(seed, tried) && dreadFitsGuesses(answers, guesses);
+    }
+
+    // "clues:answers" of this ascension's last seed guess, or empty when there is none.
+    string dreadGuessStored() {
+        string [int] part = split_string(get_property("utsDreadGuess"), ":");
+        if (count(part) != 3 || to_int(part[0]) != my_ascensions() || length(part[1]) != 8 || length(part[2]) != 8)
+            return "";
+        return part[1] + ":" + part[2];
+    }
+
+    // True when the "clues:answers" guess still matches the dreadScroll properties.
+    boolean dreadGuessMatches(string stored, string current) {
+        string [int] part = split_string(stored, ":");
+        return count(part) == 2 && part[1] == current;
+    }
+
+    // The stored guess while the properties still hold it. Properties edited by hand end the guessing.
+    string dreadGuessActive() {
+        string stored = dreadGuessStored();
+        if (stored == "" || dreadGuessMatches(stored, dreadClues()))
+            return stored;
+        set_property("utsDreadGuess", "");
+        print("The dreadScroll properties no longer hold the seed guess, so they are taken as set by hand.", "red");
+        return "";
+    }
+
+    // The list part of an "ascension:list" property, empty when it belongs to another ascension.
+    string dreadAscList(string value, int asc) {
+        int cut = index_of(value, ":");
+        if (cut < 1 || to_int(substring(value, 0, cut)) != asc)
+            return "";
+        return substring(value, cut + 1);
+    }
+
+    // The "ascension:list" value with the entry added, started over for a new ascension.
+    string dreadAscAdd(string value, int asc, string entry) {
+        string list = dreadAscList(value, asc);
+        if (list == "")
+            return asc + ":" + entry;
+        if (contains_text("," + list + ",", "," + entry + ","))
+            return asc + ":" + list;
+        return asc + ":" + list + "," + entry;
+    }
+
+    // All eight dreadScroll properties set.
+    boolean dreadAnswered() {
+        return !contains_text(dreadClues(), "0");
+    }
+
+    // The one answer string every entry shares, or empty when they differ or there are none.
+    string dreadAgreed(string [int] answers) {
+        string common;
+        foreach i, a in answers {
+            if (common == "")
+                common = a;
+            else if (a != common)
+                return "";
+        }
+        return common;
+    }
+
+    int dreadDistinct(string [int] answers) {
+        boolean [string] seen;
+        foreach i, a in answers
+            seen[a] = true;
+        return count(seen);
+    }
+
+    string seedAnswers(SeedData data) {
+        string answers;
+        for i from 0 to 7
+            answers += to_string(data.dreadscroll[i]);
+        return answers;
+    }
+
+    // Distinct dreadscroll answers among seedfinder's seeds. When they all agree, the unset properties are filled.
+    int dreadAnswersLeft() {
+        SeedData[int] seeds = find_seeds();
+        string [int] list;
+        foreach idx, data in seeds
+            list[count(list)] = seedAnswers(data);
+        string agreed = dreadAgreed(list);
+        if (agreed != "")
+            for x from 1 to 8
+                if (to_int(get_property("dreadScroll" + x)) == 0)
+                    set_property("dreadScroll" + x, char_at(agreed, x - 1));
+        return dreadDistinct(list);
+    }
+
+    // Sets the dreadscroll answers from one untried seedfinder seed that fits the clues and the rejected answers.
+    // False, with the clue properties restored, when no such seed is left.
+    boolean dreadGuessNext() {
+        string clues = dreadClues();
+        string stored = dreadGuessActive();
+        if (stored != "") {
+            string [int] part = split_string(stored, ":");
+            clues = part[0];
+        }
+        for x from 1 to 8
+            set_property("dreadScroll" + x, char_at(clues, x - 1));
+        string tried = get_property("_utsDreadTriedSeeds");
+        string rejected = get_property("dreadScrollGuesses") + "," + dreadAscList(get_property("utsDreadRejected"), my_ascensions());
+        SeedData[int] seeds = find_seeds();
+        foreach idx, data in seeds {
+            string answers = seedAnswers(data);
+            if (!dreadCandidate(answers, data.seed, clues, tried, rejected))
+                continue;
+            set_property("_utsDreadTriedSeeds", dreadTriedAdd(tried, data.seed));
+            set_property("utsDreadGuess", my_ascensions() + ":" + clues + ":" + answers);
+            for x from 1 to 8
+                set_property("dreadScroll" + x, char_at(answers, x - 1));
+            print("Trying ascension seed " + data.seed + " of the " + count(seeds)
+                + " seedfinder still lists: dreadscroll answers " + answers + ".", "blue");
+            return true;
+        }
+        return false;
+    }
+
+    // The Gelatinous Cubeling's three Daily Dungeon drops held.
+    int cubelingDropsHeld() {
+        int held;
+        foreach it in $items[eleven-foot pole, ring of Detect Boring Doors, Pick-O-Matic lockpicks]
+            if (available_amount(it) > 0)
+                held += 1;
+        return held;
+    }
+
     boolean cheatsheetsNeeded() {
         return item_amount($item[mer-kin cheatsheet]) < 9
             && get_property("merkinVocabularyMastery") == "0";
