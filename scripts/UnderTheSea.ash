@@ -2375,6 +2375,39 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Casts Deep Dark Visions until mafia records the third dreadscroll answer.
+    // Optional skips it without the skill or the 500 maximum HP a cast needs.
+    void deepDarkVisions(boolean optional) {
+        if (get_property("dreadScroll3") != "0")
+            return;
+        if (optional && !have_skill($skill[Deep Dark Visions]))
+            return;
+        mood("spookyres");
+        maximize("50 spooky res, hp",false);
+        // Mafia skips the cast below 500 maximum HP.
+        if (my_maxhp() < 500 && optional) {
+            print("Deep Dark Visions needs 500 maximum HP; you have " + my_maxhp() + ". Skipping it.", "red");
+            return;
+        }
+        if (my_maxhp() < 500)
+            abort("Deep Dark Visions needs 500 maximum HP; you have " + my_maxhp() + ".");
+        // A cast deals three to four times max HP before resistance. The phrase
+        // comes either way; below this even a full HP cast ends Beaten Up.
+        int spookyRes = to_int(elemental_resistance($element[spooky]));
+        if (spookyRes < 67)
+            print("Deep Dark Visions: " + spookyRes + "% spooky resistance is too low to survive a cast.", "red");
+        int casts;
+        while (get_property("dreadScroll3") == "0") {
+            if (casts >= 10)
+                abort("Deep Dark Visions gave no dreadscroll phrase in 10 casts. Cast it by hand until dreadScroll3 is set, then rerun.");
+            if (!restore_hp(spookyRes < 67 ? 1000 : my_maxhp()))
+                abort("Could not restore HP before Deep Dark Visions; see the message above.");
+            if (!use_skill(1, $skill[deep dark visions]))
+                abort("Could not cast Deep Dark Visions; see the message above.");
+            casts += 1;
+        }
+    }
+
     void postSeahorse(){
         // ── Drain remaining shadow affinity ──────────────────────────────────────
         while (have_effect($effect[shadow affinity]) > 0){
@@ -2444,28 +2477,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     abort();
             }
 
-            if (get_property("dreadScroll3") == "0") {
-                mood("spookyres");
-                maximize("50 spooky res, hp",false);
-                // Mafia skips the cast below 500 maximum HP.
-                if (my_maxhp() < 500)
-                    abort("Deep Dark Visions needs 500 maximum HP; you have " + my_maxhp() + ".");
-                // A cast deals three to four times max HP before resistance. The phrase
-                // comes either way; below this even a full HP cast ends Beaten Up.
-                int spookyRes = to_int(elemental_resistance($element[spooky]));
-                if (spookyRes < 67)
-                    print("Deep Dark Visions: " + spookyRes + "% spooky resistance is too low to survive a cast.", "red");
-                int casts;
-                while (get_property("dreadScroll3") == "0") {
-                    if (casts >= 10)
-                        abort("Deep Dark Visions gave no dreadscroll phrase in 10 casts. Cast it by hand until dreadScroll3 is set, then rerun.");
-                    if (!restore_hp(spookyRes < 67 ? 1000 : my_maxhp()))
-                        abort("Could not restore HP before Deep Dark Visions; see the message above.");
-                    if (!use_skill(1, $skill[deep dark visions]))
-                        abort("Could not cast Deep Dark Visions; see the message above.");
-                    casts += 1;
-                }
-            }
+            deepDarkVisions(false);
         }
     }
 
@@ -2473,12 +2485,116 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     boolean guidePearlTurn(string why);
     void pearlStage2();
 
+    boolean facecowlHeld() {
+        return available_amount($item[Mer-kin facecowl]) + available_amount($item[Mer-kin scholar mask]) > 0;
+    }
+
+    boolean waistropeHeld() {
+        return available_amount($item[Mer-kin waistrope]) + available_amount($item[Mer-kin scholar tailpiece]) > 0;
+    }
+
+    // One guide turn in the school: the Mer-kin disguise, -combat, item drop and a free run if one is up.
+    void guideSchoolTurn(string waitingFor, item gate, int spent) {
+        location school = $location[Mer-kin Elementary School];
+        if (my_adventures() < 1)
+            abort("Out of adventures in " + school + " while waiting on " + waitingFor + ".");
+        if (spent >= 60)
+            abort(spent + " turns in " + school + " without " + waitingFor + ". Check the combat rate and rerun.");
+        use_familiar("-combat");
+        string run = freeRun();
+        mood("itdrop");
+        tempEquipment("-2 combat, item drop, sea", if_equip(divingHelmet()) + if_equip(tailpiece())
+            + guideWeapon(school, true) + bathysphere($item[none]) + run);
+        mood("-combat");
+        zoneStall(waitingFor, gate, school, spent, 20);
+        adv(school);
+    }
+
+    // The guide's school: hallpasses closeted until the teacher's lounge opens, then
+    // spent on the lounge noncombat for the facecowl and the waistrope.
+    void guideSchool() {
+        item pass = $item[Mer-kin hallpass];
+        if (available_amount($item[Mer-kin dreadscroll]) > 0 || (facecowlHeld() && waistropeHeld()))
+            return;
+        step("phase: elementary school, " + (item_amount(pass) + closet_amount(pass)) + " hallpasses held");
+        int unlockTurns;
+        while (get_property("merkinElementaryTeacherUnlock") == "false") {
+            if (item_amount(pass) > 0 && !put_closet(item_amount(pass), pass))
+                abort("Couldn't closet the " + pass + " before the teacher's lounge is open.");
+            guideSchoolTurn("the teacher's lounge noncombat", $item[none], unlockTurns);
+            unlockTurns += 1;
+        }
+        if (closet_amount(pass) > 0 && !take_closet(closet_amount(pass), pass))
+            print("Couldn't take the " + pass + " out of the closet.", "red");
+        int loungeTurns;
+        while (!facecowlHeld() || !waistropeHeld()) {
+            guideSchoolTurn("the scholar outfit pieces", pass, loungeTurns);
+            loungeTurns += 1;
+        }
+    }
+
+    // The guide's library: the dreadscroll on the sixth encounter, then seedfinder's answers.
+    void guideLibrary() {
+        location library = $location[Mer-kin Library];
+        item scroll = $item[Mer-kin dreadscroll];
+        int libraryTurns;
+        while (available_amount(scroll) == 0) {
+            if (my_adventures() < 1)
+                abort("Out of adventures in " + library + " before the " + scroll + " showed up.");
+            if (libraryTurns >= 20)
+                abort(libraryTurns + " turns in " + library + " without the " + scroll + ". Check the zone and rerun.");
+            zoneStall("the " + scroll, $item[none], library, libraryTurns, 10);
+            merkinLib();
+            libraryTurns += 1;
+        }
+        dreadSeedCheck();
+        int seeds = seedPoss();
+        if (seeds > 1 && get_property("dreadScroll3") == "0" && have_skill($skill[Deep Dark Visions])) {
+            deepDarkVisions(true);
+            dreadSeedCheck();
+            seeds = seedPoss();
+        }
+        // All eight set means one seed, or answers entered by hand after a stop below.
+        boolean answered = true;
+        for x from 1 to 8
+            if (get_property("dreadScroll" + x) == "0")
+                answered = false;
+        if (answered)
+            return;
+        if (seeds == 0)
+            abort("seedfinder matches no ascension seed. Check the identified bang potions and the seahorse name, then run seedfinder find by hand.");
+        abort("seedfinder still lists " + seeds + " possible seeds, so the dreadscroll answers are unknown. "
+            + "The guide: take the Gelatinous Cubeling with the bathysphere through the pearl zones for its three Daily Dungeon drops, "
+            + "then walk the Daily Dungeon and run seedfinder find after each room until one seed is left. "
+            + "Set dreadScroll1 through dreadScroll8 from that seed and rerun.");
+    }
+
+    // The guide's Yog-Urt buffs: Sea Smarts and Sea Smarm, with no Muscle or HP buffs.
+    void guideYogBuffs() {
+        foreach sc in $items[scroll of sea smarts, scroll of sea smarm]
+            if (have_effect(effect_modifier(sc, "Effect")) == 0 && (!retrieve_item(1, sc) || !use(1, sc)))
+                print("Couldn't use a " + sc + " before Yog-Urt.", "red");
+        if (!have_skill($skill[Saucestorm]))
+            print("Yog-Urt takes no physical damage and the guide kills her with Saucestorm, which you don't know. The fight relies on elemental weapon damage.", "red");
+    }
+
+    // The guide starts Yog-Urt with more than 100 MP.
+    void guideYogMP() {
+        int goal = min(my_maxmp(), 150);
+        if (my_mp() < goal && !restore_mp(goal))
+            print("Couldn't restore MP before Yog-Urt.", "red");
+        if (my_mp() <= 100)
+            print("Only " + my_mp() + " MP for Yog-Urt; the guide wants more than 100.", "red");
+    }
+
     void YogUrt(){
         // ── YogUrt preparation ────────────────────────────────────────────────────
         step("phase: Yog-Urt preparation");
         if ((get_property("yogUrtDefeated") == "false" && my_path().id == 55) || (my_path().id == 0 && boss == "Yogurt")) {
             if (get_property("isMerkinHighPriest") == "false") {
-                if (isKBandSushiEnough() == false || my_path().id == 0){
+                if (guideRoute()) {
+                    guideSchool();
+                } else if (isKBandSushiEnough() == false || my_path().id == 0){
                     // Farm mer-kin cheatsheets and unlock teacher
                     if (my_path().id == 0){
                         cli_execute("acquire 10 mer-kin cheatsheet, 10 mer-kin wordquiz, mer-kin killscroll, mer-kin healscroll, mer-kin knucklebone");
@@ -2613,6 +2729,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }
 
                 step("phase: library (dreadscroll)");
+                if (guideRoute())
+                    guideLibrary();
                 // Dread scroll acquisition
                 while (available_amount($item[mer-kin dreadscroll]) == 0 || get_property("dreadScroll1") == "0" || get_property("dreadScroll6") == "0" || get_property("dreadScroll8") == "0") {
                     merkinLib();
@@ -2634,7 +2752,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     }
                 }
 
-                if (available_amount($item[mer-kin prayerbeads]) < 3 && (lowShiny() || pulls_remaining() == 0)){
+                // The guide fights Yog-Urt with two prayerbeads.
+                if (!guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3 && (lowShiny() || pulls_remaining() == 0)){
                     while (available_amount($item[mer-kin prayerbeads]) < 3){
                         farmPrayerbeads();
                     }
@@ -2657,7 +2776,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     }
                 }
 
-                while (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > pulls_remaining( ))
+                // The guide buys its Yog-Urt healing right before the fight, where this is counted.
+                while (!guideRoute() && YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > pulls_remaining( ))
                     farmPrayerbeads();
 
                 cli_execute("uneffect the sonata of sneakiness");
@@ -2687,6 +2807,13 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         eatSushi();
                     }
                     if (have_effect($effect[Deep-Tainted Mind]) == 0) {
+                        // Every answer here comes from seedfinder or the user, so a rejected one would only be read again.
+                        string answer;
+                        for x from 1 to 8
+                            answer += get_property("dreadScroll" + x);
+                        if (guideRoute() && contains_text("," + get_property("dreadScrollGuesses"), "," + answer + ":"))
+                            abort("The dreadscroll already rejected the answers " + answer
+                                + ". Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8.");
                         use($item[mer-kin dreadscroll]);
                         post_adv();
                     } else {
@@ -2722,7 +2849,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 visit_url("sea_skatepark.php?action=state2buff1");
             }
 
-            if (available_amount($item[mer-kin prayerbeads]) < 3 && (lowShiny() || pulls_remaining() == 0)){
+            if (!guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3 && (lowShiny() || pulls_remaining() == 0)){
                 while (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > pulls_remaining( ))
                     farmPrayerbeads();
             }
@@ -2736,11 +2863,22 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             while (get_property("yogUrtDefeated") == "false") {
                 // With under three prayerbeads the guide burns a Sea Strength under 40 turns off in the pearl zones.
                 if (guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3
+                    && get_property("_utsYogBeadFarm") != "true"
                     && have_effect($effect[Sea Strength]) > 0 && have_effect($effect[Sea Strength]) < 40
                     && guidePearlTurn("burning off Sea Strength"))
                     continue;
-                cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir"
-                    + (have_skill($skill[Cannelloni Cocoon]) ? "; cast cannel" : ""));
+                // With 40 or more turns of Sea Strength the guide farms the third prayerbead instead, to the end.
+                if (guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3
+                    && (have_effect($effect[Sea Strength]) >= 40 || get_property("_utsYogBeadFarm") == "true")) {
+                    set_property("_utsYogBeadFarm", "true");
+                    if (my_adventures() < 1)
+                        abort("Out of adventures farming the third prayerbead for Yog-Urt.");
+                    farmPrayerbeads();
+                    continue;
+                }
+                if (!cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir"
+                    + (have_skill($skill[Cannelloni Cocoon]) ? "; cast cannel" : "")))
+                    abort("Couldn't buy the Yog-Urt healing items or cast Cannelloni Cocoon; see the message above.");
                 // Null Afternoon stands in for the delevelers while it lasts.
                 // The low IOTM guide fights Yog-Urt without delevelers.
                 if (have_effect($effect[null afternoon]) == 0 && !lowIOTM()) {
@@ -2770,10 +2908,19 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     pullSequence($item[mer-kin prayerbeads]);
 
                 // Equip as many prayerbeads as available, pull healing items for gaps
-                if (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > pulls_remaining( )){
-                    while (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > pulls_remaining( ))
+                // The guide route pulls no healing, so its count has no pulls to lean on.
+                if (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > (guideRoute() ? 0 : pulls_remaining( ))){
+                    while (YogHealingsNeeded[available_amount($item[mer-kin prayerbeads])] - YogHealingsOwned() > (guideRoute() ? 0 : pulls_remaining( ))) {
+                        if (guideRoute() && available_amount($item[mer-kin prayerbeads]) >= 3)
+                            abort("Yog-Urt needs " + YogHealingsNeeded[3] + " full heal with 3 prayerbeads and none is held. "
+                                + "Get a sea gel, a waterlogged scroll of healing or a Mer-kin healscroll and rerun.");
+                        if (guideRoute() && my_adventures() < 1)
+                            abort("Out of adventures farming prayerbeads for the Yog-Urt healing count.");
                         farmPrayerbeads();
+                    }
                 }  
+                if (guideRoute())
+                    guideYogBuffs();
                 string conditional;
                 conditional += if_equip($item[bat wings]);
 
@@ -2788,11 +2935,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 } else {
                     if (available_amount($item[mer-kin prayerbeads]) >= 2){
                         equip($slot[acc2], $item[mer-kin prayerbeads]);
-                        if (item_amount($item[New Age healing crystal]) == 0 && !pulledToday($item[New Age healing crystal]))
+                        // The guide's healing is bought in-run, with no pulls.
+                        if (!guideRoute() && item_amount($item[New Age healing crystal]) == 0 && !pulledToday($item[New Age healing crystal]))
                             pullSequence($item[New Age healing crystal]);
-                        else if (item_amount($item[soggy used band-aid]) == 0 && !pulledToday($item[soggy used band-aid]))
+                        else if (!guideRoute() && item_amount($item[soggy used band-aid]) == 0 && !pulledToday($item[soggy used band-aid]))
                             pullSequence($item[soggy used band-aid]);
-                    } else {
+                    } else if (!guideRoute()) {
                         if (item_amount($item[New Age healing crystal]) == 0 && !pulledToday($item[New Age healing crystal]))
                             pullSequence($item[New Age healing crystal]);
                         if (item_amount($item[soggy used band-aid]) == 0 && !pulledToday($item[soggy used band-aid]))
@@ -2815,6 +2963,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                                 ? " (Gummiheart is still up and no antidote could be pulled)"
                                 : "")
                             + " -- check what is granting maximum HP.");
+                    if (guideRoute() && available_amount($item[mer-kin prayerbeads]) >= 3)
+                        abort("Predicted HP is too high for Yog-Urt even with 3 prayerbeads. "
+                            + "Remove the Muscle and HP sources first: Sea Strength (" + have_effect($effect[Sea Strength])
+                            + " turns), other Muscle or maximum HP buffs, and Muscle or HP gear. Then rerun.");
+                    if (guideRoute() && my_adventures() < 1)
+                        abort("Out of adventures farming prayerbeads for Yog-Urt's HP check.");
                     hpCheckPasses += 1;
                     farmPrayerbeads();
                     continue;
@@ -2822,6 +2976,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 // Prayerbead farming can outlast Null Afternoon; restock delevelers first.
                 if (have_effect($effect[null afternoon]) == 0 && delevelers() < 2 && !lowIOTM())
                     continue;
+                if (guideRoute())
+                    guideYogMP();
                 adv($location[Mer-kin Temple (Right Door)]);
             }
         }

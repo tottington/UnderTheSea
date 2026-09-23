@@ -167,6 +167,9 @@ void free_run(string ptext, boolean banish) {
             && to_int(get_property("parasolUsed")) >= parasolCap()) continue;
         if (freecombat == $item[mer-kin pinkslip]
             && last_monster().phylum != $phylum[mer-kin]) continue;
+        // The low IOTM guide keeps pinkslips and ink bladders for the Gymnasium.
+        if ((freecombat == $item[mer-kin pinkslip] || freecombat == $item[ink bladder])
+            && guideRoute() && my_location() != $location[Mer-kin Gymnasium]) continue;
         throw_item(freecombat);
     }
 }
@@ -1059,6 +1062,12 @@ void main(int round, monster mob, string page_text) {
             break;
 
         case $location[Mer-kin Elementary School]:
+            // The guide runs from school fights while it has a free run.
+            if (guideRoute() && !free_monster(last_monster())) {
+                free_run(page_text, false);
+                if (current_round() == 0)
+                    break;
+            }
             if (free_monster(last_monster())) {
                 if (get_property("NCtoC") != "true")
                     use_if_have_skill(page_text, $skill[BCZ: Refracted Gaze]);
