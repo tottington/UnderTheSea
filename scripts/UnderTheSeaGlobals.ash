@@ -107,6 +107,11 @@ import <seedfinder/seedfinder.ash>;
         return lowIOTM() && my_class() == $class[Seal Clubber];
     }
 
+    // The low IOTM guide's own steps only run inside 11037 Leagues Under the Sea.
+    boolean guideRoute() {
+        return lowIOTM() && my_path().id == 55;
+    }
+
     boolean highShiny() {
         return !lowIOTM()
             && to_int(get_property("garbo_valueOfFreeFight")) > to_int(get_property("valueOfAdventure"));
@@ -445,7 +450,7 @@ import <seedfinder/seedfinder.ash>;
     boolean [item] whistleWorthy = $items[Mer-kin prayerbeads, Mer-kin healscroll,
         Mer-kin lockkey, Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig,
         rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
-        sea cowbell, sea lasso];
+        sea cowbell, sea lasso, Mer-kin digpick];
 
     // Charges cap at seaPoints, and one in Hagnk's is unusable in Ronin, so
     // possession is not readiness.
@@ -640,7 +645,8 @@ import <seedfinder/seedfinder.ash>;
         return to_string(buf);
     }
 
-    int mineNum(){
+    // The Anemone Mine spot to mine next, or 0 when no spot qualifies.
+    int mineSpot(){
         int num, x_coor, y_coor;
         string itzmine = visit_url("mining.php?mine=3");
         matcher mining_spot = create_matcher(
@@ -684,6 +690,11 @@ import <seedfinder/seedfinder.ash>;
                 break;
             }
         }
+        return num;
+    }
+
+    int mineNum(){
+        int num = mineSpot();
         if (num == 0)
             abort("Generic mining did not find teflon ore, mine manually. TIP: the ores show up in adjacent veins of 5.");
         return num;
@@ -994,6 +1005,10 @@ boolean stillWanted(item it) {
         return prayerbeadsShort();
     case $item[Mer-kin bunwig]:
         return available_amount($item[mer-kin bunwig]) == 0;
+    case $item[Mer-kin digpick]:
+        // Only the low IOTM route mines the teflon ore with a dropped digpick.
+        return guideRoute() && available_amount($item[Mer-kin digpick]) == 0
+            && item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none];
     }
     // The rest are thrown or spent, so what the run wants of them moves. The
     // cowbell and the lasso outlive the seahorse as Yog-Urt delevelers.
@@ -1659,6 +1674,54 @@ void briefcase() {
 // remains.
 
 boolean restWouldCostFury();
+boolean guidePullOne(item it);
+
+boolean guideForcerUsable(item it) {
+    if (it == $item[stench jelly])
+        return spleen_limit() - my_spleen_use() >= 1;
+    if (it == $item[Clara's bell])
+        return get_property("_claraBellUsed") != "true";
+    return true;
+}
+
+// The low IOTM guide's forcers: stench jelly, Clara's bell, then a handheld Allied radio.
+// One on hand goes first, else one is pulled, at most one a day.
+void guideForceNC() {
+    if (get_property("noncombatForcerActive") == "true")
+        return;
+    // An $items[] set iterates by item id, so the guide's order needs an indexed map.
+    item [int] forcers = {0: $item[stench jelly], 1: $item[Clara's bell], 2: $item[handheld Allied radio]};
+    item pick = $item[none];
+    foreach i, it in forcers
+        if (pick == $item[none] && item_amount(it) > 0 && guideForcerUsable(it))
+            pick = it;
+    boolean pulled;
+    foreach i, it in forcers
+        if (pulledToday(it))
+            pulled = true;
+    // Pulls stay inside the day's plan: none spent below reservedPulls().
+    if (pick == $item[none] && !pulled && (pulls_remaining() < 0 || pulls_remaining() - reservedPulls() > 0)) {
+        foreach i, it in forcers
+            if (pick == $item[none] && storage_amount(it) > 0 && guideForcerUsable(it))
+                pick = it;
+        foreach i, it in forcers
+            if (pick == $item[none] && is_tradeable(it) && mall_price(it) > 0 && guideForcerUsable(it))
+                pick = it;
+        if (pick != $item[none] && !guidePullOne(pick))
+            pick = $item[none];
+    }
+    if (pick == $item[none])
+        return;
+    boolean used;
+    if (pick == $item[stench jelly])
+        used = chew(1, pick);
+    else if (pick == $item[Clara's bell])
+        used = use(1, pick);
+    else
+        used = cli_execute("alliedradio misc sniper");
+    if (!used)
+        print("Couldn't use the " + pick + " to force a noncombat.", "red");
+}
 
 void NCforce() {
     if (get_property("noncombatForcerActive") != "true") {
@@ -1687,7 +1750,10 @@ void NCforce() {
             // free, so it comes before anything that costs a pull. If the free
             // pill already went on Fidoxene this call is a no-op.
             pillKeeper("free noncombat");
-        } else if (!have_item($item[mchugelarge duffel bag]) && !have_item($item[jurassic parka]) && !have_item($item[allied radio backpack])){
+        } else if (guideRoute() && !have_item($item[mchugelarge duffel bag]) && !have_item($item[jurassic parka])
+            && !have_item($item[allied radio backpack])) {
+            guideForceNC();
+        } else if (!guideRoute() && !have_item($item[mchugelarge duffel bag]) && !have_item($item[jurassic parka]) && !have_item($item[allied radio backpack])){
             foreach it in $items[Handheld Allied radio, Clara's bell, stench jelly]{
                 if (!pulledToday(it)){
                     if (it == $item[Clara's Bell] && storage_amount(it) == 0)

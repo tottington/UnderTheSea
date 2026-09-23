@@ -355,6 +355,29 @@ item bangB(){
     return $item[none];
 }
 
+// A bang potion held that mafia hasn't identified this ascension, other than skip.
+item unknownBang(item skip) {
+    foreach it in $items[milky potion, swirly potion, bubbly potion, smoky potion, cloudy potion, effervescent potion, fizzy potion, dark potion, murky potion]
+        if (it != skip && item_amount(it) > 0 && get_property("lastBangPotion" + to_int(it)) == "")
+            return it;
+    return $item[none];
+}
+
+// Throws each held bang potion mafia hasn't identified this ascension, while the fight lasts.
+void throwUnknownBangs() {
+    int throws;
+    while (current_round() > 0 && throws < 9 && unknownBang($item[none]) != $item[none]) {
+        item a = unknownBang($item[none]);
+        item b = unknownBang(a);
+        if (b != $item[none] && have_skill($skill[Ambidextrous Funkslinging])) {
+            buffer both = throw_items(a, b);
+        } else {
+            buffer one = throw_item(a);
+        }
+        throws += 1;
+    }
+}
+
 // The diver's own kill. Shared by the copy guard and the monster switch so
 // the two cannot drift apart. The egg is capped daily and a bare use_skill
 // at the cap would set the error state and end the run mid-combat.
@@ -451,7 +474,9 @@ void main(int round, monster mob, string page_text) {
     }
 
     lectureOnRelativity(last_monster(), page_text);
-    while (available_amount($item[murky potion]) > 0 && current_round() > 0 && current_round() < 5 && last_monster() != $monster[sea cowboy]){
+    if (guideRoute() && last_monster() != $monster[sea cowboy])
+        throwUnknownBangs();
+    while (!guideRoute() && available_amount($item[murky potion]) > 0 && current_round() > 0 && current_round() < 5 && last_monster() != $monster[sea cowboy]){
         if (have_skill($skill[Ambidextrous Funkslinging]))
             throw_items(bangA(),bangB());
         else

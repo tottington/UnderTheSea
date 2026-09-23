@@ -198,7 +198,19 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         use_familiar("itdrop");
         equip($item[really, really nice swimming trunks]);
         visit_url("monkeycastle.php?who=1");
-        if (available_amount($item[black glass]) == 0) 
+        // After Little Brother, Big Brother hands the black glass over for free. It is bought
+        // only once that talk has passed without it, and only from dollars nothing else needs.
+        if (guideRoute()) {
+            visit_url("monkeycastle.php?who=2");
+            boolean talked = contains_text(",step11,step12,finished,", "," + get_property("questS02Monkees") + ",");
+            if (available_amount($item[black glass]) > 0 || !talked)
+                return;
+            if (item_amount($item[sand dollar]) < sandDollarsOwed())
+                print("Big Brother didn't hand over the " + $item[black glass] + ", and " + item_amount($item[sand dollar])
+                    + " sand dollars can't buy it with " + sandDollarsOwed() + " owed.", "red");
+            else if (!buy($coinmaster[Big Brother], 1, $item[black glass]))
+                print("Couldn't buy the " + $item[black glass] + " from Big Brother.", "red");
+        } else if (available_amount($item[black glass]) == 0) 
             buy($coinmaster[Big Brother], 1, $item[black glass]);
     }
 
@@ -674,11 +686,14 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
 // ─── Questing ─────────────────────────────────────────────────────────────
-    void mineAnemone(){
+    // Mines the given spot, or mineNum()'s pick when it is 0.
+    void mineAnemoneAt(int which){
         equip($item[mer-kin digpick]);
         equipSwimTrunks();
         use_familiar("itdrop");
-        visit_url("mining.php?mine=3&which=" + mineNum());
+        if (which == 0)
+            which = mineNum();
+        visit_url("mining.php?mine=3&which=" + which);
         if (my_hp() == 0)
             cli_execute("restore HP");
         if (item_amount($item[teflon ore]) > 0){
@@ -688,6 +703,57 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 cli_execute("rest");
         }
         post_adv();
+    }
+
+    void mineAnemone(){
+        mineAnemoneAt(0);
+    }
+
+    // Low IOTM mines, counted per ascension as "<ascension>:<count>".
+    int guideMinesDone() {
+        string [int] saved = split_string(get_property("uts_lowIOTMMines"), ":");
+        if (count(saved) == 2 && to_int(saved[0]) == my_ascensions())
+            return to_int(saved[1]);
+        return 0;
+    }
+
+    // One low IOTM mine. False at the 30 mine cap, without a wieldable digpick or with no spot left.
+    boolean guideMine() {
+        item pick = $item[Mer-kin digpick];
+        if (guideMinesDone() >= 30 || available_amount(pick) == 0 || !can_equip(pick))
+            return false;
+        if (!have_equipped(pick) && !equip(pick))
+            return false;
+        equipSwimTrunks();
+        int spot = mineSpot();
+        if (spot == 0)
+            return false;
+        set_property("uts_lowIOTMMines", my_ascensions() + ":" + (guideMinesDone() + 1));
+        mineAnemoneAt(spot);
+        return true;
+    }
+
+    // Mines for teflon ore until one drops or guideMine() stops, then says why none came.
+    void guideTeflon() {
+        if (item_amount($item[teflon ore]) > 0 || tailpiece() != $item[none])
+            return;
+        item pick = $item[Mer-kin digpick];
+        if (guideMinesDone() >= 30 || available_amount(pick) == 0 || !can_equip(pick)) {
+            print("No mining for teflon ore: " + guideMinesDone() + " of 30 mines used, "
+                + available_amount(pick) + " usable " + pick + ". No teflon swim fins.", "red");
+            return;
+        }
+        step("phase: teflon ore (low IOTM)");
+        item stone = $item[lodestone];
+        boolean pulled;
+        if (item_amount(stone) == 0 && storage_amount(stone) > 0)
+            pulled = guidePullOne(stone);
+        if (item_amount(stone) > 0 && have_effect($effect[Loded]) == 0 && !use(1, stone))
+            print("Couldn't use the " + stone + ".", "red");
+        while (item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none] && guideMine()) {}
+        if (item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none])
+            print("No teflon ore after " + guideMinesDone() + " mines this ascension, so no teflon swim fins."
+                + " Mine by hand if you want them.", "red");
     }
 
     void gymnasium(){
@@ -784,13 +850,91 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Low IOTM sand dollars without a clover: the clovers left are for Madness Reef.
+    boolean guideSandDollar() {
+        if (item_amount($item[mer-kin thingpouch]) > 0)
+            return use(item_amount($item[mer-kin thingpouch]), $item[mer-kin thingpouch]);
+        if (item_amount($item[sand penny]) >= 100)
+            return buy($coinmaster[Wet Crap For Sale], 1, $item[sand dollar]);
+        return false;
+    }
+
+    // The old man's old SCUBA tank for 10000 meat. Submits the tank form his page shows, or the
+    // buytank action as a link, then checks the tank arrived.
+    boolean buyOldScubaTank() {
+        item tank = $item[old SCUBA tank];
+        if (available_amount(tank) > 0)
+            return true;
+        if (my_meat() < 10000) {
+            print("Only " + my_meat() + " meat, so no " + tank + " from the old man yet.", "red");
+            return false;
+        }
+        string page = visit_url("place.php?whichplace=sea_oldman&action=oldman_oldman");
+        int at = index_of(page, "buytank");
+        if (at < 0) {
+            print("The old man's page offers no " + tank + "; buy it by hand at his shack.", "red");
+            return false;
+        }
+        string url;
+        int start = last_index_of(substring(page, 0, at), "<form");
+        int stop = index_of(page, "</form>", at);
+        if (start >= 0 && stop > at && index_of(substring(page, start, at), "</form>") < 0) {
+            string form = substring(page, start, stop);
+            matcher act = create_matcher("action=[\"']?([^\"' >]+)", form);
+            url = act.find() ? act.group(1) : "place.php";
+            string query;
+            matcher tag = create_matcher("<input[^>]*>", form);
+            while (tag.find()) {
+                matcher fieldName = create_matcher("name=[\"']?([^\"' >]+)", tag.group(0));
+                matcher fieldValue = create_matcher("value=[\"']?([^\"'\\s>]*)", tag.group(0));
+                if (fieldName.find())
+                    query += (query == "" ? "" : "&") + fieldName.group(1) + "=" + url_encode(fieldValue.find() ? fieldValue.group(1) : "");
+            }
+            if (query != "")
+                url += (contains_text(url, "?") ? "&" : "?") + query;
+        } else {
+            matcher link = create_matcher("href=[\"']?([^\"' >]*buytank[^\"' >]*)", page);
+            if (link.find())
+                url = link.group(1);
+        }
+        url = to_string(replace_string(url, "&amp;", "&"));
+        if (url == "") {
+            print("Couldn't read the old man's " + tank + " offer; buy it by hand at his shack.", "red");
+            return false;
+        }
+        if (!contains_text(url, "pwd="))
+            url += (contains_text(url, "?") ? "&" : "?") + "pwd=" + my_hash();
+        buffer bought = visit_url(url, true);
+        if (available_amount(tank) == 0) {
+            print("The old man didn't sell the " + tank + "; buy it by hand at his shack.", "red");
+            return false;
+        }
+        return true;
+    }
+
     void oldGuy(){
-        while (item_amount($item[sand dollar]) < 50) {
-            getSandDollar();
+        // The boot trade ends the quest, and with it the tank offer, so the tank comes first.
+        if (guideRoute() && !buyOldScubaTank())
+            return;
+        while (item_amount($item[sand dollar]) < 50
+            && (!guideRoute() || available_amount($item[damp old boot]) == 0)) {
+            if (guideRoute() && !guideSandDollar()) {
+                print(item_amount($item[sand dollar]) + " of 50 sand dollars for the " + $item[damp old boot]
+                    + ", so the old man's trade waits.", "red");
+                return;
+            }
+            if (!guideRoute())
+                getSandDollar();
         }
         blackGlass();
-        if (available_amount($item[damp old boot]) == 0 && get_property("questS01OldGuy") == "started") 
-            buy($coinmaster[Big Brother], 1, $item[damp old boot]);
+        if (available_amount($item[damp old boot]) == 0 && get_property("questS01OldGuy") == "started") {
+            if (!guideRoute())
+                buy($coinmaster[Big Brother], 1, $item[damp old boot]);
+            else if (!buy($coinmaster[Big Brother], 1, $item[damp old boot])) {
+                print("Big Brother wouldn't sell the " + $item[damp old boot] + ", so the old man's trade waits.", "red");
+                return;
+            }
+        }
         visit_url("place.php?whichplace=sea_oldman&action=oldman_oldman"
             + "&preaction=pickreward&whichreward=" + (lowIOTM() ? "6312" : "6313"));
     }
@@ -1024,6 +1168,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     // farmPrayerbeads(): combatScrollHint() calls that purely to burn a turn,
     // and a version that could no-op would spin it forever.
     void pullPrayerbead(){
+        // The low IOTM guide farms its beads at the Outpost.
+        if (guideRoute())
+            return;
         if (available_amount($item[mer-kin prayerbeads]) < 3)
             pullSequence($item[mer-kin prayerbeads]);
     }
@@ -1042,7 +1189,13 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             conditional += healerSaber();
             // swimmingTrunks() picks what the path actually allows; the path-55
             // trunks are quest-gated and abort a path-0 run outright.
-            tempEquipment("-combat,sea", bathysphere($item[toy cupid bow]) + conditional);
+            if (guideRoute()) {
+                // The guide farms beads with -combat first, then item drop, and the cozy scimitar.
+                mood("itdrop");
+                tempEquipment("-2 combat, item drop, sea", guideWeapon($location[the mer-kin outpost], false)
+                    + bathysphere($item[none]) + conditional);
+            } else
+                tempEquipment("-combat,sea", bathysphere($item[toy cupid bow]) + conditional);
             
             mood("-combat");
             adv($location[the mer-kin outpost]);
@@ -1226,6 +1379,129 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 use($item[wriggling flytrap pellet]);}
     }
 
+    // ─── LOW IOTM EARLY GAME ─────────────────────────────────────────────────────
+    // The last phase that printed a gear warning, so each phase warns once.
+    string guideGearWarned;
+
+    // Warns when the worn gear misses the guide's 18 resistance or 30% less combat.
+    // An empty res skips the resistance check.
+    void guideGearCheck(string phase, string res, boolean sneak) {
+        string why;
+        if (res != "") {
+            string elem = substring(res, 0, index_of(res, " "));
+            int level = to_int(numeric_modifier(elem + " resistance"));
+            if (level < 18)
+                why += " " + level + " " + elem + " resistance, under 18.";
+        }
+        if (sneak && combat_rate_modifier() > -30)
+            why += " Combat rate " + round(combat_rate_modifier()) + "%, short of the guide's 30% less.";
+        if (why == "" || guideGearWarned == phase)
+            return;
+        guideGearWarned = phase;
+        print(phase + ":" + why + " Continuing.", "red");
+    }
+
+    // One Grandpa turn: 18 of the zone's resistance with as much less combat as fits.
+    // The sneakmask takes the hat slot over the sea cowboy hat.
+    void grandpaGuideTurn() {
+        location zone = pearlLoc[ps];
+        string res = pearlRes[ps];
+        set_location(zone);
+        use_familiar("-combat");
+        mood(to_string(replace_string(res, " ", "")));
+        mood("-combat");
+        tempEquipment("200 " + res + " 18 max, -combat, sea", guideWeapon(zone, true)
+            + if_equip($item[Mer-kin sneakmask]) + bathysphere($item[none]));
+        guideGearCheck("Grandpa", res, true);
+        adv(zone);
+    }
+
+    boolean teflonNeeded() {
+        return item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none];
+    }
+
+    // Low IOTM Anemone Mine after Grandpa: item drop at 18 spooky resistance until the
+    // digpick drops and the zone's pearl is claimed, then mining for teflon ore.
+    void anemoneGuide() {
+        if (!guideRoute() || !teflonNeeded())
+            return;
+        location mine = $location[Anemone Mine];
+        item pick = $item[Mer-kin digpick];
+        // Grandpa must be found first, and Little Brother opens the mine for Muscle classes only.
+        if (contains_text(",unstarted,started,step1,step2,step3,step4,", "," + get_property("questS02Monkees") + ",")
+            || !can_adventure(mine)) {
+            print("Anemone Mine isn't open yet, so no digpick and no teflon ore.", "red");
+            return;
+        }
+        if (!can_equip(pick)) {
+            print("The " + pick + " needs more Muscle than you have, so no teflon ore.", "red");
+            return;
+        }
+        step("phase: Anemone Mine digpick and pearl (low IOTM)");
+        boolean pearl = get_property("_unblemishedPearlAnemoneMine") != "true";
+        int start = mine.turns_spent;
+        int idle;
+        while (teflonNeeded() && (available_amount(pick) == 0
+            || (pearl && get_property("_unblemishedPearlAnemoneMine") != "true"))) {
+            if (!can_adventure(mine) || idle >= 3) {
+                print("Anemone Mine stopped spending turns, so the digpick and pearl hunt stops here.", "red");
+                break;
+            }
+            set_location(mine);
+            use_familiar("itdrop");
+            mood("spookyres");
+            mood("itdrop");
+            tempEquipment("200 spooky res 18 max, item drop, sea", guideWeapon(mine, false) + bathysphere($item[none]));
+            guideGearCheck("Anemone Mine", "spooky res", false);
+            // The pearl only pays its full progress at 18.
+            if (pearl && numeric_modifier("spooky resistance") < 18) {
+                print("Anemone Mine: under 18 spooky resistance, so the pearl waits for the pearl zones.", "red");
+                pearl = false;
+                if (available_amount(pick) > 0)
+                    break;
+            }
+            zoneStall("the " + pick + " and the pearl", pick, mine, mine.turns_spent - start, 20);
+            int before = total_turns_played();
+            adv(mine);
+            idle = total_turns_played() == before ? idle + 1 : 0;
+        }
+
+        if (!teflonNeeded())
+            return;
+        if (available_amount(pick) == 0) {
+            print("No " + pick + " to mine with, so no teflon ore and no teflon swim fins yet.", "red");
+            return;
+        }
+        guideTeflon();
+    }
+
+    // Low IOTM Outpost start: a Lucky! trip for sand dollars, then the waterlogged
+    // bootstraps and the teflon swim fins.
+    void outpostGuidePrep() {
+        if (!guideRoute() || tailpiece() != $item[none])
+            return;
+        item straps = $item[waterlogged bootstraps];
+        if (available_amount(straps) == 0 && item_amount($item[sand dollar]) < 10
+            && $location[The Mer-Kin Outpost].turns_spent == 0
+            && (have_effect($effect[Lucky!]) > 0 || item_amount($item[11-leaf clover]) > 0)) {
+            step("Outpost: a Lucky! trip for sand dollars");
+            tempEquipment("item drop, sea", bathysphere($item[none]));
+            getLucky();
+            adv($location[The Mer-Kin Outpost]);
+        }
+        // The bootstraps are only worth their dollars with teflon ore to smith them with.
+        if (available_amount(straps) == 0 && item_amount($item[sand dollar]) >= 10
+            && item_amount($item[teflon ore]) > 0) {
+            equipSwimTrunks();
+            if (!buy($coinmaster[Big Brother], 1, straps))
+                print("Couldn't buy " + straps + " from Big Brother.", "red");
+        }
+        item fins = $item[teflon swim fins];
+        if (available_amount(straps) > 0 && item_amount($item[teflon ore]) > 0
+            && (creatable_amount(fins) < 1 || !create(1, fins)))
+            print("Couldn't smith the " + fins + ".", "red");
+    }
+
     void fitzsimmons(){
         step("phase: Wreck of the Edgar Fitzsimmons (step 1)");
         while (get_property("questS02Monkees") == "step1") {
@@ -1235,6 +1511,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 tempEquipment("item drop,sea, -equip peridot of peril", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], false)
                     + bathysphere($item[none]) + if_equip($item[M&ouml;bius ring]));
             } else {
+                // The guide forces the Big Brother noncombat with stench jelly or another forcer.
+                if (guideRoute() && get_property("noncombatForcerActive") != "true")
+                    NCforce();
                 use_familiar("-combat");
                 tempEquipment("-combat,sea, -equip peridot of peril", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], true)
                     + if_equip($item[monodent of the sea]) + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]));
@@ -1248,11 +1527,15 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         step("phase: Grandpa unlock (step 4)");
         if (get_property("questS02Monkees") == "step4") {
             use_familiar("-combat");
-            if (have_effect($effect[Colorfully Concealed]) == 0 && lowShiny() == false) {
+            if (have_effect($effect[Colorfully Concealed]) == 0 && lowShiny() == false && !guideRoute()) {
                 if (pullSequence($item[mer-kin hidepaint]));
                     use($item[mer-kin hidepaint]);
             }
             while (get_property("questS02Monkees") == "step4") {
+                if (guideRoute()) {
+                    grandpaGuideTurn();
+                    continue;
+                }
                 string conditional;
 
                 if (doSWord() == true){
@@ -1294,6 +1577,26 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Low IOTM Outpost gear. Before Grandma is freed: less combat first, item drop second, the
+    // shootin' iron. After: the cozy scimitar, with the goggles until the lockkey drops.
+    void outpostGuideGear(boolean sneakLeg) {
+        location post = $location[The Mer-Kin Outpost];
+        item goggles = $item[undersea surveying goggles];
+        boolean lockkeyHunt = !sneakLeg && item_amount($item[Mer-kin lockkey]) == 0;
+        if (lockkeyHunt && available_amount(goggles) == 0 && item_amount($item[sand penny]) >= 100
+            && !buy($coinmaster[Wet Crap For Sale], 1, goggles))
+            print("Couldn't buy the " + goggles + ".", "red");
+        set_location(post);
+        use_familiar(lockkeyHunt ? "itdrop" : "-combat");
+        mood("-combat");
+        mood("itdrop");
+        string hat = lockkeyHunt ? if_equip(goggles) : if_equip($item[Mer-kin sneakmask]);
+        tempEquipment((lockkeyHunt ? "item drop, -combat" : "-3 combat, item drop") + ", sea",
+            guideWeapon(post, sneakLeg) + hat + bathysphere($item[none]));
+        if (!lockkeyHunt)
+            guideGearCheck("Mer-kin Outpost", "", true);
+    }
+
     void outpost(){
         step("phase: Mer-kin Outpost (stashbox / lockkey)");
         if (NCForceEstimate() >= 5 && have_effect($effect[driving waterproofly]) > 0)
@@ -1325,49 +1628,53 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 && contains_text(get_property("stashboxChecked"), "3"))
                 abort("All stashbox locations checked but no stashbox — something went wrong");
             
-            // Familiar choice
-            if (get_property("_monsterHabitatsFightsLeft") == "1" && to_int(get_property("_monsterHabitatsRecalled")) == 2 && have_familiar($familiar[patriotic eagle]))
-                use_familiar($familiar[patriotic eagle]);
-            else if (doSWord() == true && $location[The Mer-Kin Outpost].turns_spent < 26 && 
-                (get_property("_monsterHabitatsFightsLeft") == "0" || available_amount($item[crayon shavings]) >= 9)){
-                use_familiar($familiar[Sword of S Words]);
-                mood("itdrop");
-            } else if ((highShiny() || lowShiny() || !have_item($item[closed-circuit pay phone])) && item_amount($item[pristine fish scale]) < 6)
-                use_familiar("itdrop");
-            else
-                use_familiar("-combat");
-
-            // Conditional gear
-            string conditional;
-            if (get_property("_monsterHabitatsFightsLeft") == "1" && have_effect($effect[Everything Looks Purple]) == 0
-                && to_int(get_property("_monsterHabitatsRecalled")) == 2 && have_item($item[roman candelabra]))
-                conditional += "roman candelabra,";
-            else 
-                conditional += baseball_equip();
-            if (my_path().id == 0 && to_int(get_property("lassoTrainingCount")) < 20)
-                conditional += "sea cowboy hat,sea chaps,";
-
-            if (get_property("lastCopyableMonster") == "Black Crayon Golem" && to_int(get_property("_backUpUses")) < 7 && have_item($item[backup camera])
-                && ($location[The Mer-Kin Outpost].turns_spent < 26 || get_property("merkinLockkeyMonster") != ""))
-                conditional += "backup camera,";
-            else if (to_int(get_property("_bczSweatBulletsCasts")) < 9 && !highShiny())
-                conditional += if_equip($item[blood cubic zirconia]);
-            else if (lowShiny())
-                conditional += if_equip($item[Congressional Medal of Insanity]);
-
-            if ((get_property("_monsterHabitatsMonster") == "eye in the darkness" || get_property("_monsterHabitatsMonster") == "slithering thing") && get_property("_monsterHabitatsFightsLeft") > 0)
-                conditional += "shark jumper,scale-mail underwear,";
-            if ((highShiny() || !have_item($item[closed-circuit pay phone]) || lowShiny()) && item_amount($item[pristine fish scale]) < 6)
-                mood("itdrop");
-            if (my_familiar() != $familiar[Sword of S Words])
-                conditional += if_equip($item[monodent of the sea]);
-            if (get_property("merkinLockkeyMonster") != "") {
-                mood("-combat");
-                tempEquipment("-combat,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
-                    + bathysphere($item[none]) + conditional + delay());
+            if (guideRoute()) {
+                outpostGuideGear(contains_text("step6,step7,step8", get_property("questS02Monkees")));
             } else {
-                tempEquipment("item drop,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
-                    + bathysphere($item[toy cupid bow]) + conditional + freeKill());
+                // Familiar choice
+                if (get_property("_monsterHabitatsFightsLeft") == "1" && to_int(get_property("_monsterHabitatsRecalled")) == 2 && have_familiar($familiar[patriotic eagle]))
+                    use_familiar($familiar[patriotic eagle]);
+                else if (doSWord() == true && $location[The Mer-Kin Outpost].turns_spent < 26 && 
+                    (get_property("_monsterHabitatsFightsLeft") == "0" || available_amount($item[crayon shavings]) >= 9)){
+                    use_familiar($familiar[Sword of S Words]);
+                    mood("itdrop");
+                } else if ((highShiny() || lowShiny() || !have_item($item[closed-circuit pay phone])) && item_amount($item[pristine fish scale]) < 6)
+                    use_familiar("itdrop");
+                else
+                    use_familiar("-combat");
+
+                // Conditional gear
+                string conditional;
+                if (get_property("_monsterHabitatsFightsLeft") == "1" && have_effect($effect[Everything Looks Purple]) == 0
+                    && to_int(get_property("_monsterHabitatsRecalled")) == 2 && have_item($item[roman candelabra]))
+                    conditional += "roman candelabra,";
+                else 
+                    conditional += baseball_equip();
+                if (my_path().id == 0 && to_int(get_property("lassoTrainingCount")) < 20)
+                    conditional += "sea cowboy hat,sea chaps,";
+
+                if (get_property("lastCopyableMonster") == "Black Crayon Golem" && to_int(get_property("_backUpUses")) < 7 && have_item($item[backup camera])
+                    && ($location[The Mer-Kin Outpost].turns_spent < 26 || get_property("merkinLockkeyMonster") != ""))
+                    conditional += "backup camera,";
+                else if (to_int(get_property("_bczSweatBulletsCasts")) < 9 && !highShiny())
+                    conditional += if_equip($item[blood cubic zirconia]);
+                else if (lowShiny())
+                    conditional += if_equip($item[Congressional Medal of Insanity]);
+
+                if ((get_property("_monsterHabitatsMonster") == "eye in the darkness" || get_property("_monsterHabitatsMonster") == "slithering thing") && get_property("_monsterHabitatsFightsLeft") > 0)
+                    conditional += "shark jumper,scale-mail underwear,";
+                if ((highShiny() || !have_item($item[closed-circuit pay phone]) || lowShiny()) && item_amount($item[pristine fish scale]) < 6)
+                    mood("itdrop");
+                if (my_familiar() != $familiar[Sword of S Words])
+                    conditional += if_equip($item[monodent of the sea]);
+                if (get_property("merkinLockkeyMonster") != "") {
+                    mood("-combat");
+                    tempEquipment("-combat,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
+                        + bathysphere($item[none]) + conditional + delay());
+                } else {
+                    tempEquipment("item drop,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
+                        + bathysphere($item[toy cupid bow]) + conditional + freeKill());
+                }
             }
             adv($location[The Mer-Kin Outpost]);
 
@@ -1658,7 +1965,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
 
         step("phase: teflon ore");
-        if (item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none]) {
+        if (guideRoute()) {
+            // The guide's mining, capped per ascension, then the fins from the ore.
+            anemoneGuide();
+            guideTeflon();
+            outpostGuidePrep();
+        } else if (item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none]) {
             if (available_amount($item[mer-kin digpick]) == 0 && lowShiny() == false
                 && pulls_remaining() > reservedPulls()){
                 pullSequence($item[mer-kin digpick]);
@@ -1705,7 +2017,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             }
 
             // ── Teflon ore second attempt (post-lodestone) ────────────────────────────
-            if (item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none]) {
+            if (!guideRoute() && item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none]) {
                 while (have_effect($effect[Loded]) > 0
                     && item_amount($item[teflon ore]) == 0)
                     mineAnemone();
@@ -2846,6 +3158,9 @@ void seaMonkees() {
     if (get_property("questS02Monkees") == "step5")
         cli_execute("grandpa grandma");
 
+    anemoneGuide();
+    outpostGuidePrep();
+
     golemRecall();
 
     outpost();
@@ -2854,13 +3169,16 @@ void seaMonkees() {
     if (item_amount($item[Mer-kin stashbox]) == 1) {
         use($item[Mer-kin stashbox]);
         use($item[Mer-kin trailmap]);
+        // The guide talks to Little Brother, then Big Brother for the black glass.
+        if (guideRoute())
+            blackGlass();
         equipSwimTrunks();
         cli_execute("grandpa currents");
     }
 
     //If you need to spend pulls on NCForces, save some pulls by getting prayerbeads now while you have -combat on
     pullPrayerbead();
-    while (NCForceEstimate() < 4 && available_amount($item[mer-kin prayerbeads]) < 2)
+    while ((guideRoute() || NCForceEstimate() < 4) && available_amount($item[mer-kin prayerbeads]) < 2)
         farmPrayerbeads();
 
     if (get_property("questS01OldGuy") == "started") 
