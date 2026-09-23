@@ -1689,8 +1689,21 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         refresh_status();
     }
 
+    // The guide wears the pro skateboard through the diver hunt for the McTwist on the diver.
+    string guideSkateboard() {
+        if (!guideRoute() || get_property("_epicMcTwistUsed") != "false")
+            return "";
+        return if_equip($item[pro skateboard]);
+    }
+
     void unholyDiver(string str){
         step("phase: rusty rivets");
+        if (guideRoute() && !diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]) {
+            if (available_amount($item[pulled yellow taffy]) == 0)
+                print("No " + $item[pulled yellow taffy] + ", so the unholy diver's drops are left to item drop.", "red");
+            if (guideSkateboard() == "")
+                print("No " + $skill[Do an epic McTwist!] + " for the unholy diver: the pro skateboard is missing or its McTwist is spent.", "red");
+        }
         while (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat]) {
             if (baseballPlayers() >= 9 && contains_text(get_property("baseballTeam"),"745"))
                 baseballD();
@@ -1757,7 +1770,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (total_turns_played( ) >= to_int(get_property("_lastFitzsimmonsHatch")) + 20){
                         use_familiar("-combat");
                         tempEquipment("-combat,sea", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], true)
-                            + bathysphere($item[toy cupid bow]));
+                            + guideSkateboard() + bathysphere($item[toy cupid bow]));
                         mood("-combat");
                         if (NCForceEstimate() > 4)
                             NCforce();
@@ -1777,6 +1790,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                             conditional += cloakeEquip($location[The Wreck of the Edgar Fitzsimmons]);
                             conditional += champagneEquip($location[The Wreck of the Edgar Fitzsimmons]);
                             conditional += gloveEquip($location[The Wreck of the Edgar Fitzsimmons]);
+                            conditional += guideSkateboard();
                             tempEquipment("item drop,sea", guideWeapon($location[The Wreck of the Edgar Fitzsimmons], false)
                                 + if_equip($item[monodent of the sea]) + conditional + bathysphere($item[toy cupid bow]));
                             mood("itdrop");
@@ -1799,6 +1813,16 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     }
                     break;
             }
+        }
+        // The guide adds the bubblin' stone after the seahorse, so only the rusty helmet is made here.
+        if (guideRoute()) {
+            if (to_slot(divingHelmet()) != $slot[hat] && available_amount($item[rusty diving helmet]) == 0
+                && !retrieve_item($item[rusty diving helmet]))
+                abort("Could not build a rusty diving helmet: "
+                    + available_amount($item[rusty broken diving helmet]) + " broken helmet, "
+                    + item_amount($item[rusty porthole]) + " porthole, "
+                    + item_amount($item[rusty rivet]) + "/8 rivets.");
+            return;
         }
         if (to_slot(divingHelmet()) != $slot[hat]
             && !retrieve_item($item[aerated diving helmet]))
@@ -1940,6 +1964,221 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Lucky! is up, or getLucky() has a free Aug. 2nd cast or a clover to spend.
+    boolean luckyAvailable() {
+        return have_effect($effect[Lucky!]) > 0 || item_amount($item[11-leaf clover]) > 0
+            || (have_skill($skill[Aug. 2nd: Find an Eleven-Leaf Clover Day])
+                && get_property("_aug2Cast") == "false" && to_int(get_property("_augSkillsCast")) < 5);
+    }
+
+    // Big Brother's Madness Reef map, bought only with sand dollars beyond what the route still owes.
+    void madnessReefMap() {
+        item map = $item[map to Madness Reef];
+        if (get_property("mapToMadnessReefPurchased") == "true")
+            return;
+        int price = sell_price($coinmaster[Big Brother], map);
+        if (price <= 0 || item_amount($item[sand dollar]) - sandDollarsOwed() < price)
+            return;
+        equipSwimTrunks();
+        if (!buy($coinmaster[Big Brother], 1, map))
+            print("Big Brother didn't sell the " + map + ".", "red");
+    }
+
+    // A skipped Lucky! trip is reported once a day, recorded in _utsCorralLuckyNoted.
+    void corralLuckySkip(string tag, string why) {
+        if (contains_text(get_property("_utsCorralLuckyNoted"), tag))
+            return;
+        set_property("_utsCorralLuckyNoted", get_property("_utsCorralLuckyNoted") + tag + ",");
+        print(why, "red");
+    }
+
+    // One Lucky! adventure in the zone a day, recorded in _utsCorralLucky.
+    void corralLuckyTrip(location zone, string tag) {
+        if (contains_text(get_property("_utsCorralLucky"), tag))
+            return;
+        if (zone == $location[Madness Reef])
+            madnessReefMap();
+        if (!can_adventure(zone)) {
+            corralLuckySkip(tag, "Can't adventure in " + zone + ", so the Corral goes without its Lucky! item drop from there.");
+            return;
+        }
+        if (!luckyAvailable()) {
+            corralLuckySkip(tag, "No Lucky! left for " + zone + ", so the Corral goes without its item drop from there.");
+            return;
+        }
+        getLucky();
+        if (have_effect($effect[Lucky!]) == 0) {
+            print("Couldn't get Lucky! for " + zone + ".", "red");
+            return;
+        }
+        set_property("_utsCorralLucky", get_property("_utsCorralLucky") + tag + ",");
+        if (zone.environment == "underwater")
+            tempEquipment("item drop,sea", bathysphere($item[none]));
+        adv(zone);
+    }
+
+    // Item drop for capped sea cowbells: cyclops eyedrops from a Lucky! Limerick Dungeon trip, Eyes of the
+    // Dragon from a Lucky! Madness Reef trip, a +100% item food or drink, then Steely-Eyed Squint.
+    void corralItemBuffs() {
+        corralLuckyTrip($location[The Limerick Dungeon], "limerick");
+        corralLuckyTrip($location[Madness Reef], "reef");
+        item drops = $item[cyclops eyedrops];
+        if (have_effect($effect[One Very Clear Eye]) == 0 && item_amount(drops) > 0 && !use(1, drops))
+            print("Couldn't use the " + drops + ".", "red");
+        item veg = $item[roasted vegetable of Jarlsberg];
+        item lambic = $item[bottle of Lambada Lambic];
+        if (have_effect($effect[Dancin' Drunk]) + have_effect($effect[Wizard Sight]) == 0
+            && item_amount(veg) + item_amount(lambic) > 0) {
+            if (item_amount(veg) > 0 && fullness_limit() - my_fullness() >= veg.fullness) {
+                if (!eatsilent(1, veg))
+                    print("Couldn't eat the " + veg + ".", "red");
+            } else if (item_amount(lambic) > 0 && inebriety_limit() - my_inebriety() >= lambic.inebriety) {
+                if (!drinksilent(1, lambic))
+                    print("Couldn't drink the " + lambic + ".", "red");
+            } else
+                print("No room for the Corral's +100% item drop consumable.", "red");
+        }
+        skill squint = $skill[Steely-Eyed Squint];
+        if (have_skill(squint) && have_effect($effect[Steely-Eyed Squint]) == 0
+            && get_property("_steelyEyedSquintUsed") == "false" && !use_skill(1, squint))
+            print("Couldn't cast " + squint + ".", "red");
+    }
+
+    // Item drop after the zone penalty, as mafia computes it for the selected location. 900% caps the sea cowbell's 10%.
+    void corralItemReport() {
+        float worn = numeric_modifier("Item Drop");
+        float penalty = numeric_modifier("Item Drop Penalty");
+        int effective = round(item_drop_modifier());
+        if (effective >= 900)
+            print("Coral Corral item drop " + effective + "%, so the sea cowbell is capped.", "blue");
+        else
+            print("Coral Corral item drop " + effective + "% (" + round(worn) + "% against a " + round(penalty)
+                + "% zone penalty), short of the 900% that caps the sea cowbell.", "red");
+    }
+
+    string corralKit() {
+        return item_amount($item[sea cowbell]) + "/3 sea cowbells, "
+            + (item_amount($item[sea leather]) + available_amount($item[sea chaps]) + available_amount($item[sea cowboy hat]))
+            + "/2 sea leather, " + item_amount($item[sea lasso]) + " sea lassos, lasso training "
+            + get_property("lassoTrainingCount") + "/20";
+    }
+
+    // The sea cowboy hat and sea chaps from the sea leather, once the cowbells are in.
+    void guideCowboyGear() {
+        if (!doneWithSeaCow())
+            return;
+        item hat = $item[sea cowboy hat];
+        item chaps = $item[sea chaps];
+        if (available_amount(hat) == 0 && item_amount($item[sea leather]) > 0 && !create(1, hat))
+            print("Couldn't make the " + hat + ".", "red");
+        if (available_amount(chaps) == 0 && item_amount($item[sea leather]) > 0
+            && available_amount($item[crappy Mer-kin tailpiece]) + available_amount($item[Mer-kin gladiator tailpiece])
+                + available_amount($item[Mer-kin scholar tailpiece]) == 0
+            && !create(1, chaps))
+            print("Couldn't make the " + chaps + ".", "red");
+    }
+
+    // The hat and chaps triple lasso training. The chaps take the trunks' slot, so the old SCUBA tank breathes.
+    string lassoTrainerGear() {
+        if (available_amount($item[sea cowboy hat]) == 0 || available_amount($item[sea chaps]) == 0)
+            return "";
+        if (available_amount($item[old SCUBA tank]) == 0 && !buyOldScubaTank())
+            return "";
+        return "sea cowboy hat,sea chaps,old SCUBA tank,";
+    }
+
+    // One waffle for the tumbleweeds, pulled on demand inside the day's pull plan.
+    void guideWaffle() {
+        item waffle = $item[waffle];
+        if (available_amount(waffle) > 0 || pulledToday(waffle))
+            return;
+        if (pulls_remaining() >= 0 && pulls_remaining() - reservedPulls() <= 0)
+            return;
+        boolean pulled = guidePullOne(waffle);
+    }
+
+    // The guide's Coral Corral. Stage 1 free kills the sea cow for capped cowbells and leather, makes the
+    // hat and chaps, then kills cowboys for lassos. Stage 2, with tame set, goes on until the seahorse is tamed.
+    void corralGuide(boolean tame) {
+        if (get_property("seahorseName") != "")
+            return;
+        if (get_property("corralUnlocked") != "true")
+            abort("The Coral Corral isn't open yet. Ask Grandpa about currents after the Mer-kin Outpost, then rerun.");
+        step(tame ? "phase: Coral Corral stage 2, taming the seahorse"
+            : "phase: Coral Corral stage 1, sea cowbells, sea leather and sea lassos");
+        location corral = $location[The Coral Corral];
+        int passes;
+        while (get_property("seahorseName") == "" && (tame || !doneWithSeaCow() || !doneWithCowboy())) {
+            if (my_adventures() < 1)
+                abort("Out of adventures in The Coral Corral: " + corralKit() + ".");
+            if (passes >= 80)
+                abort("80 visits to The Coral Corral without finishing: " + corralKit() + ".");
+            passes += 1;
+            guideCowboyGear();
+            use_familiar("itdrop");
+            string gear = guideWeapon(corral, false) + bathysphere($item[none]);
+            if (!doneWithSeaCow()) {
+                corralItemBuffs();
+            } else if (corralLassoPhase() || to_int(get_property("lassoTrainingCount")) < 20) {
+                string trainer = lassoTrainerGear();
+                if (trainer == "" && tame && doneWithCowboy())
+                    abort("The seahorse needs expert lasso training, which needs the sea cowboy hat and sea chaps "
+                        + "worn with the old SCUBA tank: " + corralKit() + ".");
+                gear += trainer;
+            }
+            if (tame && doneWithSeaCow() && doneWithCowboy())
+                guideWaffle();
+            set_location(corral);
+            tempEquipment("item drop,sea", gear);
+            mood("itdrop");
+            if (!doneWithSeaCow())
+                corralItemReport();
+            adv(corral);
+        }
+    }
+
+    // After the seahorse: the aerated diving helmet, then Grandma's crappy outfit and scale-mail underwear.
+    void guideCityGear() {
+        item rusty = $item[rusty diving helmet];
+        if (to_slot(divingHelmet()) != $slot[hat] && available_amount(rusty) == 0 && diverPartsComplete()
+            && !retrieve_item(rusty))
+            print("Couldn't make the " + rusty + ".", "red");
+        if (to_slot(divingHelmet()) != $slot[hat] && available_amount(rusty) > 0
+            && !retrieve_item($item[aerated diving helmet]))
+            print("Couldn't make the " + $item[aerated diving helmet] + ": "
+                + available_amount($item[bubblin' stone]) + " bubblin' stone.", "red");
+        foreach it in $items[sea chaps, teflon swim fins, aerated diving helmet]
+            if (have_equipped(it) && !cli_execute("unequip " + it))
+                print("Couldn't take off the " + it + ".", "red");
+        equipSwimTrunks();
+        coinmaster grandma = $coinmaster[Grandma Sea Monkey];
+        item pristine = $item[pristine fish scale];
+        item mask = $item[crappy Mer-kin mask];
+        item tail = $item[crappy Mer-kin tailpiece];
+        item underwear = $item[scale-mail underwear];
+        boolean maskOwned = available_amount(mask) + available_amount($item[Mer-kin gladiator mask])
+            + available_amount($item[Mer-kin scholar mask]) > 0;
+        boolean tailOwned = available_amount(tail) + available_amount($item[Mer-kin gladiator tailpiece])
+            + available_amount($item[Mer-kin scholar tailpiece]) > 0;
+        if (!maskOwned && item_amount($item[aerated diving helmet]) > 0 && item_amount(pristine) >= 3)
+            maskOwned = buy(grandma, 1, mask);
+        if (!tailOwned && item_amount($item[sea chaps]) > 0 && item_amount($item[teflon swim fins]) > 0
+            && item_amount(pristine) >= 3)
+            tailOwned = buy(grandma, 1, tail);
+        if (available_amount(underwear) == 0 && item_amount($item[dull fish scale]) >= 25 && item_amount(pristine) > 0
+            && !buy(grandma, 1, underwear))
+            print("Grandma didn't trade the " + underwear + ".", "red");
+        if (available_amount(underwear) == 0)
+            print("No " + underwear + " yet: " + item_amount($item[dull fish scale]) + "/25 dull and "
+                + item_amount(pristine) + " pristine fish scales.", "red");
+        if (!maskOwned || !tailOwned)
+            abort("Grandma's crappy Mer-kin outfit is short: " + (maskOwned ? "" : "the mask needs the "
+                + $item[aerated diving helmet] + " (" + available_amount($item[aerated diving helmet]) + ") and 3 "
+                + pristine + ". ") + (tailOwned ? "" : "The tailpiece needs the sea chaps ("
+                + available_amount($item[sea chaps]) + "), the teflon swim fins (" + available_amount($item[teflon swim fins])
+                + ") and 3 " + pristine + ". ") + "Held: " + item_amount(pristine) + " " + pristine + ".");
+    }
+
     void shadowTeflon(){
         step("phase: shadow rift prep");
         if (my_path().id == 55 && !highShiny()){
@@ -2032,6 +2271,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
     void backupLasso() {
+        // The guide trains the lasso in the Corral and the pearl zones.
+        if (guideRoute())
+            return;
         // ── Lasso training backup ─────────────────────────────────────────────────
         while (to_int(get_property("lassoTrainingCount")) < 20) {
             if (have_item($item[closed-circuit pay phone]));
@@ -2052,6 +2294,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
     void seahorsePrep(){
+        if (guideRoute())
+            return;
         int wantCowbell;
         if (available_amount($item[cursed monkey's paw]) == 0 || highShiny())
             wantCowbell = 2;
@@ -2071,6 +2315,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
     void seahorseTaming(){
         step("phase: seahorse taming");
+        if (guideRoute()) {
+            corralGuide(true);
+            guideCityGear();
+            return;
+        }
         while (get_property("seahorseName") == "") {
             if (my_path().id == 0){
                 retrieve_item(3, $item[sea cowbell]);
@@ -3195,6 +3444,9 @@ void seaMonkees() {
         if (my_path().id == 0){
             if (!retrieve_item($item[aerated diving helmet]))
                 abort("Could not build an aerated diving helmet.");
+        } else if (guideRoute()) {
+            unholyDiver("direct");
+            corralGuide(false);
         } else if (highShiny()){
             caliginous("cheap");
             unholyDiver("direct");

@@ -2695,6 +2695,25 @@ string lowIOTMChecklist(boolean runStart) {
     else
         print("✗ Ice house: holds the " + iceHouse + ". The route assumes the Mer-kin rustler.", "red");
 
+    // Big Brother's sea maps stay bought across ascensions, and the guide buys them all beforehand.
+    string [item] seaMaps = {
+        $item[map to Anemone Mine]: "mapToAnemoneMinePurchased",
+        $item[map to the Marinara Trench]: "mapToTheMarinaraTrenchPurchased",
+        $item[map to the Dive Bar]: "mapToTheDiveBarPurchased",
+        $item[map to Madness Reef]: "mapToMadnessReefPurchased",
+        $item[map to the Skate Park]: "mapToTheSkateParkPurchased"
+    };
+    string unbought;
+    foreach it, prop in seaMaps
+        if (get_property(prop) != "true")
+            unbought += (unbought == "" ? "" : ", ") + it + " ("
+                + sell_price($coinmaster[Big Brother], it) + " sand dollars)";
+    if (unbought == "")
+        print("✓ Sea maps: all bought from Big Brother", "blue");
+    else
+        print("✗ Sea maps not bought from Big Brother yet: " + unbought
+            + ". The guide buys them before ascending. In run, Little Brother opens Anemone Mine, the Marinara Trench or the Dive Bar for a Muscle, Mysticality or Moxie class.", "red");
+
     // Untradeable, so only Hagnk's can supply it. Pulled today or past day one,
     // a missing scimitar has broken after its fights.
     if (have_item($item[cozy scimitar]))

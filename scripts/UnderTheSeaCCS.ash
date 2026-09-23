@@ -123,6 +123,11 @@ void free_kill(string ptext, boolean drop) {
     }
 }
 
+// The guide spends up to nine parasol runs in the Coral Corral.
+int parasolCap() {
+    return guideRoute() && my_location() == $location[The Coral Corral] ? 9 : 3;
+}
+
 // Attempt a free run using available skills/items.
 // Pass banish=true to allow banishing skills/items.
 void free_run(string ptext, boolean banish) {
@@ -159,7 +164,7 @@ void free_run(string ptext, boolean banish) {
         if (freecombat == $item[peppermint parasol] && lowIOTM()
             && my_location() != $location[The Coral Corral]) continue;
         if (freecombat == $item[peppermint parasol]
-            && to_int(get_property("parasolUsed")) >= 3) continue;
+            && to_int(get_property("parasolUsed")) >= parasolCap()) continue;
         if (freecombat == $item[mer-kin pinkslip]
             && last_monster().phylum != $phylum[mer-kin]) continue;
         throw_item(freecombat);
@@ -389,6 +394,88 @@ void killDiver(string page_text) {
     cleanUp();
 }
 
+boolean seahorseTameReady() {
+    return item_amount($item[sea cowbell]) >= 3 && item_amount($item[sea lasso]) >= 1
+        && to_int(get_property("lassoTrainingCount")) == 20;
+}
+
+// Three sea cowbells, then the sea lasso.
+void tameSeahorse() {
+    throwPair($item[sea cowbell], $item[sea cowbell]);
+    throwPair($item[sea cowbell], $item[sea lasso]);
+    if (current_round() != 0){
+        abort("For some reason seahorse wasn't tamed, check that out");
+    }
+}
+
+// A throw trains the lasso by three only with both trainer pieces worn.
+boolean lassoTrainable() {
+    return have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
+        && item_amount($item[sea lasso]) > 0 && to_int(get_property("lassoTrainingCount")) < 20;
+}
+
+// Escapes a tumbleweed or an untamed seahorse. The parasol goes first under its cap; the seahorse
+// then gets the free run items, then a runaway every round. A tumbleweed the parasol leaves is killed.
+void corralRunaway() {
+    boolean seahorse = last_monster() == $monster[wild seahorse];
+    if (current_round() > 0 && item_amount($item[peppermint parasol]) > 0
+        && to_int(get_property("parasolUsed")) < parasolCap()) {
+        buffer ran = throw_item($item[peppermint parasol]);
+    }
+    if (seahorse)
+        foreach it in $items[glob of Blank-Out, ink bladder]
+            if (current_round() > 0 && item_amount(it) > 0) {
+                buffer gone = throw_item(it);
+            }
+    if (current_round() < 1)
+        return;
+    if (!seahorse) {
+        cleanUp();
+        return;
+    }
+    // The seahorse can't be killed, so a failed runaway is simply tried again next round.
+    int stuck;
+    while (current_round() > 0 && stuck < 3) {
+        int round = current_round();
+        buffer fled = runaway();
+        stuck = current_round() == round ? stuck + 1 : 0;
+    }
+    if (current_round() > 0)
+        abort("Runaways from the wild seahorse aren't advancing the fight. Run from it by hand, then rerun.");
+}
+
+// The low IOTM guide's Corral fights while the seahorse is untamed. The lasso goes first
+// so every fight trains it; the sea cow takes the free kills until the cowbells are in.
+void guideCorralFight(string page_text) {
+    if (last_monster() != $monster[wild seahorse] && lassoTrainable()) {
+        buffer lassoed = throw_item($item[sea lasso]);
+    }
+    if (current_round() < 1)
+        return;
+    // A waffle turns a tumbleweed into another Corral monster, the seahorse once the rest are banished.
+    if (last_monster() == $monster[tumbleweed] && item_amount($item[waffle]) > 0 && seahorseTameReady()
+        && !contains_text(get_property("_lastCombatActions"), "it" + to_int($item[waffle]) + ";")) {
+        buffer waffled = throw_item($item[waffle]);
+        if (current_round() > 0 && last_monster() == $monster[wild seahorse] && seahorseTameReady()) {
+            tameSeahorse();
+            return;
+        }
+    }
+    if (current_round() < 1)
+        return;
+    monster mob = last_monster();
+    if (mob == $monster[wild seahorse] || mob == $monster[tumbleweed]) {
+        corralRunaway();
+        return;
+    }
+    if (guideBanish(page_text))
+        return;
+    // The parasol is kept for the seahorse and the tumbleweeds, so the rest are killed.
+    if (mob == $monster[sea cow] && !doneWithSeaCow())
+        free_kill(page_text, true);
+    cleanUp();
+}
+
 // KoL leaves the screech out of the skill dropdown while it recharges.
 // Returns and records "true" or "false"; "" without the eagle or a dropdown.
 string noteScreechReady(string page_text) {
@@ -482,7 +569,7 @@ void main(int round, monster mob, string page_text) {
         else
             throw_item(bangA());
     }
-    if ((highShiny() || !have_item($item[closed-circuit pay phone])) && item_amount($item[sea lasso]) > 5 && my_location().environment == "underwater" && to_int(get_property("lassoTrainingCount")) < 6)
+    if (!guideRoute() && (highShiny() || !have_item($item[closed-circuit pay phone])) && item_amount($item[sea lasso]) > 5 && my_location().environment == "underwater" && to_int(get_property("lassoTrainingCount")) < 6)
         throw_item($item[sea lasso]);
     // A copied diver surfaces in whichever zone the route is adventuring in,
     // and that zone's logic transforms or re-rolls whatever it is handed,
@@ -612,8 +699,17 @@ void main(int round, monster mob, string page_text) {
                     use_skill($skill[Be Gregarious]);
                 if (my_familiar() == $familiar[Melodramedary])
                     use_skill($skill[%fn, spit on them!]);
-                if (have_equipped($item[pro skateboard]))
-                    use_skill($skill[Do an epic McTwist!]);
+                if (have_equipped($item[pro skateboard]) && get_property("_epicMcTwistUsed") == "false"
+                    && skillOffered(page_text, $skill[Do an epic McTwist!])) {
+                    buffer twisted = use_skill($skill[Do an epic McTwist!]);
+                }
+                // The taffy is a yellow ray underwater, so it drops the whole pool the McTwist doubled.
+                if (guideRoute() && current_round() > 0 && item_amount($item[pulled yellow taffy]) > 0
+                    && have_effect($effect[Everything Looks Yellow]) == 0) {
+                    buffer rayed = throw_item($item[pulled yellow taffy]);
+                }
+                if (current_round() == 0)
+                    return;
                 if (have_equipped($item[Fourth of May Cosplay Saber]))
                     use_skill($skill[Use the Force]);
             }
@@ -627,7 +723,10 @@ void main(int round, monster mob, string page_text) {
         case $location[The Dive Bar]:
         case $location[Anemone Mine]:
             // Lasso training only counts with both trainer pieces worn.
-            if (have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])) {
+            // The guide keeps one sea lasso back for the seahorse.
+            if (have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])
+                && (!guideRoute() || (to_int(get_property("lassoTrainingCount")) < 20
+                    && item_amount($item[sea lasso]) > 1))) {
                 throw_item($item[sea lasso]);
             }
             if (guideBanish(page_text))
@@ -778,12 +877,13 @@ void main(int round, monster mob, string page_text) {
             break;
 
         case $location[The Coral Corral]:
-            if (last_monster() == $monster[wild seahorse] && item_amount($item[sea cowbell]) >= 3 && item_amount($item[sea lasso]) >= 1 && to_int(get_property("lassoTrainingCount")) == 20){
-                throwPair($item[sea cowbell], $item[sea cowbell]);
-                throwPair($item[sea cowbell], $item[sea lasso]);
-                if (current_round() != 0){
-                    abort("For some reason seahorse wasn't tamed, check that out");
-                }
+            boolean guideCorral = guideRoute() && get_property("seahorseName") == "";
+            if (last_monster() == $monster[wild seahorse] && seahorseTameReady())
+                tameSeahorse();
+            if (guideCorral) {
+                if (current_round() > 0)
+                    guideCorralFight(page_text);
+                return;
             }
             if (guideBanish(page_text))
                 return;
