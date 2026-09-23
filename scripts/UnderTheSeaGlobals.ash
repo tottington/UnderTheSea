@@ -2438,3 +2438,325 @@ string lowIOTMChecklist(boolean runStart) {
         print("Low IOTM check: the run can't start. " + blockers, "red");
     return blockers;
 }
+
+// ─── LOW IOTM PULLS, BREAKFAST AND DIET ──────────────────────────────────────
+// Pulled by the phase that uses them, not by the breakfast plan.
+boolean [item] guidePullsOnDemand = $items[lodestone, waffle, stench jelly, Clara's bell,
+    handheld Allied radio];
+
+boolean guidePullOnDemand(guidePull gp) {
+    foreach it in gp.any
+        if (guidePullsOnDemand contains it)
+            return true;
+    return false;
+}
+
+// The low IOTM breakfast runs once per ascension, recorded as the ascension number.
+boolean lowIOTMBreakfastDone() {
+    return get_property("uts_lowIOTMBreakfast") == to_string(my_ascensions());
+}
+
+// The item to pull for a guide line: none when one is on hand, already pulled
+// today or unused by this route, else Hagnk's stock, else the cheapest listing.
+item guidePullChoice(guidePull gp) {
+    foreach it in gp.any
+        if (available_amount(it) > 0 || pulledToday(it))
+            return $item[none];
+    if ((gp.any contains $item[shark jumper])
+        && !have_skill($skill[Torso Awareness]) && !have_skill($skill[Best Dressed])) {
+        print("Low IOTM pulls: no Torso Awareness, so no " + $item[shark jumper] + ".", "red");
+        return $item[none];
+    }
+    string route = colosseumRoute(false);
+    if ((gp.any contains $item[null-day exploit]) && route != "spell" && route != "combat")
+        return $item[none];
+    if (gp.any contains $item[petrified wood wizard's pouch]) {
+        if (route != "spell")
+            return $item[none];
+        return storage_amount(colosseumLantern()) > 0 ? colosseumLantern() : $item[none];
+    }
+    foreach it in gp.any
+        if (storage_amount(it) > 0)
+            return it;
+    item pick = $item[none];
+    int best;
+    foreach it in gp.any {
+        int price = is_tradeable(it) ? mall_price(it) : 0;
+        if (price > 0 && (pick == $item[none] || price < best)) {
+            pick = it;
+            best = price;
+        }
+    }
+    if (pick == $item[none])
+        print("Low IOTM pulls: " + itemNames(gp.any) + " is not in Hagnk's or the mall.", "red");
+    return pick;
+}
+
+// A mall buy over autoBuyPriceLimit is skipped with a note instead of pullSequence()'s prompt.
+boolean guidePullOne(item it) {
+    if (pulledToday(it) || pulls_remaining() == 0)
+        return false;
+    if (storage_amount(it) == 0) {
+        int limit = to_int(get_property("autoBuyPriceLimit"));
+        if (mall_price(it) > limit) {
+            print("Low IOTM pulls: " + it + " costs " + mall_price(it) + " meat, over autoBuyPriceLimit "
+                + limit + ", skipped.", "red");
+            return false;
+        }
+        if (buy_using_storage(1, it, limit) < 1) {
+            print("Low IOTM pulls: couldn't buy a " + it + " into Hagnk's for " + limit + " meat or less.", "red");
+            return false;
+        }
+    }
+    if (!take_storage(1, it)) {
+        print("Low IOTM pulls: couldn't pull the " + it + ".", "red");
+        return false;
+    }
+    return true;
+}
+
+// The guide's pulls in its priority order, once per ascension.
+void lowIOTMPulls() {
+    if (lowIOTMBreakfastDone())
+        return;
+    step("low IOTM pulls: " + pulls_remaining() + " left");
+    foreach num, gp in guidePulls {
+        if (guidePullOnDemand(gp))
+            continue;
+        item it = guidePullChoice(gp);
+        if (it != $item[none] && pulls_remaining() == 0)
+            print("Low IOTM pulls: out of pulls, no " + it + ".", "red");
+        else if (it != $item[none] && guidePullOne(it) && it == $item[Mer-kin hallpass]
+            && !put_closet(item_amount(it), it))
+            print("Low IOTM pulls: couldn't closet the " + it + ".", "red");
+        // A large box without a ten-leaf clover or its blessed box still needs the clover.
+        if ((gp.any contains $item[large box]) && available_amount($item[large box]) > 0
+            && available_amount($item[ten-leaf clover]) + available_amount($item[blessed large box]) == 0)
+            guidePullOne($item[ten-leaf clover]);
+    }
+}
+
+// The fortune cookie holds a ten-leaf clover for the large box. Eaten only in
+// the first breakfast and only on an empty stomach, as the guide's first food.
+void lowIOTMFortuneCookie() {
+    if (lowIOTMBreakfastDone() || my_fullness() > 0 || fullness_limit() < 1
+        || available_amount($item[ten-leaf clover]) + available_amount($item[blessed large box]) > 0)
+        return;
+    if (available_amount($item[large box]) + storage_amount($item[large box]) == 0
+        && (pulledToday($item[large box]) || mall_price($item[large box]) <= 0
+            || mall_price($item[large box]) > to_int(get_property("autoBuyPriceLimit"))))
+        return;
+    if (!retrieve_item(1, $item[fortune cookie]) || !eat(1, $item[fortune cookie])) {
+        print("Low IOTM breakfast: couldn't eat a " + $item[fortune cookie] + ".", "red");
+        return;
+    }
+    if (available_amount($item[ten-leaf clover]) == 0)
+        print("Low IOTM breakfast: the " + $item[fortune cookie] + " gave no "
+            + $item[ten-leaf clover] + ", so the pulls add one for the large box.", "red");
+}
+
+// Ode to Booze before a drink. Donho's Bubbly Ballad gives up its song slot
+// when Ode won't fit. False when Ode is owned but couldn't be cast.
+boolean odeUp() {
+    if (!have_skill($skill[The Ode to Booze]) || have_effect($effect[Ode to Booze]) > 0)
+        return true;
+    if (use_skill(1, $skill[The Ode to Booze]))
+        return true;
+    if (have_effect($effect[Donho's Bubbly Ballad]) > 0
+        && cli_execute("shrug Donho's Bubbly Ballad")
+        && use_skill(1, $skill[The Ode to Booze]))
+        return true;
+    print("Couldn't cast " + $skill[The Ode to Booze] + ".", "red");
+    return false;
+}
+
+// Aldebaran sardines and Centauri fish wine need level 4.
+boolean fishyFoodsAllowed() {
+    return my_level() >= 4;
+}
+
+// A legendary pasta food eaten with option 5 of choice 1599, the stomach,
+// which doubles the effects of the next three foods.
+void eatLegendaryPasta() {
+    foreach it in pasta_prices {
+        if (item_amount(it) == 0 || fullness_limit() - my_fullness() < 1)
+            continue;
+        string saved = get_property("choiceAdventure1599");
+        boolean ate;
+        try {
+            set_property("choiceAdventure1599", "5");
+            ate = eat(1, it);
+        } finally {
+            set_property("choiceAdventure1599", saved);
+        }
+        if (handling_choice() && last_choice() == 1599) {
+            print("Legendary Digestion stayed open without the stomach option; taking its first option.", "red");
+            foreach opt in available_choice_options() {
+                run_choice(opt);
+                break;
+            }
+        }
+        if (!ate)
+            print("Low IOTM diet: couldn't eat the " + it + ".", "red");
+        else if (to_int(get_property("legendaryNoodlesStomach")) == 0)
+            print("Low IOTM diet: the " + it + " didn't set up the stomach option.", "red");
+        return;
+    }
+}
+
+// Legendary pasta then the sardines it doubles. The pasta waits for the
+// sardines, and both need 3 fullness free.
+void eatPastaAndSardines() {
+    if (!fishyFoodsAllowed() || item_amount($item[Aldebaran sardines]) == 0
+        || fullness_limit() - my_fullness() < 2)
+        return;
+    if (fullness_limit() - my_fullness() >= 3)
+        eatLegendaryPasta();
+    if (!eat(1, $item[Aldebaran sardines]))
+        print("Low IOTM diet: couldn't eat the " + $item[Aldebaran sardines] + ".", "red");
+}
+
+// Guide diet: legendary pasta, Aldebaran sardines at double Fishy, then
+// Centauri fish wine and the astral pilsners under Ode. What can't happen now
+// waits for the Fishy and zero adventure steps in post_adv().
+void lowIOTMDiet() {
+    if (!fishyFoodsAllowed())
+        print("Low IOTM diet: below level 4, so the " + $item[Aldebaran sardines] + ", "
+            + $item[Centauri fish wine] + " and legendary pasta wait.", "red");
+    eatPastaAndSardines();
+    if (item_amount($item[astral six-pack]) > 0 && !use(1, $item[astral six-pack]))
+        print("Low IOTM diet: couldn't open the " + $item[astral six-pack] + ".", "red");
+    if (item_amount($item[Centauri fish wine]) + item_amount($item[astral pilsner]) == 0
+        || my_inebriety() >= inebriety_limit() || !odeUp())
+        return;
+    if (fishyFoodsAllowed() && item_amount($item[Centauri fish wine]) > 0
+        && inebriety_limit() - my_inebriety() >= 2 && !drink(1, $item[Centauri fish wine]))
+        print("Low IOTM diet: couldn't drink the " + $item[Centauri fish wine] + ".", "red");
+    while (item_amount($item[astral pilsner]) > 0 && my_inebriety() < inebriety_limit()) {
+        int before = item_amount($item[astral pilsner]);
+        if (!drink(1, $item[astral pilsner]) || item_amount($item[astral pilsner]) >= before)
+            break;
+    }
+}
+
+// Free rests at the housing, toward 400 MP.
+void lowIOTMRestMP() {
+    int mpTarget = min(my_maxmp(), 400);
+    while (my_mp() < mpTarget && to_int(get_property("timesRested")) < total_free_rests()) {
+        int before = my_mp();
+        if (!cli_execute("rest free") || my_mp() <= before)
+            break;
+    }
+}
+
+// The guide's ascension breakfast, once per ascension. A restart only tops up
+// MP, so nothing here, Sea Strength included, lands again before Yog-Urt.
+void lowIOTMBreakfast() {
+    if (lowIOTMBreakfastDone()) {
+        lowIOTMRestMP();
+        return;
+    }
+    step("low IOTM breakfast");
+    item gold = $item[1\,970 carat gold];
+    if (item_amount(gold) > 0 && !autosell(item_amount(gold), gold))
+        print("Low IOTM breakfast: couldn't autosell the " + gold + ".", "red");
+
+    // Three clovers: the Outpost's sand dollars and two Madness Reef visits.
+    // The hermit trade gets its own permit and worthless items.
+    int clovers = 3 - to_int(get_property("_cloversPurchased"));
+    if (clovers > 0 && !hermit(clovers, $item[11-leaf clover]))
+        print("Low IOTM breakfast: the hermit didn't trade " + clovers + " " + $item[11-leaf clover] + ".", "red");
+
+    boolean songs;
+    foreach sk in $skills[The Ode to Booze, The Sonata of Sneakiness, Fat Leon's Phat Loot Lyric,
+        The Polka of Plenty, Carlweather's Cantata of Confrontation, Donho's Bubbly Ballad]
+        if (have_skill(sk))
+            songs = true;
+    if (songs && my_class() != $class[Accordion Thief] && available_amount($item[antique accordion]) == 0
+        && !buy(1, $item[antique accordion]))
+        print("Low IOTM breakfast: couldn't buy an " + $item[antique accordion] + ".", "red");
+
+    // Batter Up! needs a club unless Iron Palms makes the scimitar count as one.
+    boolean club = have_skill($skill[Iron Palm Technique])
+        || item_type(equipped_item($slot[weapon])) == "club";
+    foreach it in get_inventory()
+        if (item_type(it) == "club")
+            club = true;
+    if (!club && !(knoll_available() && buy(1, $item[Gnollish flyswatter])))
+        print("Low IOTM breakfast: no club for Batter Up!, and couldn't buy a "
+            + $item[Gnollish flyswatter] + ".", "red");
+
+    if (have_familiar($familiar[grouper groupie]) && my_familiar() != $familiar[grouper groupie]
+        && !use_familiar($familiar[grouper groupie]))
+        print("Low IOTM breakfast: couldn't switch to the " + $familiar[grouper groupie] + ".", "red");
+
+    // Held for Yog-Urt.
+    foreach sc in $items[scroll of sea smarts, scroll of sea smarm]
+        if (item_amount(sc) == 0 && !retrieve_item(1, sc))
+            print("Low IOTM breakfast: couldn't buy a " + sc + ".", "red");
+
+    lowIOTMRestMP();
+    lowIOTMDiet();
+
+    // One scroll for 50 turns. Nothing else applies Sea Strength before Yog-Urt.
+    if (have_effect($effect[Sea Strength]) == 0
+        && (!retrieve_item(1, $item[scroll of sea strength]) || !use(1, $item[scroll of sea strength])))
+        print("Low IOTM breakfast: couldn't use a " + $item[scroll of sea strength] + ".", "red");
+
+    set_property("uts_lowIOTMBreakfast", my_ascensions());
+}
+
+// Fishy on the low IOTM route: guide consumables still on hand, then sushi
+// from the old man's crate of fish meat. No fish sauce pulls and no clovers.
+void lowIOTMFishy() {
+    eatPastaAndSardines();
+    if (have_effect($effect[Fishy]) > 0)
+        return;
+    if (fishyFoodsAllowed() && item_amount($item[Centauri fish wine]) > 0
+        && inebriety_limit() - my_inebriety() >= 2) {
+        odeUp();
+        if (drink(1, $item[Centauri fish wine]))
+            return;
+    }
+    if (item_amount($item[crate of fish meat]) > 0 && !use(1, $item[crate of fish meat]))
+        print("Couldn't open the " + $item[crate of fish meat] + ".", "red");
+    foreach it in $items[beefy fish meat, glistening fish meat, slick fish meat]
+        if (item_amount(it) > 0) {
+            if (fullness_limit() - my_fullness() < 2)
+                print("No stomach room for a nigiri.", "red");
+            else if (retrieve_item(1, $item[white rice]))
+                eatSushi();
+            return;
+        }
+}
+
+// More adventures at zero on the low IOTM route: kelp pucks, then Ocean-Touched
+// Rum once Yog-Urt is down, since its Muscle would break the Yog-Urt HP check.
+boolean lowIOTMTopUp() {
+    int before = my_adventures();
+    // Room for one nigiri stays free while a crate or fish meat can still feed Fishy.
+    int keep = (get_property("questS01OldGuy") != "finished"
+        || item_amount($item[crate of fish meat]) + item_amount($item[beefy fish meat])
+            + item_amount($item[glistening fish meat]) + item_amount($item[slick fish meat]) > 0)
+        ? 2 : 0;
+    if (fullness_limit() - my_fullness() - keep >= 2) {
+        if (item_amount($item[kelp puck]) == 0 && item_amount($item[sand penny]) >= 30
+            && !buy($coinmaster[Wet Crap For Sale], 1, $item[kelp puck]))
+            print("Couldn't buy a " + $item[kelp puck] + ".", "red");
+        if (item_amount($item[kelp puck]) > 0 && !eat(1, $item[kelp puck]))
+            print("Couldn't eat a " + $item[kelp puck] + ".", "red");
+    }
+    if (my_adventures() > before)
+        return true;
+    if (get_property("yogUrtDefeated") == "true" && inebriety_limit() - my_inebriety() >= 2) {
+        if (item_amount($item[Ocean-Touched Rum]) == 0 && item_amount($item[sand penny]) >= 30
+            && !buy($coinmaster[Wet Crap For Sale], 1, $item[Ocean-Touched Rum]))
+            print("Couldn't buy an " + $item[Ocean-Touched Rum] + ".", "red");
+        if (item_amount($item[Ocean-Touched Rum]) > 0) {
+            odeUp();
+            if (!drink(1, $item[Ocean-Touched Rum]))
+                print("Couldn't drink the " + $item[Ocean-Touched Rum] + ".", "red");
+        }
+    }
+    return my_adventures() > before;
+}

@@ -181,6 +181,9 @@ item yogDeleveler(){
     // Null Afternoon zeroes enemy Attack and Defense; mafia's monster stats do not show it.
     if (have_effect($effect[null afternoon]) > 0)
         return $item[none];
+    // The low IOTM guide fights Yog-Urt without delevelers.
+    if (lowIOTM())
+        return $item[none];
     if (my_basestat($stat[moxie]) + 10 > monster_attack( ) && my_basestat($stat[muscle]) - 30 > monster_defense( ))
         return $item[none];
     foreach it in $items[Mer-kin mouthsoap,crayon shavings,table tennis ball,sea lasso,sea cowbell]{
