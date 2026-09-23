@@ -66,6 +66,11 @@ boolean guideBanish(string page_text) {
     return current_round() == 0;
 }
 
+// A balldodger's neutrality or a bladeswitcher's bust, from the fight text.
+boolean colosseumDanger(string text) {
+    return contains_text(text, "<b>bust</b>") || contains_text(text, "<b>neutrality</b>");
+}
+
 // Attempt a free kill using available skills/items.
 // Pass drop=true to skip items that interfere with item drops.
 void free_kill(string ptext, boolean drop) {
@@ -123,9 +128,9 @@ void free_kill(string ptext, boolean drop) {
     }
 }
 
-// The guide spends up to nine parasol runs in the Coral Corral.
+// The guide spends up to nine parasol runs across the Coral Corral and the Gymnasium.
 int parasolCap() {
-    return guideRoute() && my_location() == $location[The Coral Corral] ? 9 : 3;
+    return guideRoute() && $locations[The Coral Corral, Mer-kin Gymnasium] contains my_location() ? 9 : 3;
 }
 
 // Attempt a free run using available skills/items.
@@ -160,9 +165,10 @@ void free_run(string ptext, boolean banish) {
         if (item_amount(freecombat) == 0) continue;
         if (!banish && $items[anchor bomb, stuffed yam stinkbomb,
             handful of split pea soup] contains freecombat) continue;
-        // The low IOTM route keeps the parasol for the Corral.
+        // The low IOTM route keeps the parasol for the Corral and the guide's Gymnasium.
         if (freecombat == $item[peppermint parasol] && lowIOTM()
-            && my_location() != $location[The Coral Corral]) continue;
+            && my_location() != $location[The Coral Corral]
+            && !(guideRoute() && my_location() == $location[Mer-kin Gymnasium])) continue;
         if (freecombat == $item[peppermint parasol]
             && to_int(get_property("parasolUsed")) >= parasolCap()) continue;
         if (freecombat == $item[mer-kin pinkslip]
@@ -565,7 +571,9 @@ void main(int round, monster mob, string page_text) {
 
     lectureOnRelativity(last_monster(), page_text);
     // No bang potions on the magic dragonfish, so the kill starts at once.
-    if (guideRoute() && last_monster() != $monster[sea cowboy] && last_monster() != $monster[magic dragonfish])
+    // The Colosseum's opener needs round 1, and Shub-Jigguwatt punishes anything but an attack.
+    if (guideRoute() && last_monster() != $monster[sea cowboy] && last_monster() != $monster[magic dragonfish]
+        && !($locations[Mer-kin Colosseum, Mer-kin Temple (Left Door), Mer-kin Temple (Center Door)] contains my_location()))
         throwUnknownBangs();
     while (!guideRoute() && available_amount($item[murky potion]) > 0 && current_round() > 0 && current_round() < 5 && last_monster() != $monster[sea cowboy]){
         if (have_skill($skill[Ambidextrous Funkslinging]))
@@ -1196,6 +1204,30 @@ void main(int round, monster mob, string page_text) {
             // Colosseum rounds need WINS, so this drains free kills and never
             // Use the Force (which forfeits the win); the saber is not
             // equipped here, so its last-resort clause stays dead.
+            // The spell route opens with its lantern spell in round 1 unless the page already shows bust or
+            // neutrality. A champion that survives, or any gladiator showing either, is run from until the fight ends.
+            if (guideRoute() && colosseumRoute() == "spell") {
+                string seen = page_text;
+                if (current_round() == 1 && !colosseumDanger(page_text)) {
+                    skill opener = colosseumSpell();
+                    if (opener != $skill[none] && my_mp() >= mp_cost(opener))
+                        seen = to_string(use_skill(opener));
+                }
+                if (current_round() > 0 && (last_monster().boss || colosseumDanger(seen))) {
+                    int stuck;
+                    while (current_round() > 0) {
+                        int round = current_round();
+                        seen = to_string(runaway());
+                        if (current_round() == round) {
+                            stuck += 1;
+                            if (stuck >= 3)
+                                abort("Running from " + last_monster() + " in the Mer-kin Colosseum isn't moving the fight on. Finish it by hand, then rerun.");
+                        }
+                    }
+                }
+                if (current_round() == 0)
+                    break;
+            }
             if (current_round() > 0)
                 free_kill(page_text, false);
             if (to_int(get_property("lastColosseumRoundWon")) < 15)
@@ -1236,11 +1268,16 @@ void main(int round, monster mob, string page_text) {
         case $location[Mer-kin Temple (Center Door)]:
             // Raise Backup Dancer is a Pastamancer skill; it is only a damage boost
             // here, so skip it rather than erroring out on accounts without it.
-            if (have_skill($skill[raise backup dancer])) {
+            if (have_skill($skill[raise backup dancer])
+                && (!guideRoute() || my_mp() >= 2 * mp_cost($skill[raise backup dancer]))) {
             use_skill($skill[raise backup dancer]);
             use_skill($skill[raise backup dancer]);
             }
-            cleanUp();
+            // The guide route arrives drained by Shub-Jigguwatt, so spells only with MP to spare.
+            if (!guideRoute() || my_mp() >= 60)
+                cleanUp();
+            if (guideRoute())
+                attackCleanUp();
             break;
 
         case $location[Mer-kin Temple]:

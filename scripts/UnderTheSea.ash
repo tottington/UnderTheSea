@@ -3017,10 +3017,265 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Null Afternoon for the next turnsNeeded turns, from the held null-day exploit or a pull. True while it is active.
+    boolean guideNullAfternoon(int turnsNeeded) {
+        item exploit = $item[null-day exploit];
+        if (have_effect($effect[Null Afternoon]) >= turnsNeeded)
+            return true;
+        if (item_amount(exploit) == 0 && !pulledToday(exploit) && pulls_remaining() != 0)
+            guidePullOne(exploit);
+        if (item_amount(exploit) > 0 && !use(1, exploit))
+            print("Couldn't use the " + exploit + ".", "red");
+        return have_effect($effect[Null Afternoon]) > 0;
+    }
+
+    // Grandma trades each scholar piece for its crappy piece, which the gladiator piece is made from.
+    void guideCrappyDisguise() {
+        int [item] row = {$item[Mer-kin scholar mask]: 131, $item[Mer-kin scholar tailpiece]: 1619};
+        item [item] crappy = {$item[Mer-kin scholar mask]: $item[crappy Mer-kin mask],
+            $item[Mer-kin scholar tailpiece]: $item[crappy Mer-kin tailpiece]};
+        item [item] gladiator = {$item[Mer-kin scholar mask]: $item[Mer-kin gladiator mask],
+            $item[Mer-kin scholar tailpiece]: $item[Mer-kin gladiator tailpiece]};
+        foreach scholar in row {
+            if (available_amount(scholar) == 0 || available_amount(crappy[scholar]) > 0
+                || available_amount(gladiator[scholar]) > 0)
+                continue;
+            if (have_equipped(scholar) && !equip(to_slot(scholar), $item[none]))
+                abort("Couldn't take off the " + scholar + " to trade it to Grandma.");
+            equipSwimTrunks();
+            visit_url("shop.php?whichshop=grandma&action=buyitem&quantity=1&whichrow=" + row[scholar]);
+            if (available_amount(crappy[scholar]) == 0)
+                abort("Grandma didn't trade the " + scholar + " for a " + crappy[scholar] + ".");
+        }
+    }
+
+    boolean guideGymNeeds() {
+        return (available_amount($item[Mer-kin gladiator mask]) == 0 && available_amount($item[Mer-kin headguard]) == 0)
+            || (available_amount($item[Mer-kin gladiator tailpiece]) == 0 && available_amount($item[Mer-kin thighguard]) == 0);
+    }
+
+    // The guide's Gymnasium: +combat for its noncombat until the headguard and thighguard are held.
+    void guideGym() {
+        step("phase: gymnasium, spell route (headguard and thighguard)");
+        guideCrappyDisguise();
+        // The Gymnasium turns away anyone not wearing a Mer-kin disguise.
+        if (!($items[crappy Mer-kin mask, Mer-kin scholar mask, Mer-kin gladiator mask] contains divingHelmet())
+            || !($items[crappy Mer-kin tailpiece, Mer-kin scholar tailpiece, Mer-kin gladiator tailpiece] contains tailpiece()))
+            abort("The Mer-kin Gymnasium needs a Mer-kin mask and tailpiece, and you hold " + divingHelmet() + " and " + tailpiece() + ".");
+        int visits;
+        while (guideGymNeeds()) {
+            if (my_adventures() < 1)
+                abort("Out of adventures in the Mer-kin Gymnasium before the headguard and thighguard.");
+            if (visits >= 60)
+                abort(visits + " visits to the Mer-kin Gymnasium without the headguard and thighguard. Finish it by hand, then rerun.");
+            visits += 1;
+            foreach it in $items[patent aggression tonic, lion musk]
+                if (have_effect(effect_modifier(it, "Effect")) == 0 && item_amount(it) > 0 && !use(1, it))
+                    print("Couldn't use a " + it + " in the Mer-kin Gymnasium.", "red");
+            gymnasium();
+        }
+    }
+
+    // Grandma makes each gladiator piece from its crappy piece and the gym drop.
+    void guideGladiatorOutfit() {
+        item [item] part = {$item[Mer-kin gladiator mask]: $item[Mer-kin headguard],
+            $item[Mer-kin gladiator tailpiece]: $item[Mer-kin thighguard]};
+        foreach sl in $slots[hat, pants, acc1, acc2, acc3]
+            if ($items[crappy Mer-kin mask, crappy Mer-kin tailpiece, Mer-kin headguard, Mer-kin thighguard] contains equipped_item(sl)
+                && !equip(sl, $item[none]))
+                abort("Couldn't take off the " + equipped_item(sl) + " to trade it to Grandma.");
+        equipSwimTrunks();
+        foreach piece in part
+            if (available_amount(piece) == 0 && !buy($coinmaster[Grandma Sea Monkey], 1, piece))
+                abort("Grandma wouldn't make the " + piece + " from a crappy piece and the " + part[piece] + ".");
+    }
+
+    // mood("colosseum") with each cast checked, plus Song of Sauce.
+    void guideColosseumBuffs() {
+        foreach ef in $effects[Carol of the Hells, Song of Sauce, Ultraheart, Elron's Explosive Etude, Big, Favored by Lyle,
+            The Magical Mojomuscular Melody, Tubes of Universal Meat, Mariachi Moisture, Everybody Calls Him Gorgon] {
+            if (have_effect(ef) > 0 || (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))))
+                continue;
+            if (ef == $effect[Ultraheart] && get_property("heartstoneBuffUnlocked") != "true")
+                continue;
+            if (ef == $effect[Everybody Calls Him Gorgon] && (!lowShiny() || !have_item($item[Clan VIP Lounge key])))
+                continue;
+            if ((ef == $effect[Tubes of Universal Meat] || ef == $effect[Mariachi Moisture]) && !have_item($item[April Shower Thoughts Shield]))
+                continue;
+            if (!cli_execute(ef.default))
+                print("Couldn't get " + ef + " for the Mer-kin Colosseum.", "red");
+        }
+    }
+
+    // The guide's spell route: Null Afternoon, then the lantern spell kills each of the 15 rounds in one cast.
+    void guideColosseum() {
+        step("phase: colosseum, spell route");
+        familiar fam = colosseumFamiliar();
+        skill spell = colosseumSpell();
+        if (fam == $familiar[none])
+            abort("The Colosseum spell route has no lantern familiar with its spell. " + colosseumMissing());
+        if (item_amount($item[unblemished pearl]) < 5)
+            print("Only " + item_amount($item[unblemished pearl]) + " of 5 unblemished pearls. Farming the rest after the Colosseum spends Null Afternoon the Sorceress needs.", "red");
+        // The rounds left, then Shub-Jigguwatt and both Center Door visits.
+        int needed = 18 - to_int(get_property("lastColosseumRoundWon"));
+        if (!guideNullAfternoon(needed))
+            print("No Null Afternoon for the Colosseum. The spell still kills in one cast, but Shub-Jigguwatt and the Sorceress need a null-day exploit.", "red");
+        else if (have_effect($effect[Null Afternoon]) < needed)
+            print(have_effect($effect[Null Afternoon]) + " turns of Null Afternoon for about " + needed
+                + " turns of Colosseum, Shub-Jigguwatt and the Sorceress. It may run out first.", "red");
+        item lantern = $item[none];
+        foreach it in $items[petrified wood wizard's pouch, Congressional Medal of Insanity, petrified wood water purifier]
+            if (lantern == $item[none] && available_amount(it) > 0)
+                lantern = it;
+        if (lantern == $item[none]) {
+            lantern = colosseumLantern();
+            if (lantern == $item[none])
+                abort("The Colosseum spell route needs a lantern item. " + colosseumMissing());
+            if (pulledToday(lantern))
+                abort("The " + lantern + " was pulled today but isn't on hand, and Hagnk's gives one of each item a day. Get it back, or rerun tomorrow.");
+            if (pulls_remaining() == 0 || !take_storage(1, lantern))
+                abort("Couldn't pull the " + lantern + " for the Colosseum spell route, with " + pulls_remaining() + " pulls left.");
+        }
+        item lipstick = $item[Mer-kin lipstick];
+        if (have_effect($effect[Red Around the Gills]) == 0 && item_amount(lipstick) > 0 && !use(1, lipstick))
+            print("Couldn't use the " + lipstick + ".", "red");
+        int autoAttack = get_auto_attack();
+        try {
+            if (autoAttack != 0)
+                set_auto_attack(0);
+            int visits;
+            int losses;
+            int lossRound = -1;
+            while (to_int(get_property("lastColosseumRoundWon")) < 15) {
+                int won = to_int(get_property("lastColosseumRoundWon"));
+                if (won != lossRound) {
+                    losses = 0;
+                    lossRound = won;
+                }
+                if (my_adventures() < 1)
+                    abort("Out of adventures in the Mer-kin Colosseum after " + won + " of 15 rounds.");
+                if (visits >= 25)
+                    abort(visits + " visits to the Mer-kin Colosseum and " + won + " of 15 rounds won. Check the fights, then rerun.");
+                visits += 1;
+                if (!use_familiar(fam))
+                    abort("Couldn't take the " + fam + " to the Mer-kin Colosseum.");
+                guideColosseumBuffs();
+                float coeff = (60 + my_buffedstat($stat[mysticality])/2.5)/(numeric_modifier("spell damage percent") + 1);
+                // Rounds 13 to 15 are champions with Init 100.
+                string init = won >= 12 ? ", " + (coeff / 2) + " initiative" : "";
+                tempEquipment(coeff + " spell damage percent, mys,sea" + init, "Mer-kin gladiator tailpiece,Mer-kin gladiator mask,"
+                    + lantern + "," + if_equip($item[Cold Stone of Hatred]) + bathysphere($item[none]));
+                int cost = mp_cost(spell);
+                if (my_maxmp() < cost)
+                    abort("Max MP " + my_maxmp() + " is below the " + cost + " MP " + spell + " costs in the Colosseum gear.");
+                int goal = min(my_maxmp(), max(200, cost));
+                if (my_mp() < goal && !restore_mp(goal))
+                    print("Couldn't restore MP to " + goal + " for the Mer-kin Colosseum.", "red");
+                if (my_mp() < cost)
+                    abort("Only " + my_mp() + " MP for " + spell + ", which costs " + cost + ". Restore MP, then rerun.");
+                int turns = total_turns_played();
+                adv($location[Mer-kin Colosseum]);
+                if (get_property("lastEncounter") == "Been There, Won That") {
+                    set_property("lastColosseumRoundWon", "15");
+                    set_property("isMerkinGladiatorChampion", "true");
+                } else if (to_int(get_property("lastColosseumRoundWon")) == won && total_turns_played() > turns) {
+                    losses += 1;
+                    if (losses >= 3)
+                        abort("Three Mer-kin Colosseum fights for round " + (won + 1) + " ended without a win, lost or run from. "
+                            + spell + " isn't killing in one cast; raise spell damage or Mysticality, then rerun.");
+                }
+            }
+        } finally {
+            if (autoAttack != 0)
+                set_auto_attack(autoAttack);
+        }
+    }
+
+    // Spends MP on self buffs, costliest first. Shub-Jigguwatt takes all MP and half of it as HP.
+    void drainMP() {
+        foreach sk in $skills[Empathy of the Newt, Leash of Linguini, Musk of the Moose, Seal Clubbing Frenzy,
+            Patience of the Tortoise, Manicotti Meditation, Sauce Contemplation, Disco Aerobics, Moxie of the Mariachi] {
+            int cost = mp_cost(sk);
+            if (!have_skill(sk) || cost < 1 || my_mp() < cost)
+                continue;
+            if (!use_skill(my_mp() / cost, sk))
+                print("Couldn't cast " + sk + " to spend MP.", "red");
+        }
+        if (my_mp() > 0)
+            print("Going into Shub-Jigguwatt with " + my_mp() + " MP; the fight opens by taking half of it as HP.", "red");
+    }
+
+    // Estimated standard attacks to take Shub-Jigguwatt's 10000 HP. Each hit over 500 is cut to 500 + (hit - 500)^0.6.
+    int shubHitsNeeded() {
+        item weapon = equipped_item($slot[weapon]);
+        float base = weapon_type(weapon) == $stat[moxie] ? my_buffedstat($stat[moxie]) * 0.75 : my_buffedstat($stat[muscle]);
+        if (weapon == $item[none])
+            base = my_buffedstat($stat[muscle]) * 0.25 + 1;
+        float hit = (base + get_power(weapon) / 10.0 + numeric_modifier("Weapon Damage"))
+            * (1 + numeric_modifier("Weapon Damage Percent") / 100);
+        if (hit > 500)
+            hit = 500 + floor((hit - 500) ** 0.6);
+        if (hit < 1)
+            hit = 1;
+        return ceil(10000 / hit);
+    }
+
+    // The guide's Shub-Jigguwatt: Null Afternoon, a familiar that can't hurt him, no MP, standard attacks only.
+    void guideShub() {
+        if (!guideNullAfternoon(1))
+            abort("Null Afternoon has run out and no null-day exploit is left, so Shub-Jigguwatt is out of reach: Attack and Defense 4000, "
+                + "10000 HP, and anything but a standard attack hits back. Get a null-day exploit, one pull a day, then rerun.");
+        // Retaliation damage counts as non-standard damage.
+        foreach ef in $effects[Scarysauce, Scariersauce, Jalape&ntilde;o Saucesphere, Jaba&ntilde;ero Saucesphere,
+            Spiky Shell, Psalm of Pointiness, Dirge of Dreadfulness, Bone Homie, Boner Battalion]
+            if (have_effect(ef) > 0 && !cli_execute("uneffect " + ef))
+                abort("Couldn't remove " + ef + ", and Shub-Jigguwatt hits back for its damage. Remove it, then rerun.");
+        use_familiar("exp");
+        familiar fam = my_familiar();
+        if ((fam.physical_damage || fam.elemental_damage || fam.other_action_during_combat || fam.variable)
+            && !use_familiar($familiar[none]))
+            abort("The " + fam + " can hurt Shub-Jigguwatt, who hits back for it, and couldn't be put away. Take a harmless familiar, then rerun.");
+        string attackStat = my_buffedstat($stat[moxie]) > my_buffedstat($stat[muscle]) ? "mox" : "mus";
+        tempEquipment(attackStat + ", weapon damage, weapon damage percent, effective, sea, -equip Pigsticker of Violence, "
+            + "-equip spiky turtle shoulderpads, -equip plastic pumpkin bucket, -equip moveable feast, -equip V for Vivala mask, "
+            + "-equip Snow Suit", "Mer-kin gladiator mask,Mer-kin gladiator tailpiece,"
+            + (my_familiar() == $familiar[none] ? "" : bathysphere($item[none])));
+        int hits = shubHitsNeeded();
+        if (hits > 27)
+            abort("Shub-Jigguwatt looks like about " + hits + " standard attacks at these stats, more than a fight lasts. "
+                + "Raise " + (attackStat == "mox" ? "Moxie" : "Muscle") + " with potions or buffs, or weapon damage and weapon damage percent with a better weapon, then rerun.");
+        if (!restore_hp(my_maxhp()))
+            print("Couldn't restore HP before Shub-Jigguwatt.", "red");
+        string mpRecovery = get_property("mpAutoRecovery");
+        string mpTarget = get_property("mpAutoRecoveryTarget");
+        int autoAttack = get_auto_attack();
+        try {
+            if (autoAttack != 0)
+                set_auto_attack(0);
+            set_property("mpAutoRecovery", "-0.05");
+            set_property("mpAutoRecoveryTarget", "-0.05");
+            drainMP();
+            adv($location[Mer-kin Temple (Left Door)]);
+        } finally {
+            set_property("mpAutoRecovery", mpRecovery);
+            set_property("mpAutoRecoveryTarget", mpTarget);
+            if (autoAttack != 0)
+                set_auto_attack(autoAttack);
+        }
+        if (get_property("shubJigguwattDefeated") != "true")
+            abort("Shub-Jigguwatt is still standing after the Left Door, with " + have_effect($effect[Null Afternoon])
+                + " turns of Null Afternoon left. Check the fight, then rerun.");
+    }
+
     void Shub(){
         if (my_path().id == 55 || (my_path().id == 0 && boss == "Shub")){
             // ── Gladiator gear grind ──────────────────────────────────────────────────
             step("phase: gymnasium (gladiator gear)");
+            if (guideRoute() && colosseumRoute() == "spell"
+                && (available_amount($item[Mer-kin gladiator mask]) == 0 || available_amount($item[Mer-kin gladiator tailpiece]) == 0)) {
+                guideGym();
+                guideGladiatorOutfit();
+            }
             // || not &&: the colosseum outfit needs BOTH pieces, so keep looping
             // while either is missing.
             while (available_amount($item[Mer-kin gladiator mask]) == 0
@@ -3061,6 +3316,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             refresh_status();
             // ── Colosseum ─────────────────────────────────────────────────────────────
             step("phase: colosseum");
+            if (guideRoute() && to_int(get_property("lastColosseumRoundWon")) < 15) {
+                if (colosseumRoute() == "none")
+                    abort("No Colosseum route, so the run stops at the Colosseum. " + colosseumMissing());
+                if (colosseumRoute() == "spell")
+                    guideColosseum();
+            }
             // Gladiators are insta-kill immune (bricks and X-Rays glance, the
             // Asdon missile reads UNTARGETABLE), so the club is the only free
             // round in the building -- against immune monsters Club 'Em still
@@ -3112,6 +3373,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
             // ── Shub-Jigguwatt ────────────────────────────────────────────────────────
             step("phase: Shub-Jigguwatt");
+            if (guideRoute() && get_property("shubJigguwattDefeated") == "false")
+                guideShub();
             if (get_property("shubJigguwattDefeated") == "false") {
                 if (my_path().id == 0)
                     retrieve_item(8,$item[crayon shavings]);
@@ -3152,6 +3415,14 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         abort("The center door needs 5 unblemished pearls and you hold "
                             + item_amount($item[unblemished pearl]) + ". Finish the pearl zones, then rerun.");
                 }
+                if (guideRoute()) {
+                    if (!guideNullAfternoon(1))
+                        abort("Null Afternoon has run out and no null-day exploit is left for the Nautical Seaceress: Attack 2000, "
+                            + "Defense 2500, 4000 HP. Get a null-day exploit, one pull a day, then rerun.");
+                    int goal = min(my_maxmp(), 150);
+                    if (my_mp() < goal && !restore_mp(goal))
+                        print("Couldn't restore MP before the Nautical Seaceress.", "red");
+                }
                 if (to_int(get_property("_batWingsFreeFights")) < 5) {
                     tempEquipment("spell damage percent, mys,sea", "Mer-kin gladiator mask,Mer-kin gladiator tailpiece," + if_equip($item[bat wings])
                         + if_equip($item[Congressional Medal of Insanity]) + bathysphere($item[toy cupid bow]));
@@ -3163,6 +3434,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     }
                 }
                 adv($location[Mer-kin Temple (center Door)]);
+                if (guideRoute() && get_property("questL13Final") != "finished" && !guideNullAfternoon(1))
+                    abort("Null Afternoon ran out before the Nautical Seaceress fight, and no null-day exploit is left. Get one, then rerun.");
                 adv($location[Mer-kin Temple (center Door)]);
             }
         } else if (my_path().id == 0 && boss == "Dad"){

@@ -216,6 +216,24 @@ import <seedfinder/seedfinder.ash>;
                 && have_skill($skill[Awesome Balls of Fire]));
     }
 
+    // The spell route's lantern familiar, Foul Ball first as in the guide.
+    familiar colosseumFamiliar() {
+        if (have_familiar($familiar[Foul Ball]) && have_skill($skill[Eggsplosion]))
+            return $familiar[Foul Ball];
+        if (have_familiar($familiar[Tiny Plastic Santa Claus Skeleton]) && have_skill($skill[Awesome Balls of Fire]))
+            return $familiar[Tiny Plastic Santa Claus Skeleton];
+        return $familiar[none];
+    }
+
+    // The spell that goes with colosseumFamiliar().
+    skill colosseumSpell() {
+        if (colosseumFamiliar() == $familiar[Foul Ball])
+            return $skill[Eggsplosion];
+        if (colosseumFamiliar() == $familiar[Tiny Plastic Santa Claus Skeleton])
+            return $skill[Awesome Balls of Fire];
+        return $skill[none];
+    }
+
     item colosseumLantern() {
         foreach it in $items[petrified wood wizard's pouch, Congressional Medal of Insanity,
             petrified wood water purifier]
@@ -251,6 +269,18 @@ import <seedfinder/seedfinder.ash>;
 
     string colosseumRoute() {
         return colosseumRoute(true);
+    }
+
+    // What the spell route lacks, and what the combat route needs.
+    string colosseumMissing() {
+        string missing;
+        if (!colosseumSpellFamiliar())
+            missing += " Foul Ball with Eggsplosion, or Tiny Plastic Santa Claus Skeleton with Awesome Balls of Fire.";
+        if (colosseumLantern() == $item[none])
+            missing += " A lantern item: petrified wood wizard's pouch, Congressional Medal of Insanity or petrified wood water purifier.";
+        if (!nullDayAvailable())
+            missing += " A null-day exploit, owned or mall-buyable with a pull.";
+        return "The spell route is missing:" + missing + " The combat route needs Furious Wallop on a Seal Clubber.";
     }
 
     void getLucky() {
@@ -2745,14 +2775,7 @@ string lowIOTMChecklist(boolean runStart) {
     } else if (to_int(get_property("lastColosseumRoundWon")) >= 15) {
         print("✓ Colosseum: already won.", "blue");
     } else {
-        string missing;
-        if (!colosseumSpellFamiliar())
-            missing += " Foul Ball with Eggsplosion, or Tiny Plastic Santa Claus Skeleton with Awesome Balls of Fire.";
-        if (colosseumLantern() == $item[none])
-            missing += " A lantern item: petrified wood wizard's pouch, Congressional Medal of Insanity or petrified wood water purifier.";
-        if (!nullDayAvailable())
-            missing += " A null-day exploit, owned or mall-buyable with a pull.";
-        print("✗ Colosseum: no route yet, the run stops at the Colosseum without one. The spell route is missing:" + missing + " The combat route needs Furious Wallop on a Seal Clubber.", "red");
+        print("✗ Colosseum: no route yet, the run stops at the Colosseum without one. " + colosseumMissing(), "red");
     }
 
     print("Low IOTM check, guide perms:");
