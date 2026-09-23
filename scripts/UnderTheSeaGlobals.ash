@@ -603,6 +603,9 @@ import <seedfinder/seedfinder.ash>;
                     equipmentSelection[$slot[acc3]] = $item[M&ouml;bius ring];
             }
         }
+        // A two-handed weapon leaves no off-hand to fill.
+        if (lowIOTM() && weapon_hands(equipmentSelection[$slot[weapon]]) > 1)
+            remove equipmentSelection[$slot[off-hand]];
         foreach slo in equipmentSelection{
             if (available_amount(equipmentSelection[slo]) == 0)
                 abort("Missing " + equipmentSelection[slo]);
@@ -1655,6 +1658,8 @@ void briefcase() {
 // Spend the cheapest available forcer charge; NCForceEstimate() counts what
 // remains.
 
+boolean restWouldCostFury();
+
 void NCforce() {
     if (get_property("noncombatForcerActive") != "true") {
         if (have_item($item[apriling band helmet]) && get_property("_aprilBandTubaUses").to_int() < 3 && have_item($item[Apriling band tuba])) {
@@ -1663,9 +1668,9 @@ void NCforce() {
         // enough cinch already, or free rests left to restore it.
         } else if (have_item($item[Cincho de Mayo])
             && (get_property("_cinchUsed").to_int() <= 40
-                || get_property("timesRested").to_int() < total_free_rests())){
+                || (get_property("timesRested").to_int() < total_free_rests() && !restWouldCostFury()))){
             while (get_property("_cinchUsed").to_int() > 40
-                && get_property("timesRested").to_int() < total_free_rests()) {
+                && get_property("timesRested").to_int() < total_free_rests() && !restWouldCostFury()) {
                 // The helmet sweetens the rest but is optional; equipping it
                 // unowned hard-errors.
                 if (have_item($item[Apriling band helmet]))
@@ -1822,6 +1827,247 @@ skill combatBan() {
         }
     }
     return $skill[none];
+}
+
+// ─── LOW IOTM BANISHES AND FISH SCALES ────────────────────────────────────────
+
+// Pristine scales the crappy outfit pieces and the scale-mail underwear not yet made will take.
+int pristineScalesWanted() {
+    int want;
+    if (available_amount($item[crappy Mer-kin mask]) + available_amount($item[Mer-kin gladiator mask])
+        + available_amount($item[Mer-kin scholar mask]) == 0)
+        want += 3;
+    if (available_amount($item[crappy Mer-kin tailpiece]) + available_amount($item[Mer-kin gladiator tailpiece])
+        + available_amount($item[Mer-kin scholar tailpiece]) == 0)
+        want += 3;
+    if (available_amount($item[scale-mail underwear]) == 0)
+        want += 1;
+    return want;
+}
+
+int pristineScalesNeeded() {
+    return max(0, pristineScalesWanted() - available_amount($item[pristine fish scale]));
+}
+
+int dullScalesNeeded() {
+    if (available_amount($item[scale-mail underwear]) > 0)
+        return 0;
+    return max(0, 25 - available_amount($item[dull fish scale]));
+}
+
+// Scales still to farm: ten rough per missing pristine, traded at Madness Reef, plus the dull shortfall.
+int scalesNeeded() {
+    return max(0, 10 * pristineScalesNeeded() - available_amount($item[rough fish scale]))
+        + dullScalesNeeded();
+}
+
+// Corral lasso training once the sea cow is done.
+boolean corralLassoPhase() {
+    return get_property("seahorseName") == "" && doneWithSeaCow() && !doneWithCowboy();
+}
+
+// False where the zone logic must act first or the guide skips the scale casts.
+boolean scaleFight(location loc, monster mob) {
+    if (loc == $location[The Coral Corral])
+        return corralLassoPhase() && (mob == $monster[none] || mob == $monster[sea cowboy]);
+    if ($locations[Mer-kin Colosseum, Mer-kin Temple, Mer-kin Temple (Right Door),
+        Mer-kin Temple (Left Door), Mer-kin Temple (Center Door)] contains loc)
+        return false;
+    return !($monsters[unholy diver, wild seahorse, magic dragonfish] contains mob);
+}
+
+// MP the CCS finisher needs: one Saucegeyser or Saucestorm, nothing for a melee kill.
+int killReserveMP() {
+    if (have_skill($skill[Saucegeyser]))
+        return mp_cost($skill[Saucegeyser]);
+    if (have_skill($skill[Saucestorm]))
+        return mp_cost($skill[Saucestorm]);
+    return 0;
+}
+
+// MP for one scale fight: both casts that are known plus the finisher.
+int scaleFightMP() {
+    int mp = killReserveMP();
+    if (scalesNeeded() == 0 || available_amount($item[cozy scimitar]) == 0)
+        return mp;
+    foreach sk in $skills[Harpoon!, Summon Leviatuga]
+        if (have_skill(sk))
+            mp += mp_cost(sk);
+    return mp;
+}
+
+// The club Batter Up! swings: the guide's shootin' iron first, else any club that can be wielded.
+item guideClub() {
+    foreach it in $items[rusted-out shootin' iron, legendary seal-clubbing club, Gnollish flyswatter, seal-clubbing club]
+        if (available_amount(it) > 0 && can_equip(it))
+            return it;
+    if (item_type(equipped_item($slot[weapon])) == "club")
+        return equipped_item($slot[weapon]);
+    foreach it in get_inventory()
+        if (item_type(it) == "club" && can_equip(it))
+            return it;
+    return $item[none];
+}
+
+boolean scimitarWieldable() {
+    return available_amount($item[cozy scimitar]) > 0 && can_equip($item[cozy scimitar]);
+}
+
+// Iron Palms makes swords count as clubs. The skill toggles it, so it is cast only while it is off.
+boolean ironPalmsUp() {
+    if (have_effect($effect[Iron Palms]) > 0)
+        return true;
+    if (!have_skill($skill[Iron Palm Technique]))
+        return false;
+    if (!use_skill(1, $skill[Iron Palm Technique]))
+        print("Couldn't cast " + $skill[Iron Palm Technique] + ".", "red");
+    return have_effect($effect[Iron Palms]) > 0;
+}
+
+// Batter Up! needs 5 Fury, which only a Seal Clubber with Ire of the Orca holds, and a club.
+boolean batterUpPossible() {
+    return have_skill($skill[Batter Up!]) && my_maxfury() >= 5
+        && (guideClub() != $item[none]
+            || (have_skill($skill[Iron Palm Technique]) && scimitarWieldable()));
+}
+
+boolean batterUpReady() {
+    string kind = item_type(equipped_item($slot[weapon]));
+    return have_skill($skill[Batter Up!]) && my_fury() >= 5
+        && (kind == "club" || (kind == "sword" && have_effect($effect[Iron Palms]) > 0));
+}
+
+// The guide's Batter Up! targets per zone. Batter Up! holds one monster at a time.
+boolean [monster] batterTargets(location loc) {
+    boolean [monster] empty;
+    boolean tamed = get_property("seahorseName") != "";
+    switch (loc) {
+        case $location[An Octopus's Garden]:
+            return $monsters[sponge, stranglin' algae, moister oyster];
+        case $location[The Wreck of the Edgar Fitzsimmons]:
+            return $monsters[Mer-kin scavenger];
+        case $location[Anemone Mine]:
+            return $monsters[Anemone combatant, killer clownfish];
+        case $location[The Mer-Kin Outpost]:
+            return $monsters[Mer-kin raider];
+        case $location[The Coral Corral]:
+            // The rustler shows only when the ice house holds something else.
+            if (doneWithSeaCow() && doneWithCowboy())
+                return $monsters[sea cowboy];
+            return $monsters[Mer-kin rustler];
+        case $location[The Marinara Trench]:
+            if (tamed)
+                return $monsters[fisherfish, Mer-kin diver];
+            break;
+        case $location[The Dive Bar]:
+            if (tamed)
+                return $monsters[lounge lizardfish, nurse shark];
+            break;
+        case $location[Madness Reef]:
+            if (tamed)
+                return $monsters[magic dragonfish];
+            break;
+        case $location[The Caliginous Abyss]:
+            return $monsters[school of many];
+    }
+    return empty;
+}
+
+// The guide's Snokebomb targets per zone. Snokebomb also holds one monster at a time.
+boolean [monster] snokeTargets(location loc) {
+    boolean [monster] empty;
+    switch (loc) {
+        case $location[The Wreck of the Edgar Fitzsimmons]:
+            // The diver hunt, not the first visit.
+            if (get_property("questS02Monkees") != "step1")
+                return $monsters[mine crab];
+            break;
+        case $location[The Coral Corral]:
+            if (!doneWithSeaCow())
+                return $monsters[sea cowboy];
+            if (get_property("seahorseName") == "")
+                return $monsters[sea cow];
+            break;
+        case $location[Mer-kin Library]:
+            return $monsters[Mer-kin drifter];
+    }
+    return empty;
+}
+
+// The guide's Snokebomb targets still ahead in the route.
+int snokeTargetsAhead() {
+    monster held = banished("snokebomb");
+    int ahead;
+    if (!diverPartsComplete() && to_slot(divingHelmet()) != $slot[hat] && held != $monster[mine crab])
+        ahead += 1;
+    if (get_property("seahorseName") == "") {
+        if (!doneWithSeaCow() && held != $monster[sea cowboy])
+            ahead += 1;
+        if (held != $monster[sea cow])
+            ahead += 1;
+    }
+    if (get_property("isMerkinHighPriest") != "true" && held != $monster[Mer-kin drifter])
+        ahead += 1;
+    return ahead;
+}
+
+int snokebombsSpare() {
+    return 3 - to_int(get_property("_snokebombUsed")) - snokeTargetsAhead();
+}
+
+// True while Batter Up! holds none of the zone's targets and one is still unbanished.
+// One attempt per zone until Batter Up! is spent elsewhere.
+boolean batterUpPending(location loc) {
+    boolean [monster] targets = batterTargets(loc);
+    if ((targets contains banished("batter up!"))
+        || (targets contains to_monster(get_property("_utsBatterTried"))))
+        return false;
+    foreach mob in targets
+        if (!contains_text(get_property("banishedMonsters"), mob + ":"))
+            return true;
+    return false;
+}
+
+// On the low IOTM route Snokebomb goes to the guide's own targets, and to Batter Up! targets
+// only when Batter Up! is out of reach and a Snokebomb is left over after the targets ahead.
+boolean snokebombReserved(location loc, monster mob) {
+    if (!lowIOTM() || (snokeTargets(loc) contains mob))
+        return false;
+    return batterUpPossible() || !(batterTargets(loc) contains mob) || snokebombsSpare() < 1;
+}
+
+// A rest empties Fury, so it waits while a Batter Up! banish is due here, and in the
+// untamed pearl zones where Fury is saved for the banishes after the seahorse.
+boolean restWouldCostFury() {
+    if (!lowIOTM() || my_fury() < 1 || !batterUpPossible())
+        return false;
+    if (get_property("seahorseName") == ""
+        && ($locations[The Marinara Trench, The Dive Bar, Madness Reef, The Briniest Deepests] contains my_location()))
+        return true;
+    return batterUpPending(my_location());
+}
+
+// Club when a banish is due and Fury is full, cozy scimitar while scales are short, else the
+// maximizer's pick. Sneak legs take the shootin' iron's -5% combat over the scimitar.
+string guideWeapon(location loc, boolean sneak) {
+    if (!lowIOTM())
+        return "";
+    item iron = $item[rusted-out shootin' iron];
+    if (sneak && available_amount(iron) > 0 && can_equip(iron))
+        return iron + ",";
+    boolean wield = scimitarWieldable();
+    boolean scales = wield && scalesNeeded() > 0 && scaleFight(loc, $monster[none])
+        && (have_skill($skill[Harpoon!]) || have_skill($skill[Summon Leviatuga]));
+    boolean banish = batterUpPossible() && batterUpPending(loc);
+    item club = guideClub();
+    if (banish && wield && (scales || club == $item[none])
+        && have_skill($skill[Iron Palm Technique]) && ironPalmsUp())
+        return $item[cozy scimitar] + ",";
+    if (banish && club != $item[none] && (my_fury() >= 5 || !scales))
+        return club + ",";
+    if (scales)
+        return $item[cozy scimitar] + ",";
+    return "";
 }
 
 // ─── EVERFULL DART ────────────────────────────────────────────────────────────
@@ -2641,6 +2887,8 @@ void lowIOTMDiet() {
 
 // Free rests at the housing, toward 400 MP.
 void lowIOTMRestMP() {
+    if (restWouldCostFury())
+        return;
     int mpTarget = min(my_maxmp(), 400);
     while (my_mp() < mpTarget && to_int(get_property("timesRested")) < total_free_rests()) {
         int before = my_mp();

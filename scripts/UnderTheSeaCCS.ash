@@ -27,10 +27,52 @@ void throwPair(item a, item b) {
         throw_item(b);
 }
 
+// Harpoon! and Summon Leviatuga shake scales off the cozy scimitar, once each per fight.
+void harpoonScales() {
+    if (!lowIOTM() || current_round() < 1 || !have_equipped($item[cozy scimitar])
+        || !scaleFight(my_location(), last_monster()) || scalesNeeded() == 0)
+        return;
+    foreach sk in $skills[Harpoon!, Summon Leviatuga] {
+        if (current_round() < 1 || !have_skill(sk)
+            || contains_text(get_property("_lastCombatActions"), "sk" + to_int(sk) + ";"))
+            continue;
+        if (sk == $skill[Summon Leviatuga] && my_location().environment != "underwater")
+            continue;
+        if (my_mp() < mp_cost(sk) + killReserveMP())
+            continue;
+        buffer cast = use_skill(sk);
+    }
+}
+
+// The guide's banish for this zone: Batter Up! with full Fury and a club, Snokebomb on its
+// own targets, or on Batter Up! targets when snokebombReserved() allows. True once the fight ends.
+boolean guideBanish(string page_text) {
+    if (!lowIOTM() || current_round() < 1)
+        return false;
+    location loc = my_location();
+    monster mob = last_monster();
+    boolean snoke = skillOffered(page_text, $skill[Snokebomb])
+        && to_int(get_property("_snokebombUsed")) < 3 && my_mp() >= mp_cost($skill[Snokebomb]);
+    if (batterTargets(loc) contains mob) {
+        if (batterUpPending(loc) && batterUpReady() && skillOffered(page_text, $skill[Batter Up!])) {
+            set_property("_utsBatterTried", to_string(mob));
+            buffer batted = use_skill($skill[Batter Up!]);
+        } else if (snoke && !snokebombReserved(loc, mob) && !banishUsedAtYourLocation("snokebomb")) {
+            buffer bombed = use_skill($skill[Snokebomb]);
+        }
+    } else if ((snokeTargets(loc) contains mob) && snoke && banished("snokebomb") != mob) {
+        buffer bombed = use_skill($skill[Snokebomb]);
+    }
+    return current_round() == 0;
+}
+
 // Attempt a free kill using available skills/items.
 // Pass drop=true to skip items that interfere with item drops.
 void free_kill(string ptext, boolean drop) {
     if (free_monster(last_monster()))
+        return;
+    harpoonScales();
+    if (lowIOTM() && current_round() < 1)
         return;
     if (highShiny()){
         if (contains_text(ptext, "Darts: Aim for the Bullseye")
@@ -97,6 +139,7 @@ void free_run(string ptext, boolean banish) {
         if (!contains_text(ptext, to_string(freeskill))) continue;
         if (!banish && $skills[snokebomb, Bowl a Curveball, Feel Hatred, Throw Latte on Opponent] contains freeskill) continue;
         if (banish && banishUsedAtYourLocation("snokebomb") && freeskill == $skill[snokebomb]) continue;
+        if (freeskill == $skill[snokebomb] && snokebombReserved(my_location(), last_monster())) continue;
         if ($locations[The Outskirts of Cobb's Knob, The Sleazy Back Alley,
             The Haunted Pantry] contains my_location()
             && freeskill == $skill[snokebomb])
@@ -112,6 +155,9 @@ void free_run(string ptext, boolean banish) {
         if (item_amount(freecombat) == 0) continue;
         if (!banish && $items[anchor bomb, stuffed yam stinkbomb,
             handful of split pea soup] contains freecombat) continue;
+        // The low IOTM route keeps the parasol for the Corral.
+        if (freecombat == $item[peppermint parasol] && lowIOTM()
+            && my_location() != $location[The Coral Corral]) continue;
         if (freecombat == $item[peppermint parasol]
             && to_int(get_property("parasolUsed")) >= 3) continue;
         if (freecombat == $item[mer-kin pinkslip]
@@ -145,6 +191,7 @@ void cleanUp() {
     int loopCount = 0;  // declared outside loop so the guard actually works
     if (item_amount($item[pulled red taffy]) > 0 && my_location().environment == "underwater")
         throw_item($item[pulled red taffy]);
+    harpoonScales();
     boolean geyser = have_skill($skill[saucegeyser]) && last_monster() != $monster[Yog-Urt, Elder Goddess of Hatred];
     // Without either spell the fight is melee; with one, low MP still hands the fight back.
     if (!geyser && !have_skill($skill[saucestorm])) {
@@ -487,6 +534,8 @@ void main(int round, monster mob, string page_text) {
             break;
 
         case $location[an octopus's garden]:
+            if (guideBanish(page_text))
+                return;
             if (have_effect($effect[Citizen of a Zone]) == 0 && my_familiar() == $familiar[patriotic eagle])
                 use_skill($skill[%fn, let's pledge allegiance to a Zone]);
             if (last_monster() == $monster[neptune flytrap]) {
@@ -515,6 +564,8 @@ void main(int round, monster mob, string page_text) {
             cleanUp();
             break;
         case $location[The Wreck of the Edgar Fitzsimmons]:
+            if (guideBanish(page_text))
+                return;
             if (last_monster() != $monster[unholy diver] && !free_monster(last_monster())){
                 free_run(page_text, true);
                 if (last_monster() == $monster[Mer-kin scavenger]){
@@ -554,6 +605,8 @@ void main(int round, monster mob, string page_text) {
             if (have_equipped($item[sea cowboy hat]) && have_equipped($item[sea chaps])) {
                 throw_item($item[sea lasso]);
             }
+            if (guideBanish(page_text))
+                return;
             if (last_monster() == $monster[mer-kin miner]){
                 steal();
                 use_if_have_skill(page_text,$skill[swoop like a bat]);
@@ -596,12 +649,16 @@ void main(int round, monster mob, string page_text) {
         case $location[Madness Reef]:
         case $location[The Briniest Deepests]:
         case $location[The Limerick Dungeon]:
+            if (guideBanish(page_text))
+                return;
             cleanUp();
             break;
 
         case $location[The Mer-Kin Outpost]:
             if (my_path().id == 0 && to_int(get_property("lassoTrainingCount")) < 20)
                 throw_item($item[sea lasso]);
+            if (guideBanish(page_text))
+                return;
             if (last_monster() == $monster[time cop]) {
                 darts();
                 cleanUp();
@@ -703,6 +760,8 @@ void main(int round, monster mob, string page_text) {
                     abort("For some reason seahorse wasn't tamed, check that out");
                 }
             }
+            if (guideBanish(page_text))
+                return;
             if (highShiny() && get_property("swordOfSWordsMonster") != "775" && my_familiar() == $familiar[sword of s words]){
                 if (last_monster() == $monster[sea cow]){
                     use_skill($skill[%fn, kill a lot of these guys]);
@@ -826,6 +885,8 @@ void main(int round, monster mob, string page_text) {
         case $location[The Caliginous Abyss]:
             if ((highShiny() || !have_item($item[closed-circuit pay phone])) && item_amount($item[sea lasso]) > 1 && to_int(get_property("lassoTrainingCount")) < 20 && have_equipped($item[sea cowboy hat]))
                 throw_item($item[sea lasso]);
+            if (guideBanish(page_text))
+                return;
             if (last_monster() == $monster[peanut] && to_int(get_property("lastColosseumRoundWon")) < 15) {
                 if (have_item($item[august scepter]) && have_item($item[2002 Mr. Store Catalog]) && have_skill($skill[just the facts]) && have_familiar($familiar[patriotic eagle]) && (available_amount($item[waffle]) > 1 || (available_amount($item[waffle]) == 1 && get_property("seahorseName") != "")))
                     throw_item($item[waffle]);
@@ -1088,7 +1149,8 @@ void main(int round, monster mob, string page_text) {
             killDiver(page_text);
             break;
         case $monster[sea cowboy]:
-            use_skill($skill[%fn, kill a lot of these guys]);
+            if (skillOffered(page_text, $skill[%fn, kill a lot of these guys]))
+                use_skill($skill[%fn, kill a lot of these guys]);
             free_kill(page_text, true);
             cleanUp();
             break;
