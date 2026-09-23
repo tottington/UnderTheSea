@@ -1921,6 +1921,16 @@ int dullScalesNeeded() {
     return max(0, 25 - available_amount($item[dull fish scale]));
 }
 
+// Dull scales the Madness Reef Economist may take: all but the 25 the scale-mail underwear still needs.
+int dullScalesSpare() {
+    return item_amount($item[dull fish scale]) - (available_amount($item[scale-mail underwear]) > 0 ? 0 : 25);
+}
+
+// True while the Economist has a trade: 10 rough for a pristine, or 10 spare dull for a rough.
+boolean economistCanTrade() {
+    return item_amount($item[rough fish scale]) >= 10 || dullScalesSpare() >= 10;
+}
+
 // Scales still to farm: ten rough per missing pristine, traded at Madness Reef, plus the dull shortfall.
 int scalesNeeded() {
     return max(0, 10 * pristineScalesNeeded() - available_amount($item[rough fish scale]))

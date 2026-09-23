@@ -32,6 +32,35 @@ boolean pickChoice(string keyword) {
     return false;
 }
 
+// The Economist of Scales trades 10 rough scales for a pristine one and 10 dull for a rough one.
+// Trades up to the pristine scales Grandma still takes, keeps 25 dull for the scale-mail underwear, then leaves.
+void economistTrade() {
+    item dull = $item[dull fish scale];
+    item rough = $item[rough fish scale];
+    item pristine = $item[pristine fish scale];
+    int trades;
+    while (pristineScalesNeeded() > 0 && trades < 30) {
+        string option;
+        item gain;
+        if (item_amount(rough) >= 10) {
+            option = "for a pristine one";
+            gain = pristine;
+        } else if (dullScalesSpare() >= 10) {
+            option = "for a rough one";
+            gain = rough;
+        } else
+            break;
+        int before = item_amount(gain);
+        if (!pickChoice(option) || item_amount(gain) <= before)
+            break;
+        trades += 1;
+    }
+    print("The Economist: " + item_amount(pristine) + " pristine, " + item_amount(rough) + " rough and "
+        + item_amount(dull) + " dull fish scales, " + pristineScalesNeeded() + " pristine still wanted.", "blue");
+    if (!pickChoice("Take your leave"))
+        run_choice(6);
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 void main(int whichchoice, string page) {
@@ -86,6 +115,16 @@ void main(int whichchoice, string page) {
             if (get_property("intenseCurrents") == "true"){
                 run_choice(3);
             }
+            break;
+
+        // ── Madness Reef Economist: the guide trades while pristine scales are short ──
+        case 311:
+            if (guideRoute())
+                run_choice(pristineScalesNeeded() > 0 ? 1 : 2);
+            break;
+        case 310:
+            if (guideRoute())
+                economistTrade();
             break;
 
         // ── Stashbox searches (different priority orders per lock monster) ──

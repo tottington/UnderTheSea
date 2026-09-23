@@ -447,7 +447,7 @@ void corralRunaway() {
 // The low IOTM guide's Corral fights while the seahorse is untamed. The lasso goes first
 // so every fight trains it; the sea cow takes the free kills until the cowbells are in.
 void guideCorralFight(string page_text) {
-    if (last_monster() != $monster[wild seahorse] && lassoTrainable()) {
+    if (last_monster() != $monster[wild seahorse] && lassoTrainable() && item_amount($item[sea lasso]) > 1) {
         buffer lassoed = throw_item($item[sea lasso]);
     }
     if (current_round() < 1)
@@ -561,7 +561,8 @@ void main(int round, monster mob, string page_text) {
     }
 
     lectureOnRelativity(last_monster(), page_text);
-    if (guideRoute() && last_monster() != $monster[sea cowboy])
+    // No bang potions on the magic dragonfish, so the kill starts at once.
+    if (guideRoute() && last_monster() != $monster[sea cowboy] && last_monster() != $monster[magic dragonfish])
         throwUnknownBangs();
     while (!guideRoute() && available_amount($item[murky potion]) > 0 && current_round() > 0 && current_round() < 5 && last_monster() != $monster[sea cowboy]){
         if (have_skill($skill[Ambidextrous Funkslinging]))
@@ -731,6 +732,13 @@ void main(int round, monster mob, string page_text) {
             }
             if (guideBanish(page_text))
                 return;
+            // A guide pearl fight is a plain win, which advances the pearl and keeps the ink bladders and pinkslips.
+            // Anemone Mine keeps the digpick hunt's handling while teflon ore is still wanted and no digpick is owned.
+            if (guideRoute() && (my_location() != $location[Anemone Mine] || available_amount($item[Mer-kin digpick]) > 0
+                || item_amount($item[teflon ore]) > 0 || tailpiece() != $item[none])) {
+                cleanUp();
+                return;
+            }
             if (last_monster() == $monster[mer-kin miner]){
                 steal();
                 use_if_have_skill(page_text,$skill[swoop like a bat]);
@@ -773,6 +781,14 @@ void main(int round, monster mob, string page_text) {
         case $location[Madness Reef]:
         case $location[The Briniest Deepests]:
         case $location[The Limerick Dungeon]:
+            // The guide trains the lasso in Madness Reef too, keeping one sea lasso back.
+            // No lasso on the magic dragonfish, so the kill starts at once.
+            if (guideRoute() && my_location() == $location[Madness Reef] && last_monster() != $monster[magic dragonfish]
+                && lassoTrainable() && item_amount($item[sea lasso]) > 1) {
+                buffer lassoed = throw_item($item[sea lasso]);
+            }
+            if (current_round() < 1)
+                return;
             if (guideBanish(page_text))
                 return;
             cleanUp();

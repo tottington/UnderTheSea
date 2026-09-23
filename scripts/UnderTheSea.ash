@@ -828,6 +828,10 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
     void finishCaliginous(){
         use_familiar("itdrop");
+        // The guide uses the comb jelly from the Marinara Trench in the Abyss.
+        if (guideRoute() && have_effect($effect[Jelly Combed]) == 0 && item_amount($item[comb jelly]) > 0
+            && !use(1, $item[comb jelly]))
+            print("Couldn't use the " + $item[comb jelly] + ".", "red");
         string conditional;
         if (!contains_text(get_property("banishedMonsters"), "school of many"))
             conditional += if_equip($item[monodent of the sea]);
@@ -2465,6 +2469,10 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Defined with the pearl zones below.
+    boolean guidePearlTurn(string why);
+    void pearlStage2();
+
     void YogUrt(){
         // ── YogUrt preparation ────────────────────────────────────────────────────
         step("phase: Yog-Urt preparation");
@@ -2683,6 +2691,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         post_adv();
                     } else {
                         while (have_effect($effect[Deep-Tainted Mind]) > 0) {
+                            // The guide waits Deep-Tainted Mind out in the pearl zones.
+                            if (guideRoute() && guidePearlTurn("waiting out Deep-Tainted Mind"))
+                                continue;
                             if (get_property("skateParkStatus") == "war") {
                                 skatePark();
                             } else if (item_amount($item[Mer-kin thighguard]) == 0
@@ -2723,6 +2734,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             // YogUrt fight
             int hpCheckPasses;
             while (get_property("yogUrtDefeated") == "false") {
+                // With under three prayerbeads the guide burns a Sea Strength under 40 turns off in the pearl zones.
+                if (guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3
+                    && have_effect($effect[Sea Strength]) > 0 && have_effect($effect[Sea Strength]) < 40
+                    && guidePearlTurn("burning off Sea Strength"))
+                    continue;
                 cli_execute("acquire waterlogged scroll of healing, sea gel, Doc Galaktik's Pungent Unguent, Doc Galaktik's Homeopathic Elixir"
                     + (have_skill($skill[Cannelloni Cocoon]) ? "; cast cannel" : ""));
                 // Null Afternoon stands in for the delevelers while it lasts.
@@ -2838,7 +2854,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }
             }
         }
-        if (my_path().id == 55 && get_property("spookyVHSTapeMonster") == ""){
+        // The guide route reaches the Abyss after the pearl zones, in Shub().
+        if (my_path().id == 55 && !guideRoute() && get_property("spookyVHSTapeMonster") == ""){
             while (get_property("questS02Monkees") == "step12")
                 finishCaliginous();
         }
@@ -2868,6 +2885,20 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         if (available_amount(it) == 0)
                             buy($coinmaster[Grandma Sea Monkey],1,it);
                     }
+                }
+            }
+
+            // The guide finishes the pearl zones, then the Abyss, before the Colosseum.
+            if (guideRoute()) {
+                pearlStage2();
+                int abyssPasses;
+                while (get_property("questS02Monkees") == "step12") {
+                    if (my_adventures() < 1)
+                        abort("Out of adventures in The Caliginous Abyss.");
+                    if (abyssPasses >= 30)
+                        abort("30 visits to The Caliginous Abyss without finding Mom. Finish it by hand, then rerun.");
+                    abyssPasses += 1;
+                    finishCaliginous();
                 }
             }
 
@@ -2958,6 +2989,13 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             // ── Naughty Sorceress intro ───────────────────────────────────────────────
             step("phase: Naughty Sorceress");
             if (get_property("questL13Final") == "unstarted") {
+                // The guide route brings the bodyguards five pearls from the pearl zones.
+                if (guideRoute() && item_amount($item[unblemished pearl]) < 5) {
+                    pearlStage2();
+                    if (item_amount($item[unblemished pearl]) < 5)
+                        abort("The center door needs 5 unblemished pearls and you hold "
+                            + item_amount($item[unblemished pearl]) + ". Finish the pearl zones, then rerun.");
+                }
                 if (to_int(get_property("_batWingsFreeFights")) < 5) {
                     tempEquipment("spell damage percent, mys,sea", "Mer-kin gladiator mask,Mer-kin gladiator tailpiece," + if_equip($item[bat wings])
                         + if_equip($item[Congressional Medal of Insanity]) + bathysphere($item[toy cupid bow]));
@@ -3040,6 +3078,161 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         // "Maximizer failed" where pearlResCheck names the element and value,
         // and it runs before the first adventure.
         tempEquipment("200 " + pearlZoneRes[zone] + " 18 max, combat,sea",bathysphere($item[none]));
+    }
+
+// ─── LOW IOTM PEARL ZONES ────────────────────────────────────────────────────
+    // The guide's zone order. Anemone Mine is last, since the early game claims its pearl.
+    location [int] guidePearlOrder = {
+        0: $location[The Marinara Trench],
+        1: $location[The Dive Bar],
+        2: $location[Madness Reef],
+        3: $location[The Briniest Deepests],
+        4: $location[Anemone Mine]
+    };
+    // Visits this script run has made to each pearl zone.
+    int [location] guidePearlTurns;
+    location guidePearlLast;
+
+    int pearlsHeld() {
+        return item_amount($item[unblemished pearl]);
+    }
+
+    float pearlProgress(location zone) {
+        return to_float(get_property(pearlClaimed[zone] + "Progress"));
+    }
+
+    // The first open zone in the guide's order with today's pearl unclaimed and fewer than 40 visits.
+    location guidePearlZone() {
+        foreach i, zone in guidePearlOrder
+            if (get_property(pearlClaimed[zone]) != "true" && can_adventure(zone) && guidePearlTurns[zone] < 40)
+                return zone;
+        return $location[none];
+    }
+
+    // The zone's 18 resistance first, then item drop for the comb jelly, ink bladders and pinkslips.
+    void guidePearlGear(location zone, string extra) {
+        string res = pearlZoneRes[zone];
+        set_location(zone);
+        use_familiar("itdrop");
+        mood(to_string(replace_string(res, " ", "")));
+        mood("itdrop");
+        tempEquipment("200 " + res + " 18 max, item drop, sea", extra + guideWeapon(zone, false) + bathysphere($item[none]));
+        guideGearCheck(zone + " (the pearl takes longer)", res, false);
+    }
+
+    // One turn in the next pearl zone. False, with no turn spent, once no zone is left.
+    boolean guidePearlTurn(string why) {
+        location zone = guidePearlZone();
+        if (zone != guidePearlLast) {
+            if (guidePearlLast != $location[none] && get_property(pearlClaimed[guidePearlLast]) != "true")
+                print(guidePearlLast + " left unclaimed at " + pearlProgress(guidePearlLast) + "% pearl progress.", "red");
+            if (zone != $location[none])
+                step("Pearl zone " + zone + " at " + pearlProgress(zone) + "% progress, " + pearlsHeld()
+                    + " of 5 unblemished pearls held");
+            guidePearlLast = zone;
+        }
+        if (zone == $location[none])
+            return false;
+        if (my_adventures() < 1)
+            abort("Out of adventures in " + zone + " while " + why + ": " + pearlsHeld() + " of 5 unblemished pearls.");
+        guidePearlTurns[zone] += 1;
+        guidePearlGear(zone, "");
+        adv(zone);
+        return true;
+    }
+
+    // Stage 2 of the guide's pearl zones: every zone in the guide's order until five pearls are held.
+    void pearlStage2() {
+        if (!guideRoute())
+            return;
+        // Pearls mounted in the codpiece count toward the five.
+        codpiece("none");
+        if (pearlsHeld() >= 5)
+            return;
+        step("phase: pearl zones stage 2, " + pearlsHeld() + " of 5 unblemished pearls");
+        while (pearlsHeld() < 5 && guidePearlTurn("finishing the pearl zones")) {}
+        if (pearlsHeld() < 5)
+            print("No pearl zone left to finish today, with " + pearlsHeld() + " of 5 unblemished pearls.", "red");
+    }
+
+    // Turns left on the sea cow's Snokebomb, or -1 when mafia has none recorded.
+    int seaCowSnokeTurns() {
+        matcher snoke = create_matcher("(?i)(?:^|:)sea cow:snokebomb:(\\d+)", get_property("banishedMonsters"));
+        if (!snoke.find())
+            return -1;
+        return max(0, to_int(snoke.group(1)) + 30 - my_turncount());
+    }
+
+    boolean combJellyWanted() {
+        return item_amount($item[comb jelly]) == 0 && have_effect($effect[Jelly Combed]) == 0
+            && get_property("questS02Monkees") != "finished";
+    }
+
+    // Stage 1 of the guide's pearl zones, between the Corral's two stages: the Marinara Trench until the
+    // comb jelly drops, then Madness Reef for expert lasso training and the Economist's pristine scales.
+    void pearlStage1() {
+        if (!guideRoute() || get_property("seahorseName") != "")
+            return;
+        step("phase: pearl zones stage 1, comb jelly, lasso training and pristine scales");
+        location trench = $location[The Marinara Trench];
+        location reef = $location[Madness Reef];
+        madnessReefMap();
+        // Grandpa's story about scales puts the Economist in Madness Reef.
+        if (to_int(get_property("uts_lowIOTMGrandpaScales")) != my_ascensions()) {
+            equipSwimTrunks();
+            if (cli_execute("grandpa scales"))
+                set_property("uts_lowIOTMGrandpaScales", my_ascensions());
+            else
+                print("Couldn't ask Grandpa about scales, so the Economist may not show in " + reef + ".", "red");
+        }
+        int passes;
+        int scaleTurns;
+        while (true) {
+            string trainer = lassoTrainerGear();
+            boolean jelly = combJellyWanted() && can_adventure(trench);
+            boolean lasso = trainer != "" && to_int(get_property("lassoTrainingCount")) < 20
+                && item_amount($item[sea lasso]) > 1;
+            boolean scales = pristineScalesNeeded() > 0 && economistCanTrade() && can_adventure(reef) && scaleTurns < 25;
+            if (!jelly && !lasso && !scales)
+                break;
+            // With two or fewer turns left on the sea cow's Snokebomb, the comb jelly and lasso training stop here.
+            // The wait for pristine scales goes on while the Economist can still trade.
+            int snoke = seaCowSnokeTurns();
+            if (snoke >= 0 && snoke <= 2 && (jelly || lasso)) {
+                if (!scales) {
+                    print("The sea cow's Snokebomb is nearly out, so pearl zones stage 1 hands off to the Coral Corral"
+                        + (jelly ? " without the comb jelly" : "") + ".", "red");
+                    break;
+                }
+                jelly = false;
+                lasso = false;
+            }
+            // Lasso training goes on in the Marinara Trench when Madness Reef is closed.
+            location zone = jelly || !can_adventure(reef) ? trench : reef;
+            if (!can_adventure(zone)) {
+                print("Neither " + trench + " nor " + reef + " is open, so pearl zones stage 1 stops here.", "red");
+                break;
+            }
+            if (passes >= 60) {
+                print("60 turns into pearl zones stage 1 without finishing: " + corralKit() + ", "
+                    + pristineScalesNeeded() + " pristine fish scales short.", "red");
+                break;
+            }
+            if (my_adventures() < 1)
+                abort("Out of adventures in pearl zones stage 1: " + corralKit() + ".");
+            passes += 1;
+            if (!jelly && !lasso)
+                scaleTurns += 1;
+            guidePearlGear(zone, lasso ? trainer : "");
+            adv(zone);
+        }
+        if (to_int(get_property("lassoTrainingCount")) < 20)
+            print("Lasso training is at " + get_property("lassoTrainingCount") + "/20 after pearl zones stage 1, "
+                + "so the Coral Corral finishes it: " + corralKit() + ".", "red");
+        if (pristineScalesNeeded() > 0)
+            print("Still " + pristineScalesNeeded() + " pristine fish scales short after pearl zones stage 1: "
+                + item_amount($item[rough fish scale]) + " rough and " + item_amount($item[dull fish scale])
+                + " dull fish scales held.", "red");
     }
 
     // Both post-run preps start by emptying Hagnk's -- the run is over, so
@@ -3447,6 +3640,7 @@ void seaMonkees() {
         } else if (guideRoute()) {
             unholyDiver("direct");
             corralGuide(false);
+            pearlStage1();
         } else if (highShiny()){
             caliginous("cheap");
             unholyDiver("direct");
