@@ -756,7 +756,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 + " Mine by hand if you want them.", "red");
     }
 
-    void gymnasium(){
+    // The extra gear goes ahead of the rest, so a weapon in it takes the weapon slot.
+    void gymnasium(string extra){
         use_familiar("combat");
         string conditional;
             if (get_property("skateParkStatus") == "war"){
@@ -768,11 +769,15 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }
             }
         conditional += baseball_equip();
-        tempEquipment("combat,sea", if_equip(divingHelmet()) + if_equip(tailpiece()) + delay() + freeKill() + bathysphere($item[none]) + conditional);
+        tempEquipment("combat,sea", extra + if_equip(divingHelmet()) + if_equip(tailpiece()) + delay() + freeKill() + bathysphere($item[none]) + conditional);
         mood("combat");
         if (get_property("noncombatForcerActive") == "true")
             abort("Sneak active while trying to adventure in gymnasium, get rid of it");
         adv($location[Mer-kin Gymnasium]);
+    }
+
+    void gymnasium(){
+        gymnasium("");
     }
 
     void skatePark() {
@@ -2488,6 +2493,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     // Defined with the pearl zones below.
     boolean guidePearlTurn(string why);
     void pearlStage2();
+    void gladiatorTrainingSink();
 
     boolean facecowlHeld() {
         return available_amount($item[Mer-kin facecowl]) + available_amount($item[Mer-kin scholar mask]) > 0;
@@ -3062,25 +3068,49 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             || (available_amount($item[Mer-kin gladiator tailpiece]) == 0 && available_amount($item[Mer-kin thighguard]) == 0);
     }
 
-    // The guide's Gymnasium: +combat for its noncombat until the headguard and thighguard are held.
+    // The combat route also takes all three Mer-kin weapons from the Gymnasium noncombat.
+    boolean guideGymWeaponsNeeded() {
+        if (colosseumRoute() != "combat")
+            return false;
+        foreach weapon in $items[Mer-kin dodgeball, Mer-kin dragnet, Mer-kin switchblade]
+            if (available_amount(weapon) == 0)
+                return true;
+        return false;
+    }
+
+    // The guide's Gymnasium: +combat for its noncombat until the headguard and thighguard are held,
+    // and on the combat route the three Mer-kin weapons, each wielded to train as soon as it drops.
     void guideGym() {
-        step("phase: gymnasium, spell route (headguard and thighguard)");
+        boolean combat = colosseumRoute() == "combat";
+        step(combat ? "phase: gymnasium, combat route (headguard, thighguard and the three Mer-kin weapons)"
+            : "phase: gymnasium, spell route (headguard and thighguard)");
+        if (combat && !have_skill($skill[Wrath of the Wolverine]))
+            print("No Wrath of the Wolverine, so no Fury for Furious Wallop. The Mer-kin weapons train only on ordinary critical hits.", "red");
         guideCrappyDisguise();
         // The Gymnasium turns away anyone not wearing a Mer-kin disguise.
         if (!($items[crappy Mer-kin mask, Mer-kin scholar mask, Mer-kin gladiator mask] contains divingHelmet())
             || !($items[crappy Mer-kin tailpiece, Mer-kin scholar tailpiece, Mer-kin gladiator tailpiece] contains tailpiece()))
             abort("The Mer-kin Gymnasium needs a Mer-kin mask and tailpiece, and you hold " + divingHelmet() + " and " + tailpiece() + ".");
         int visits;
-        while (guideGymNeeds()) {
-            if (my_adventures() < 1)
-                abort("Out of adventures in the Mer-kin Gymnasium before the headguard and thighguard.");
-            if (visits >= 60)
-                abort(visits + " visits to the Mer-kin Gymnasium without the headguard and thighguard. Finish it by hand, then rerun.");
-            visits += 1;
-            foreach it in $items[patent aggression tonic, lion musk]
-                if (have_effect(effect_modifier(it, "Effect")) == 0 && item_amount(it) > 0 && !use(1, it))
-                    print("Couldn't use a " + it + " in the Mer-kin Gymnasium.", "red");
-            gymnasium();
+        // The CCS trains a wielded Mer-kin weapon only while this is set.
+        if (combat && gladiatorTrainingPending())
+            set_property("_utsGladiatorTraining", "true");
+        try {
+            while (guideGymNeeds() || guideGymWeaponsNeeded()) {
+                if (my_adventures() < 1)
+                    abort("Out of adventures in the Mer-kin Gymnasium before the " + (combat ? "gear and weapons" : "headguard and thighguard") + ".");
+                if (visits >= (combat ? 90 : 60))
+                    abort(visits + " visits to the Mer-kin Gymnasium without the " + (combat ? "headguard, thighguard and three Mer-kin weapons" : "headguard and thighguard")
+                        + ". Finish it by hand, then rerun.");
+                visits += 1;
+                foreach it in $items[patent aggression tonic, lion musk]
+                    if (have_effect(effect_modifier(it, "Effect")) == 0 && item_amount(it) > 0 && !use(1, it))
+                        print("Couldn't use a " + it + " in the Mer-kin Gymnasium.", "red");
+                item trainee = combat ? gladiatorTrainee() : $item[none];
+                gymnasium(trainee == $item[none] ? "" : trainee + ",");
+            }
+        } finally {
+            set_property("_utsGladiatorTraining", "");
         }
     }
 
@@ -3199,6 +3229,90 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Muscle, Moxie and weapon damage for the combat route, each cast checked.
+    void guideColosseumCombatBuffs() {
+        foreach ef in $effects[Seal Clubbing Frenzy, Patience of the Tortoise, Rage of the Reindeer, Scowl of the Auk,
+            Tenacity of the Snapper, Blubbered Up, Big, Disco State of Mind, Mariachi Mood] {
+            if (have_effect(ef) > 0 || (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))))
+                continue;
+            if (!cli_execute(ef.default))
+                print("Couldn't get " + ef + " for the Mer-kin Colosseum.", "red");
+        }
+    }
+
+    // The guide's combat route: Null Afternoon, then each round with the Mer-kin weapon that counters
+    // that gladiator. The fight itself is colosseumCombatFight() in the CCS.
+    void guideColosseumCombat() {
+        step("phase: colosseum, combat route");
+        gladiatorTrainingSink();
+        foreach weapon in $items[Mer-kin dragnet, Mer-kin switchblade, Mer-kin dodgeball]
+            if (available_amount(weapon) == 0)
+                abort("The Colosseum combat route needs the " + weapon + " from the Mer-kin Gymnasium, and none is held.");
+        if (item_amount($item[unblemished pearl]) < 5)
+            print("Only " + item_amount($item[unblemished pearl]) + " of 5 unblemished pearls. Farming the rest after the Colosseum spends Null Afternoon the Sorceress needs.", "red");
+        int needed = 18 - to_int(get_property("lastColosseumRoundWon"));
+        if (!guideNullAfternoon(needed))
+            print("No Null Afternoon for the Colosseum, so the gladiators keep their full Attack and Defense.", "red");
+        else if (have_effect($effect[Null Afternoon]) < needed)
+            print(have_effect($effect[Null Afternoon]) + " turns of Null Afternoon for about " + needed
+                + " turns of Colosseum, Shub-Jigguwatt and the Sorceress. It may run out first.", "red");
+        int autoAttack = get_auto_attack();
+        try {
+            if (autoAttack != 0)
+                set_auto_attack(0);
+            int visits;
+            int losses;
+            int lossRound = -1;
+            while (to_int(get_property("lastColosseumRoundWon")) < 15) {
+                int won = to_int(get_property("lastColosseumRoundWon"));
+                if (won != lossRound) {
+                    losses = 0;
+                    lossRound = won;
+                }
+                if (my_adventures() < 1)
+                    abort("Out of adventures in the Mer-kin Colosseum after " + won + " of 15 rounds.");
+                if (visits >= 30)
+                    abort(visits + " visits to the Mer-kin Colosseum and " + won + " of 15 rounds won. Check the fights, then rerun.");
+                visits += 1;
+                item weapon = gladiatorWeapon(won);
+                if (!can_equip(weapon))
+                    abort("Round " + (won + 1) + " needs the " + weapon + ", which needs base " + weapon_type(weapon) + " 85 to wield, and yours is "
+                        + my_basestat(weapon_type(weapon)) + ". Raise it, then rerun.");
+                // Champions from round 13 use a special every round, any of their three.
+                if (won >= 12 && gladiatorMovesKnown(weapon) < 3)
+                    abort("Round " + (won + 1) + " is a champion who uses all three specials, and the " + weapon + " knows "
+                        + gladiatorMovesKnown(weapon) + " of its 3 counter moves. Train it with Furious Wallop underwater, then rerun.");
+                if (gladiatorMovesKnown(weapon) < 3)
+                    print("The " + weapon + " knows " + gladiatorMovesKnown(weapon) + " of 3 counter moves. A special it can't answer is attacked through, or run from for a bust or neutrality.", "red");
+                use_familiar("exp");
+                guideColosseumCombatBuffs();
+                string attackStat = weapon_type(weapon) == $stat[moxie] ? "mox" : "mus";
+                // Rounds 13 to 15 are champions with Init 100.
+                string init = won >= 12 ? ", 0.5 initiative" : "";
+                tempEquipment(attackStat + ", weapon damage percent, sea" + init, weapon + ",Mer-kin gladiator tailpiece,Mer-kin gladiator mask,"
+                    + bathysphere($item[none]));
+                if (!have_equipped(weapon))
+                    abort("Couldn't wield the " + weapon + " for round " + (won + 1) + " of the Mer-kin Colosseum.");
+                if (my_hp() < my_maxhp() && !restore_hp(my_maxhp()))
+                    print("Couldn't restore HP for the Mer-kin Colosseum.", "red");
+                int turns = total_turns_played();
+                adv($location[Mer-kin Colosseum]);
+                if (get_property("lastEncounter") == "Been There, Won That") {
+                    set_property("lastColosseumRoundWon", "15");
+                    set_property("isMerkinGladiatorChampion", "true");
+                } else if (to_int(get_property("lastColosseumRoundWon")) == won && total_turns_played() > turns) {
+                    losses += 1;
+                    if (losses >= 3)
+                        abort("Three Mer-kin Colosseum fights for round " + (won + 1) + " ended without a win, lost or run from. "
+                            + "Raise " + (attackStat == "mox" ? "Moxie" : "Muscle") + " or weapon damage, or train the " + weapon + ", then rerun.");
+                }
+            }
+        } finally {
+            if (autoAttack != 0)
+                set_auto_attack(autoAttack);
+        }
+    }
+
     // Spends MP on self buffs, costliest first. Shub-Jigguwatt takes all MP and half of it as HP.
     void drainMP() {
         foreach sk in $skills[Empathy of the Newt, Leash of Linguini, Musk of the Moose, Seal Clubbing Frenzy,
@@ -3279,8 +3393,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if (my_path().id == 55 || (my_path().id == 0 && boss == "Shub")){
             // ── Gladiator gear grind ──────────────────────────────────────────────────
             step("phase: gymnasium (gladiator gear)");
-            if (guideRoute() && colosseumRoute() == "spell"
-                && (available_amount($item[Mer-kin gladiator mask]) == 0 || available_amount($item[Mer-kin gladiator tailpiece]) == 0)) {
+            if (guideRoute() && (colosseumRoute() == "spell" || colosseumRoute() == "combat")
+                && (available_amount($item[Mer-kin gladiator mask]) == 0 || available_amount($item[Mer-kin gladiator tailpiece]) == 0
+                    || guideGymWeaponsNeeded())) {
                 guideGym();
                 guideGladiatorOutfit();
             }
@@ -3329,6 +3444,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     abort("No Colosseum route, so the run stops at the Colosseum. " + colosseumMissing());
                 if (colosseumRoute() == "spell")
                     guideColosseum();
+                if (colosseumRoute() == "combat")
+                    guideColosseumCombat();
             }
             // Gladiators are insta-kill immune (bricks and X-Rays glance, the
             // Asdon missile reads UNTARGETABLE), so the club is the only free
@@ -3578,18 +3695,70 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         return true;
     }
 
-    // Stage 2 of the guide's pearl zones: every zone in the guide's order until five pearls are held.
+    // The combat route fights on in the first open pearl zone, wielding a Mer-kin weapon with a locked move,
+    // until all nine moves are known.
+    void gladiatorTrainingSink() {
+        if (!gladiatorTrainingPending())
+            return;
+        step("phase: training the Mer-kin weapons, " + gladiatorMovesTotal() + " of 9 moves known");
+        int visits;
+        int idle;
+        int known = gladiatorMovesTotal();
+        set_property("_utsGladiatorTraining", "true");
+        try {
+            while (gladiatorTrainingPending()) {
+                if (gladiatorTrainee() == $item[none])
+                    abort(gladiatorTrainingBlocked());
+                location zone = $location[none];
+                foreach i, z in guidePearlOrder
+                    if (zone == $location[none] && can_adventure(z))
+                        zone = z;
+                if (zone == $location[none])
+                    abort("No pearl zone is open to train the Mer-kin weapons in. " + gladiatorTrainingBlocked());
+                if (my_adventures() < 1)
+                    abort("Out of adventures while training the Mer-kin weapons, " + gladiatorMovesTotal() + " of 9 moves known.");
+                if (visits >= 80)
+                    abort("80 training fights and " + gladiatorMovesTotal() + " of 9 Mer-kin weapon moves known. Check the fights, then rerun.");
+                // A move unlocks every 5 underwater critical hits.
+                if (idle >= 20)
+                    abort("20 training fights without a new Mer-kin weapon move, at " + gladiatorMovesTotal()
+                        + " of 9. Furious Wallop needs Fury from won fights; check the fights, then rerun.");
+                visits += 1;
+                guidePearlGear(zone, "");
+                adv(zone);
+                if (gladiatorMovesTotal() > known) {
+                    known = gladiatorMovesTotal();
+                    idle = 0;
+                } else {
+                    idle += 1;
+                }
+            }
+        } finally {
+            set_property("_utsGladiatorTraining", "");
+        }
+    }
+
+    // Stage 2 of the guide's pearl zones: every zone in the guide's order until five pearls are held,
+    // then the combat route's weapon training.
     void pearlStage2() {
         if (!guideRoute())
             return;
         // Pearls mounted in the codpiece count toward the five.
         codpiece("none");
-        if (pearlsHeld() >= 5)
-            return;
-        step("phase: pearl zones stage 2, " + pearlsHeld() + " of 5 unblemished pearls");
-        while (pearlsHeld() < 5 && guidePearlTurn("finishing the pearl zones")) {}
-        if (pearlsHeld() < 5)
-            print("No pearl zone left to finish today, with " + pearlsHeld() + " of 5 unblemished pearls.", "red");
+        if (pearlsHeld() < 5) {
+            step("phase: pearl zones stage 2, " + pearlsHeld() + " of 5 unblemished pearls");
+            // The combat route trains its Mer-kin weapons in these fights too.
+            if (gladiatorTrainingPending())
+                set_property("_utsGladiatorTraining", "true");
+            try {
+                while (pearlsHeld() < 5 && guidePearlTurn("finishing the pearl zones")) {}
+            } finally {
+                set_property("_utsGladiatorTraining", "");
+            }
+            if (pearlsHeld() < 5)
+                print("No pearl zone left to finish today, with " + pearlsHeld() + " of 5 unblemished pearls.", "red");
+        }
+        gladiatorTrainingSink();
     }
 
     // Turns left on the sea cow's Snokebomb, or -1 when mafia has none recorded.

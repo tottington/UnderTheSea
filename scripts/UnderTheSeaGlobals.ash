@@ -283,6 +283,161 @@ import <seedfinder/seedfinder.ash>;
         return "The spell route is missing:" + missing + " The combat route needs Furious Wallop on a Seal Clubber.";
     }
 
+    // Each Mer-kin weapon's moves in unlock order, at its 5th, 10th and 15th underwater critical hit.
+    skill [int] gladiatorMoves(item weapon) {
+        if (weapon == $item[Mer-kin dodgeball]) {
+            skill [int] ball = {0: $skill[Ball Bust], 1: $skill[Ball Sweat], 2: $skill[Ball Sack]};
+            return ball;
+        }
+        if (weapon == $item[Mer-kin dragnet]) {
+            skill [int] net = {0: $skill[Net Gain], 1: $skill[Net Loss], 2: $skill[Net Neutrality]};
+            return net;
+        }
+        if (weapon == $item[Mer-kin switchblade]) {
+            skill [int] blade = {0: $skill[Blade Sling], 1: $skill[Blade Roller], 2: $skill[Blade Runner]};
+            return blade;
+        }
+        skill [int] none;
+        return none;
+    }
+
+    // The boldface word each special is announced by, in the order of gladiatorMoves().
+    string [int] gladiatorTells(item weapon) {
+        if (weapon == $item[Mer-kin dodgeball]) {
+            string [int] ball = {0: "bust", 1: "sweat", 2: "sack"};
+            return ball;
+        }
+        if (weapon == $item[Mer-kin dragnet]) {
+            string [int] net = {0: "gain", 1: "loss", 2: "neutrality"};
+            return net;
+        }
+        if (weapon == $item[Mer-kin switchblade]) {
+            string [int] blade = {0: "sling", 1: "rolls", 2: "runner"};
+            return blade;
+        }
+        string [int] none;
+        return none;
+    }
+
+    string gladiatorMovesProp(item weapon) {
+        if (weapon == $item[Mer-kin dodgeball])
+            return "gladiatorBallMovesKnown";
+        if (weapon == $item[Mer-kin dragnet])
+            return "gladiatorNetMovesKnown";
+        if (weapon == $item[Mer-kin switchblade])
+            return "gladiatorBladeMovesKnown";
+        return "";
+    }
+
+    int gladiatorMovesKnown(item weapon) {
+        string prop = gladiatorMovesProp(weapon);
+        return prop == "" ? 0 : to_int(get_property(prop));
+    }
+
+    // The Mer-kin weapon a gladiator move belongs to, or none.
+    item gladiatorMoveWeapon(skill sk) {
+        foreach weapon in $items[Mer-kin dodgeball, Mer-kin dragnet, Mer-kin switchblade]
+            foreach i, move in gladiatorMoves(weapon)
+                if (move == sk)
+                    return weapon;
+        return $item[none];
+    }
+
+    // Known by its weapon's moves-known property, read in unlock order.
+    boolean gladiatorMoveKnown(skill sk) {
+        item weapon = gladiatorMoveWeapon(sk);
+        foreach i, move in gladiatorMoves(weapon)
+            if (move == sk)
+                return gladiatorMovesKnown(weapon) > i;
+        return false;
+    }
+
+    // Colosseum rounds cycle balldodger, netdragger, bladeswitcher, countered by dragnet, switchblade, dodgeball.
+    item gladiatorWeapon(int roundsWon) {
+        item [int] order = {0: $item[Mer-kin dragnet], 1: $item[Mer-kin switchblade], 2: $item[Mer-kin dodgeball]};
+        return order[max(0, roundsWon) % 3];
+    }
+
+    // The Mer-kin weapon whose moves counter this Colosseum monster, or none.
+    item gladiatorCounterWeapon(monster mob) {
+        string name = to_lower_case(to_string(mob));
+        if (contains_text(name, "balldodger"))
+            return $item[Mer-kin dragnet];
+        if (contains_text(name, "netdragger"))
+            return $item[Mer-kin switchblade];
+        if (contains_text(name, "bladeswitcher"))
+            return $item[Mer-kin dodgeball];
+        return $item[none];
+    }
+
+    // The counter to the special this gladiator's fight text announces, or none.
+    skill colosseumCounter(monster mob, string text) {
+        item weapon = gladiatorCounterWeapon(mob);
+        string [int] tells = gladiatorTells(weapon);
+        foreach i, move in gladiatorMoves(weapon)
+            if (contains_text(text, "<b>" + tells[i] + "</b>"))
+                return move;
+        return $skill[none];
+    }
+
+    int gladiatorMovesTotal() {
+        int known;
+        foreach weapon in $items[Mer-kin dodgeball, Mer-kin dragnet, Mer-kin switchblade]
+            known += min(3, gladiatorMovesKnown(weapon));
+        return known;
+    }
+
+    boolean gladiatorMovesLocked() {
+        return gladiatorMovesTotal() < 9;
+    }
+
+    // The combat route still has a Mer-kin weapon move to unlock and the Colosseum still to win.
+    boolean gladiatorTrainingPending() {
+        return guideRoute() && to_int(get_property("lastColosseumRoundWon")) < 15
+            && get_property("isMerkinGladiatorChampion") != "true"
+            && colosseumRoute() == "combat" && gladiatorMovesLocked();
+    }
+
+    // Inside a training phase: the combat route's Gymnasium, pearl stage 2 or the training sink.
+    boolean gladiatorTrainingPhase() {
+        return get_property("_utsGladiatorTraining") == "true" && gladiatorTrainingPending();
+    }
+
+    // Whether an announced special gets a counter round. Gain (-300% Muscle) and rolls (-300% Moxie) count
+    // only against the wielded weapon's attack stat; loss and sweat are attacked through.
+    boolean colosseumCounterNeeded(skill counter, stat attackStat) {
+        if ($skills[Net Neutrality, Ball Bust, Ball Sack, Blade Runner, Blade Sling] contains counter)
+            return true;
+        if (counter == $skill[Net Gain])
+            return attackStat == $stat[muscle];
+        if (counter == $skill[Blade Roller])
+            return attackStat == $stat[moxie];
+        return false;
+    }
+
+    // The held Mer-kin weapon with a locked move that can be wielded now, or none.
+    item gladiatorTrainee() {
+        foreach weapon in $items[Mer-kin dragnet, Mer-kin switchblade, Mer-kin dodgeball]
+            if (available_amount(weapon) > 0 && gladiatorMovesKnown(weapon) < 3 && can_equip(weapon))
+                return weapon;
+        return $item[none];
+    }
+
+    // Why each Mer-kin weapon with a locked move can't be trained now.
+    string gladiatorTrainingBlocked() {
+        string why;
+        foreach weapon in $items[Mer-kin dragnet, Mer-kin switchblade, Mer-kin dodgeball] {
+            if (gladiatorMovesKnown(weapon) >= 3)
+                continue;
+            if (available_amount(weapon) == 0)
+                why += " No " + weapon + " is held; it comes from the Mer-kin Gymnasium noncombat.";
+            else if (!can_equip(weapon))
+                why += " The " + weapon + " needs base " + weapon_type(weapon) + " 85 to wield, and yours is "
+                    + my_basestat(weapon_type(weapon)) + ".";
+        }
+        return "The Colosseum combat route knows " + gladiatorMovesTotal() + " of 9 Mer-kin weapon moves and can't train the rest." + why;
+    }
+
     void getLucky() {
         if (have_effect($effect[Lucky!]) > 0)
             return;
@@ -2161,6 +2316,10 @@ string guideWeapon(location loc, boolean sneak) {
     item iron = $item[rusted-out shootin' iron];
     if (sneak && available_amount(iron) > 0 && can_equip(iron))
         return iron + ",";
+    // In a combat route training phase a Mer-kin weapon with a locked move takes the slot, and banishes yield to it.
+    item trainee = sneak || loc.environment != "underwater" ? $item[none] : gladiatorTrainee();
+    if (trainee != $item[none] && gladiatorTrainingPhase())
+        return trainee + ",";
     boolean wield = scimitarWieldable();
     boolean scales = wield && scalesNeeded() > 0 && scaleFight(loc, $monster[none])
         && (have_skill($skill[Harpoon!]) || have_skill($skill[Summon Leviatuga]));

@@ -1,19 +1,33 @@
 import UnderTheSeaGlobals.ash;
 
-// True when the skill is known or the fight page's skill dropdown lists its id.
+// 1 when the fight page's skill dropdown lists the skill's id, 0 when it doesn't, -1 with no dropdown.
 // Matches the id because %fn and *dent names differ from the page text.
-boolean skillOffered(string page_text, skill sk) {
-    if (have_skill(sk))
-        return true;
+int dropdownLists(string page_text, skill sk) {
     int start = index_of(page_text, "<select name=whichskill>");
     if (start < 0)
         start = index_of(page_text, "<select name=\"whichskill\">");
     if (start < 0)
-        return false;
+        return -1;
     int stop = index_of(page_text, "</select>", start);
     if (stop < 0)
-        return false;
-    return contains_text(substring(page_text, start, stop), "value=\"" + to_int(sk) + "\"");
+        return -1;
+    return contains_text(substring(page_text, start, stop), "value=\"" + to_int(sk) + "\"") ? 1 : 0;
+}
+
+// True when the skill is known or the fight page's skill dropdown lists its id.
+boolean skillOffered(string page_text, skill sk) {
+    if (have_skill(sk))
+        return true;
+    return dropdownLists(page_text, sk) == 1;
+}
+
+// A gladiator move from the dropdown, else its moves-known property with its weapon wielded.
+// Mafia's own have_skill() swaps Blade Roller and Blade Runner.
+boolean gladiatorMoveOffered(string page_text, skill sk) {
+    int listed = dropdownLists(page_text, sk);
+    if (listed >= 0)
+        return listed == 1;
+    return gladiatorMoveKnown(sk) && have_equipped(gladiatorMoveWeapon(sk));
 }
 
 // Throws both items in one round with Ambidextrous Funkslinging, otherwise one per round.
@@ -228,6 +242,79 @@ void cleanUp() {
         }
         if (my_mp() < 24)
             break;
+    }
+}
+
+// Trains a wielded Mer-kin weapon with a locked move in a training phase: Furious Wallop crits while Fury
+// lasts, then attacks. Banishes yield to it. True when it took the fight.
+boolean gladiatorTrainingFight(string page_text) {
+    if (!guideRoute() || current_round() < 1 || my_location().environment != "underwater"
+        || my_location() == $location[Mer-kin Colosseum])
+        return false;
+    item weapon = equipped_item($slot[weapon]);
+    if (gladiatorMovesProp(weapon) == "" || gladiatorMovesKnown(weapon) >= 3 || !gladiatorTrainingPhase())
+        return false;
+    if (last_monster().boss || last_monster() == $monster[school of many])
+        return false;
+    int casts;
+    while (current_round() > 0 && my_fury() > 0 && casts < 6 && my_hp() > my_maxhp() / 3
+        && skillOffered(page_text, $skill[Furious Wallop])) {
+        casts += 1;
+        page_text = to_string(use_skill($skill[Furious Wallop]));
+    }
+    int swings;
+    while (current_round() > 0 && swings < 10 && my_hp() > my_maxhp() / 3) {
+        int round = current_round();
+        swings += 1;
+        buffer hit = attack();
+        if (current_round() == round)
+            break;
+    }
+    if (current_round() > 0 && my_hp() > my_maxhp() / 3) {
+        cleanUp();
+        return true;
+    }
+    // Low on HP: a free run, then a spell kill if owned, else plain runaways.
+    if (current_round() > 0)
+        free_run(page_text, false);
+    if (current_round() > 0 && (have_skill($skill[saucegeyser]) || have_skill($skill[saucestorm])))
+        cleanUp();
+    int runs;
+    while (current_round() > 0 && runs < 3) {
+        runs += 1;
+        buffer ran = runaway();
+    }
+    if (current_round() > 0)
+        abort("Low on HP against " + last_monster() + " while training the Mer-kin weapons, and running away failed. Finish it by hand, then rerun.");
+    return true;
+}
+
+// The Colosseum combat route: a harmful announced special gets its counter move, anything else an attack.
+// A bust or neutrality with no counter to hand is run from.
+void colosseumCombatFight(string page_text) {
+    string seen = page_text;
+    int stuck;
+    int actions;
+    while (current_round() > 0) {
+        if (actions >= 40)
+            abort("40 actions against " + last_monster() + " in the Mer-kin Colosseum and the fight goes on. Finish it by hand, then rerun.");
+        actions += 1;
+        int round = current_round();
+        skill counter = colosseumCounter(last_monster(), seen);
+        boolean needed = colosseumCounterNeeded(counter, weapon_type(equipped_item($slot[weapon])));
+        if (needed && gladiatorMoveOffered(seen, counter))
+            seen = to_string(use_skill(counter));
+        else if (counter == $skill[Ball Bust] || counter == $skill[Net Neutrality])
+            seen = to_string(runaway());
+        else if (my_fury() > 0 && dropdownLists(seen, $skill[Furious Wallop]) == 1)
+            seen = to_string(use_skill($skill[Furious Wallop]));
+        else
+            seen = to_string(attack());
+        if (current_round() == round) {
+            stuck += 1;
+            if (stuck >= 3)
+                abort("The fight against " + last_monster() + " in the Mer-kin Colosseum isn't moving on. Finish it by hand, then rerun.");
+        }
     }
 }
 
@@ -601,6 +688,9 @@ void main(int round, monster mob, string page_text) {
         killDiver(page_text);
         return;
     }
+    // Combat route weapon training runs ahead of the zone cases, so the pearl zone banishes yield to it.
+    if (gladiatorTrainingFight(page_text))
+        return;
     // ── Location-based combat logic ───────────────────────────────────────────
     switch (my_location()) {
         case $location[The Skeleton Store]:
@@ -1193,7 +1283,8 @@ void main(int round, monster mob, string page_text) {
             if (free_monster(last_monster())) {
                 if (bcz_gaze_ready())
                     use_skill($skill[BCZ: Refracted Gaze]);
-            } else {
+            } else if (!gladiatorTrainingPending()) {
+                // The combat route holds its free runs until every Mer-kin weapon move is known.
                 free_run(page_text, true);
                 free_kill(page_text, false);
             }
@@ -1227,6 +1318,10 @@ void main(int round, monster mob, string page_text) {
                 }
                 if (current_round() == 0)
                     break;
+            }
+            if (guideRoute() && colosseumRoute() == "combat") {
+                colosseumCombatFight(page_text);
+                break;
             }
             if (current_round() > 0)
                 free_kill(page_text, false);
