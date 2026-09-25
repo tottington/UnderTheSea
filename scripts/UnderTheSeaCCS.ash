@@ -214,12 +214,93 @@ void attackCleanUp() {
     }
 }
 
+// Low roll rounds to kill the current monster: 0 attack, 1 Saucestorm, 2 Saucegeyser, 99 where unusable.
+int [int] guideKillRounds() {
+    int [int] rounds = {0: 99, 1: 99, 2: 99};
+    monster mob = last_monster();
+    int hp = monster_hp();
+    int defense = monster_defense();
+    element own = monster_element();
+    item weapon = equipped_item($slot[weapon]);
+    stat kind = weapon == $item[none] ? $stat[muscle] : weapon_type(weapon);
+    if (kind != $stat[mysticality]) {
+        float attackStat = my_buffedstat(kind);
+        float share = weapon == $item[none] ? attackStat * 0.25 : kind == $stat[moxie] ? attackStat * 0.75 : attackStat;
+        float flat = numeric_modifier("Weapon Damage") + (kind == $stat[moxie] ? numeric_modifier("Ranged Damage") : 0.0);
+        int dmg = meleeLowDamage(share, defense, max(10, get_power(weapon)), flat,
+            numeric_modifier("Weapon Damage Percent"), mob.physical_resistance);
+        rounds[0] = roundsToKill(hp, dmg, meleeHitRate(attackStat, defense));
+    }
+    float mys = my_buffedstat($stat[mysticality]);
+    float flat = numeric_modifier("Spell Damage");
+    float percent = numeric_modifier("Spell Damage Percent");
+    float hotFlat = flat + numeric_modifier("Hot Spell Damage");
+    float coldFlat = flat + numeric_modifier("Cold Spell Damage");
+    if (have_skill($skill[Saucestorm])) {
+        int storm = spellLowDamage(20, 0.2, mys, 50, coldFlat, percent, mob.cold_resistance, elementFactor($element[cold], own))
+            + spellLowDamage(20, 0.2, mys, 50, hotFlat, percent, mob.hot_resistance, elementFactor($element[hot], own));
+        rounds[1] = roundsToKill(hp, storm, 1.0);
+    }
+    if (have_skill($skill[Saucegeyser]) && mob != $monster[Yog-Urt, Elder Goddess of Hatred]) {
+        int geyser = max(spellLowDamage(60, 0.4, mys, 0, hotFlat, percent, mob.hot_resistance, elementFactor($element[hot], own)),
+            spellLowDamage(60, 0.4, mys, 0, coldFlat, percent, mob.cold_resistance, elementFactor($element[cold], own)));
+        rounds[2] = roundsToKill(hp, geyser, 1.0);
+    }
+    return rounds;
+}
+
+// Guide route finisher: each round the cheapest kill in three rounds that survives the hits, healing included, else
+// the quickest paid one. Melee stops after two swings do no damage; no plan runs past round 25. False hands back.
+boolean guideKill() {
+    if (!guideRoute() || current_round() < 1 || last_monster() == $monster[Yog-Urt, Elder Goddess of Hatred]
+        || ($locations[Mer-kin Colosseum, Mer-kin Temple, Mer-kin Temple (Left Door), Mer-kin Temple (Center Door),
+            Mer-kin Temple (Right Door)] contains my_location()))
+        return false;
+    string [int] names = {0: "attack", 1: to_string($skill[Saucestorm]), 2: to_string($skill[Saucegeyser])};
+    int [int] cost = {0: 0, 1: mp_cost($skill[Saucestorm]), 2: mp_cost($skill[Saucegeyser])};
+    float ratio = healRatio(have_skill($skill[Cannelloni Cocoon]), have_skill($skill[Tongue of the Walrus]));
+    int actions;
+    int stuck;
+    int misses;
+    int shown = -1;
+    while (current_round() > 0 && actions < 30) {
+        int [int] rounds = plannableRounds(guideKillRounds(), misses >= 2, current_round(), 25);
+        int pick = cheapestKill(rounds, cost, my_mp(), my_hp(), expected_damage(), 3, ratio);
+        if (pick < 0)
+            pick = fastestKill(rounds, cost, my_mp());
+        if (pick < 0)
+            return false;
+        if (pick != shown) {
+            print("Finisher: " + names[pick] + ", about " + rounds[pick] + " rounds for " + monster_hp() + " HP.", "gray");
+            shown = pick;
+        }
+        actions += 1;
+        int round = current_round();
+        int before = monster_hp();
+        buffer done;
+        if (pick == 0)
+            done = attack();
+        else if (pick == 1)
+            done = use_skill($skill[Saucestorm]);
+        else
+            done = use_skill($skill[Saucegeyser]);
+        if (pick == 0 && current_round() > 0)
+            misses = monster_hp() < before ? 0 : misses + 1;
+        stuck = current_round() == round ? stuck + 1 : 0;
+        if (stuck >= 3)
+            abort("The finisher against " + last_monster() + " isn't moving the fight on. Finish it by hand, then rerun.");
+    }
+    return current_round() == 0;
+}
+
 // Finish off the enemy with saucegeyser, guarded against infinite loops
 void cleanUp() {
     int loopCount = 0;  // declared outside loop so the guard actually works
     if (item_amount($item[pulled red taffy]) > 0 && my_location().environment == "underwater")
         throw_item($item[pulled red taffy]);
     harpoonScales();
+    if (guideKill())
+        return;
     boolean geyser = have_skill($skill[saucegeyser]) && last_monster() != $monster[Yog-Urt, Elder Goddess of Hatred];
     // Without either spell the fight is melee; with one, low MP still hands the fight back.
     if (!geyser && !have_skill($skill[saucestorm])) {

@@ -798,6 +798,9 @@ import <seedfinder/seedfinder.ash>;
         return false;
     }
 
+    // Defined with the fish scale helpers.
+    boolean scimitarRetired();
+
     void tempEquipment(string maximizerInput, string itemInput){
         string [int] itemMap = split_string(itemInput, ",");
         item [slot] equipmentSelection;
@@ -845,6 +848,9 @@ import <seedfinder/seedfinder.ash>;
             else
                 maximizerInput += ", equip " + equipmentSelection[slo];
         }
+        // A retired cozy scimitar stays whole for the next run.
+        if (scimitarRetired())
+            maximizerInput += ", -equip cozy scimitar";
         if (!maximize(maximizerInput, false))
             abort("Maximizer failed");
         if (modes != "")
@@ -2351,6 +2357,26 @@ int scalesNeeded() {
         + dullScalesNeeded();
 }
 
+// The cozy wears off after 48 to 52 uses, so the scimitar is set aside at 45 or once no scales are left to farm.
+boolean scimitarWornOut(int uses, int scalesLeft) {
+    return scalesLeft == 0 || uses >= 45;
+}
+
+// Guide route: true once the cozy scimitar is set aside. mafia's cozyCounter6332 counts its combats this ascension.
+boolean scimitarRetired() {
+    if (!guideRoute() || available_amount($item[cozy scimitar]) == 0)
+        return false;
+    int uses = to_int(get_property("cozyCounter6332"));
+    if (!scimitarWornOut(uses, scalesNeeded()))
+        return false;
+    if (to_int(get_property("uts_scimitarRetired")) != my_ascensions()) {
+        set_property("uts_scimitarRetired", my_ascensions());
+        print("Setting the cozy scimitar aside after " + uses + " combats"
+            + (scalesNeeded() == 0 ? " with the fish scales in" : "") + ", so it stays whole for the next run.", "blue");
+    }
+    return true;
+}
+
 // Corral lasso training once the sea cow is done.
 boolean corralLassoPhase() {
     return get_property("seahorseName") == "" && doneWithSeaCow() && !doneWithCowboy();
@@ -2378,7 +2404,7 @@ int killReserveMP() {
 // MP for one scale fight: both casts that are known plus the finisher.
 int scaleFightMP() {
     int mp = killReserveMP();
-    if (scalesNeeded() == 0 || available_amount($item[cozy scimitar]) == 0)
+    if (scalesNeeded() == 0 || available_amount($item[cozy scimitar]) == 0 || scimitarRetired())
         return mp;
     foreach sk in $skills[Harpoon!, Summon Leviatuga]
         if (have_skill(sk))
@@ -2400,7 +2426,7 @@ item guideClub() {
 }
 
 boolean scimitarWieldable() {
-    return available_amount($item[cozy scimitar]) > 0 && can_equip($item[cozy scimitar]);
+    return available_amount($item[cozy scimitar]) > 0 && can_equip($item[cozy scimitar]) && !scimitarRetired();
 }
 
 // Iron Palms makes swords count as clubs. The skill toggles it, so it is cast only while it is off.
@@ -2562,6 +2588,124 @@ string guideWeapon(location loc, boolean sneak) {
     if (scales)
         return $item[cozy scimitar] + ",";
     return "";
+}
+
+// Guide route: a light MP regen weight, so a spare accessory slot takes the MP regen pull.
+// At 0.1 the fin's 10 to 12 MP scores about 1.1, so it only settles slots the zone's own targets leave open.
+string guideRegen() {
+    return guideRoute() ? ", 0.1 mp regen" : "";
+}
+
+// ─── LOW IOTM FINISHER MATH ───────────────────────────────────────────────────
+// Pure estimates for the CCS finisher: an attack, Saucestorm or Saucegeyser, at low rolls.
+
+// Low roll of a standard attack: the stat share over Defense, power / 10, flat bonus, then the percent
+// bonus and physical resistance. Never under 1 unless the monster is immune.
+int meleeLowDamage(float statShare, int defense, int power, float flat, float percent, int physRes) {
+    float raw = max(0, floor(statShare) - defense) + floor(power / 10.0) + flat;
+    float dmg = floor(raw * (1 + percent / 100) * (100 - physRes) / 100);
+    if (physRes >= 100)
+        return 0;
+    return max(1, to_int(dmg));
+}
+
+// Chance a swing lands: (6 + Attack - Defense) / 11 held to 0..1, less the 1 in 22 fumble.
+float meleeHitRate(float attack, int defense) {
+    float base = (6 + floor(attack) - defense) / 11.0;
+    return min(1.0, max(0.0, base)) * 21.0 / 22.0;
+}
+
+// A spell element against the monster's own: 0 for the same element, which takes 1 damage,
+// 2 for the two elements it is weak to, else 1.
+float elementFactor(element spell, element mob) {
+    if (mob == $element[none] || spell == $element[none])
+        return 1.0;
+    if (spell == mob)
+        return 0.0;
+    string [element] beats = {
+        $element[hot]: "spooky,cold",
+        $element[spooky]: "cold,sleaze",
+        $element[cold]: "sleaze,stench",
+        $element[sleaze]: "stench,hot",
+        $element[stench]: "hot,spooky"
+    };
+    return contains_text("," + beats[spell] + ",", "," + mob + ",") ? 2.0 : 1.0;
+}
+
+// Low roll of one sauce hit: base + floor(share * Mys) + flat bonuses under the cap (0 for none), then
+// the percent bonus, resistance and the element factor, rounded down.
+int spellLowDamage(int base, float share, float mys, int cap, float flat, float percent, int res, float elem) {
+    float dmg = base + floor(share * mys) + flat;
+    if (cap > 0)
+        dmg = min(dmg, to_float(cap));
+    dmg = floor(dmg * (1 + percent / 100));
+    return max(0, to_int(floor(dmg * (100 - res) / 100 * elem)));
+}
+
+// Rounds to take hp at perRound damage with nine tenths of it counted, over the chance each round lands.
+// 99 when it does no damage.
+int roundsToKill(int hp, int perRound, float landRate) {
+    if (perRound <= 0 || landRate <= 0)
+        return 99;
+    int hits = ceil(max(1, hp) / (perRound * 0.9));
+    return min(99, ceil(hits / landRate));
+}
+
+// HP a heal skill restores per MP: Cannelloni Cocoon's 1000 for 20, Tongue of the Walrus's 35 for 10, else 2.
+float healRatio(boolean cocoon, boolean walrus) {
+    if (cocoon)
+        return 50.0;
+    if (walrus)
+        return 3.5;
+    return 2.0;
+}
+
+// MP to heal damage back at ratio HP a MP. 0 without a ratio.
+int healMP(int damage, float ratio) {
+    if (damage <= 0 || ratio <= 0)
+        return 0;
+    return ceil(damage / ratio);
+}
+
+// The rounds map with 99 for melee once it is off and for any option that ends past lastRound.
+int [int] plannableRounds(int [int] rounds, boolean meleeOff, int roundNow, int lastRound) {
+    int [int] out;
+    foreach i, r in rounds
+        out[i] = (i == 0 && meleeOff) || r >= 99 || roundNow + r - 1 > lastRound ? 99 : r;
+    return out;
+}
+
+// The paid finisher (0 attack, 1 Saucestorm, 2 Saucegeyser, -1 none) killing within maxRounds and surviving a hit
+// a round, with the least MP for casts and healing at ratio HP a MP. Ties take the lower index.
+int cheapestKill(int [int] rounds, int [int] cost, int mp, int hp, int hitTaken, int maxRounds, float ratio) {
+    int best = -1;
+    int bestMP;
+    for i from 0 to 2 {
+        if (!(rounds contains i) || !(cost contains i) || rounds[i] > maxRounds)
+            continue;
+        int spend = rounds[i] * cost[i];
+        int damage = rounds[i] * hitTaken;
+        if (spend > mp || damage >= hp)
+            continue;
+        int total = spend + healMP(damage, ratio);
+        if (best < 0 || total < bestMP) {
+            best = i;
+            bestMP = total;
+        }
+    }
+    return best;
+}
+
+// Without a cheap safe kill, the finisher that kills soonest and is paid for this round. -1 when none hurts.
+int fastestKill(int [int] rounds, int [int] cost, int mp) {
+    int best = -1;
+    for i from 0 to 2 {
+        if (!(rounds contains i) || !(cost contains i) || rounds[i] >= 99 || cost[i] > mp)
+            continue;
+        if (best < 0 || rounds[i] < rounds[best])
+            best = i;
+    }
+    return best;
 }
 
 // ─── EVERFULL DART ────────────────────────────────────────────────────────────
@@ -3059,6 +3203,7 @@ guidePull [int] guidePulls = {
     new guidePull($items[lodestone], true, "Saves 5 turns."),
     new guidePull($items[waffle], true, "Finds the seahorse sooner."),
     new guidePull($items[stench jelly, Clara's bell, handheld Allied radio], true, "A noncombat forcer."),
+    new guidePull($items[aquamariner's necklace, lucky rabbitfish fin], true, "MP regen, cheaper than restores."),
 };
 
 string skillNames(boolean [skill] list) {
@@ -3094,6 +3239,53 @@ void printGuidePulls(boolean flexible) {
         else
             print("✗ " + itemNames(gp.any) + ": " + gp.why + " NOT mall-buyable, get it before you ascend.", "red");
     }
+}
+
+// Resting MP as mafia works it out: the base, scaled by the percent bonus, plus the flat bonus.
+int restingMP(float base, float percent, float bonus) {
+    int mp = to_int(base);
+    if (percent != 0)
+        mp = to_int(mp * (percent + 100) / 100);
+    return mp + to_int(bonus);
+}
+
+// Under 50 MP a rest, a tent or the bare ground, the route buys most of its MP.
+boolean housingWeak(int restMP) {
+    return restMP < 50;
+}
+
+// The sim lists housing to pull and install after ascending, since the dwelling does not carry over.
+// In run it reads the resting MP of the dwelling and furniture and names housing on hand when that is weak.
+void guideHousingCheck(boolean runStart) {
+    boolean [item] homes = $items[Xiblaxian residence-cube, hobo fortress blueprints, gingerbread house,
+        house-sized mushroom, house of twigs and spit];
+    string onHand;
+    string buyable;
+    foreach it in homes {
+        int more = to_int(numeric_modifier(it, "Base Resting MP"));
+        if (available_amount(it) + storage_amount(it) > 0)
+            onHand += (onHand == "" ? "" : ", ") + it + " (" + more + " MP"
+                + (runStart && available_amount(it) == 0 ? ", one pull" : "") + ")";
+        else if (!runStart && mall_price(it) > 0)
+            buyable += (buyable == "" ? "" : ", ") + it + " (" + more + " MP, " + mall_price(it) + " meat)";
+    }
+    if (!runStart) {
+        if (onHand != "")
+            print("✓ Housing: the dwelling is lost on ascending; " + onHand + " on hand to pull and install in run.", "blue");
+        else
+            print("✗ Housing: the dwelling is lost on ascending, and the route rests for most of its MP. Put one of these in Hagnk's "
+                + "to pull and install in run: " + (buyable == "" ? "none is in the mall" : buyable) + ".", "red");
+        return;
+    }
+    item home = get_dwelling();
+    string name = home == $item[none] ? "the ground" : to_string(home);
+    int mp = restingMP(numeric_modifier("Base Resting MP"), numeric_modifier("Resting MP Percent"), numeric_modifier("Bonus Resting MP"));
+    if (!housingWeak(mp)) {
+        print("✓ Housing: " + name + ", " + mp + " MP a rest", "blue");
+        return;
+    }
+    print("✗ Housing: " + name + " gives " + mp + " MP a rest, and the route rests for most of its MP. Short of it, mafia buys MP restores with meat."
+        + (onHand == "" ? "" : " Install one now: " + onHand + "."), "red");
 }
 
 // Prints the low IOTM route's requirements and returns the hard blockers as
@@ -3151,6 +3343,8 @@ string lowIOTMChecklist(boolean runStart) {
     else
         print("✗ cozy scimitar: NOT mall-buyable, make it from a scimitar cozy and a fish scimitar before you ascend. Without it the run falls back to the script's other fish scale sources.", "red");
 
+    guideHousingCheck(runStart);
+
     string route = colosseumRoute(runStart);
     if (route == "spell") {
         print("✓ Colosseum: spell route, lantern " + colosseumLantern() + ".", "blue");
@@ -3203,9 +3397,57 @@ boolean guidePullOnDemand(guidePull gp) {
     return false;
 }
 
+// Pulls the on-demand lines and reservedPulls() may still need, kept free of the regen pull.
+int onDemandPulls() {
+    int n = reservedPulls();
+    foreach num, gp in guidePulls {
+        if (!guidePullOnDemand(gp))
+            continue;
+        boolean needed = true;
+        foreach it in gp.any
+            if (available_amount(it) > 0 || pulledToday(it))
+                needed = false;
+        if ((gp.any contains $item[lodestone]) && storage_amount($item[lodestone]) == 0)
+            needed = false;
+        if (needed)
+            n += 1;
+    }
+    return n;
+}
+
 // The low IOTM breakfast runs once per ascension, recorded as the ascension number.
 boolean lowIOTMBreakfastDone() {
     return get_property("uts_lowIOTMBreakfast") == to_string(my_ascensions());
+}
+
+// The MP regen pull: the aquamariner's necklace when it can be worn and is in Hagnk's or within
+// autoBuyPriceLimit, else the lucky rabbitfish fin. regenPullNote says why, for lowIOTMPulls() to print.
+string regenPullNote;
+
+item regenPullChoice() {
+    item necklace = $item[aquamariner's necklace];
+    item fin = $item[lucky rabbitfish fin];
+    int limit = to_int(get_property("autoBuyPriceLimit"));
+    int price = mall_price(necklace);
+    string why;
+    regenPullNote = "";
+    if (!can_equip(necklace))
+        why = "the " + necklace + " needs 85 Mysticality";
+    else if (storage_amount(necklace) > 0)
+        return necklace;
+    else if (price > 0 && price <= limit) {
+        regenPullNote = "Low IOTM pulls: buying the " + necklace + " for " + price + " meat, within autoBuyPriceLimit " + limit + ".";
+        return necklace;
+    } else if (price > 0)
+        why = "the " + necklace + " is not in Hagnk's and costs " + price + " meat, over autoBuyPriceLimit " + limit;
+    else
+        why = "the " + necklace + " is not in Hagnk's or the mall";
+    if (storage_amount(fin) == 0 && mall_price(fin) <= 0) {
+        print("Low IOTM pulls: no MP regen pull, " + why + " and the " + fin + " is not in Hagnk's or the mall.", "red");
+        return $item[none];
+    }
+    regenPullNote = "Low IOTM pulls: the " + fin + " for MP regen, since " + why + ".";
+    return fin;
 }
 
 // The item to pull for a guide line: none when one is on hand, already pulled
@@ -3214,6 +3456,8 @@ item guidePullChoice(guidePull gp) {
     foreach it in gp.any
         if (available_amount(it) > 0 || pulledToday(it))
             return $item[none];
+    if (gp.any contains $item[aquamariner's necklace])
+        return regenPullChoice();
     if ((gp.any contains $item[shark jumper])
         && !have_skill($skill[Torso Awareness]) && !have_skill($skill[Best Dressed])) {
         print("Low IOTM pulls: no Torso Awareness, so no " + $item[shark jumper] + ".", "red");
@@ -3276,9 +3520,17 @@ void lowIOTMPulls() {
         if (guidePullOnDemand(gp))
             continue;
         item it = guidePullChoice(gp);
-        if (it != $item[none] && pulls_remaining() == 0)
+        boolean pulling = it != $item[none] && pulls_remaining() != 0;
+        if (pulling && (gp.any contains $item[aquamariner's necklace])
+            && pulls_remaining() > 0 && pulls_remaining() <= onDemandPulls()) {
+            print("Low IOTM pulls: no " + it + ", its pull is kept for the on-demand pulls.", "blue");
+            continue;
+        }
+        if (it != $item[none] && !pulling)
             print("Low IOTM pulls: out of pulls, no " + it + ".", "red");
-        else if (it != $item[none] && guidePullOne(it) && it == $item[Mer-kin hallpass]
+        if (pulling && (gp.any contains $item[aquamariner's necklace]) && regenPullNote != "")
+            print(regenPullNote, "blue");
+        if (pulling && guidePullOne(it) && it == $item[Mer-kin hallpass]
             && !put_closet(item_amount(it), it))
             print("Low IOTM pulls: couldn't closet the " + it + ".", "red");
         // A large box without a ten-leaf clover or its blessed box still needs the clover.
@@ -3389,6 +3641,27 @@ void lowIOTMDiet() {
         if (!drink(1, $item[astral pilsner]) || item_amount($item[astral pilsner]) >= before)
             break;
     }
+}
+
+// The old SCUBA tank is bought for the hat and chaps lasso training, which ends at 20. The chaps are
+// never made while a Mer-kin tailpiece is held.
+boolean tankOnRoute(boolean tank, boolean tamed, int training, boolean chaps, boolean tailpiece) {
+    return !tank && !tamed && training < 20 && (chaps || !tailpiece);
+}
+
+// True when the tank is on route, still to buy, and meat covers its price plus spare.
+boolean tankBuyNow(boolean onRoute, boolean held, int meat, int price, int spare) {
+    return onRoute && !held && meat >= price + spare;
+}
+
+// Guide route: the old SCUBA tank is still to buy for this run's lasso training.
+boolean scubaTankOnRoute() {
+    if (!guideRoute())
+        return false;
+    int tailpieces = available_amount($item[crappy Mer-kin tailpiece]) + available_amount($item[Mer-kin gladiator tailpiece])
+        + available_amount($item[Mer-kin scholar tailpiece]);
+    return tankOnRoute(available_amount($item[old SCUBA tank]) > 0, get_property("seahorseName") != "",
+        to_int(get_property("lassoTrainingCount")), available_amount($item[sea chaps]) > 0, tailpieces > 0);
 }
 
 // Free rests at the housing, toward 400 MP.
