@@ -276,6 +276,7 @@ string DropsItems;
 
     // Defined with the quest steps below.
     void oldGuy();
+    void guideEarlyTank();
 
     void post_adv() {
         if (get_property("_lastCombatLost") == "true"){
@@ -518,6 +519,8 @@ string DropsItems;
         set_property("hpAutoRecovery",       hpAutoRecovery);
         set_property("hpAutoRecoveryTarget", hpAutoRecoveryTarget);
         setMPRecovery();
+        if (guideRoute())
+            guideEarlyTank();
     }
 
     void adv(location loc) {
@@ -868,7 +871,7 @@ string DropsItems;
                 }
             }
         conditional += baseball_equip();
-        tempEquipment("combat,sea", extra + if_equip(divingHelmet()) + if_equip(tailpiece()) + delay() + freeKill(forceNC ? my_location() : $location[Mer-kin Gymnasium]) + bathysphere($item[none]) + conditional);
+        tempEquipment("combat,sea" + guideRegen(), extra + if_equip(divingHelmet()) + if_equip(tailpiece()) + delay() + freeKill(forceNC ? my_location() : $location[Mer-kin Gymnasium]) + bathysphere($item[none]) + conditional);
         mood("combat");
         if (get_property("noncombatForcerActive") == "true")
             abort("Sneak active while trying to adventure in gymnasium, get rid of it");
@@ -1084,6 +1087,26 @@ string DropsItems;
         return true;
     }
 
+    // Guide route: buys the old SCUBA tank as soon as meat allows while the old man still offers it.
+    // One try an ascension; oldGuy() and lassoTrainerGear() still buy it later.
+    void guideEarlyTank() {
+        item tank = $item[old SCUBA tank];
+        boolean onRoute = scubaTankOnRoute() && get_property("questS01OldGuy") == "started";
+        if (!onRoute || to_int(get_property("uts_scubaTankTried")) == my_ascensions())
+            return;
+        if (!tankBuyNow(onRoute, available_amount(tank) > 0, my_meat(), 10000, 1000)) {
+            if (to_int(get_property("uts_scubaTankNote")) != my_ascensions()) {
+                set_property("uts_scubaTankNote", my_ascensions());
+                print("The Coral Corral's lasso training needs the " + tank + ", 10000 meat from the old man. "
+                    + "It is bought once meat reaches 11000.", "blue");
+            }
+            return;
+        }
+        set_property("uts_scubaTankTried", my_ascensions());
+        if (!buyOldScubaTank())
+            print("Couldn't buy the " + tank + " early, so the old man's trade tries again.", "red");
+    }
+
     void oldGuy(){
         // The boot trade ends the quest, and with it the tank offer, so the tank comes first while the lasso still trains.
         if (guideRoute() && get_property("seahorseName") == "" && !buyOldScubaTank())
@@ -1177,7 +1200,7 @@ string DropsItems;
         conditional += saberEquip($location[The Coral Corral]);
         conditional += cloakeEquip($location[The Coral Corral]);
         conditional += champagneEquip($location[The Coral Corral]);
-        tempEquipment("item drop,sea", guideWeapon($location[The Coral Corral], false)
+        tempEquipment("item drop,sea" + guideRegen(), guideWeapon($location[The Coral Corral], false)
             + if_equip($item[legendary seal-clubbing club]) + bathysphere($item[toy cupid bow]) + conditional);
         if (!doneWithSeaCow())
             set_property("choiceAdventure1589","1&victim=775");
@@ -1379,7 +1402,7 @@ string DropsItems;
             if (guideRoute()) {
                 // The guide farms beads with -combat first, then item drop, and the cozy scimitar.
                 mood("itdrop");
-                tempEquipment("-2 combat, item drop, sea", guideWeapon($location[the mer-kin outpost], false)
+                tempEquipment("-2 combat, item drop, sea" + guideRegen(), guideWeapon($location[the mer-kin outpost], false)
                     + bathysphere($item[none]) + conditional);
             } else
                 tempEquipment("-combat,sea", bathysphere($item[toy cupid bow]) + conditional);
@@ -1596,7 +1619,7 @@ string DropsItems;
         use_familiar("-combat");
         mood(to_string(replace_string(res, " ", "")));
         mood("-combat");
-        tempEquipment("200 " + res + " 18 max, -combat, sea", guideWeapon(zone, true)
+        tempEquipment("200 " + res + " 18 max, -combat, sea" + guideRegen(), guideWeapon(zone, true)
             + if_equip($item[Mer-kin sneakmask]) + bathysphere($item[none]));
         guideGearCheck("Grandpa", res, true);
         adv(zone);
@@ -1671,7 +1694,7 @@ string DropsItems;
             use_familiar("itdrop");
             mood("spookyres");
             mood("itdrop");
-            tempEquipment("200 spooky res 18 max, item drop, sea", guideWeapon(mine, false) + bathysphere($item[none]));
+            tempEquipment("200 spooky res 18 max, item drop, sea" + guideRegen(), guideWeapon(mine, false) + bathysphere($item[none]));
             guideGearCheck("Anemone Mine", "spooky res", false);
             // The pearl only pays its full progress at 18.
             if (pearl && numeric_modifier("spooky resistance") < 18) {
@@ -1797,7 +1820,7 @@ string DropsItems;
                     baseballD();
                 if (to_int(get_property("_bczSweatBulletsCasts")) < 9)
                     conditional += if_equip($item[blood cubic zirconia]);
-                tempEquipment("item drop, sea, -100 combat", guideWeapon(pearlLoc[ps], true) + if_equip($item[monodent of the sea]) + delay()
+                tempEquipment("item drop, sea, -100 combat" + guideRegen(), guideWeapon(pearlLoc[ps], true) + if_equip($item[monodent of the sea]) + delay()
                     + if_equip($item[M&ouml;bius ring]) + bathysphere($item[toy cupid bow]) + conditional);
                 mood("-combat");
                 adv(pearlLoc[ps]);
@@ -1888,7 +1911,7 @@ string DropsItems;
         mood("-combat");
         mood("itdrop");
         string hat = lockkeyHunt ? if_equip(goggles) : if_equip($item[Mer-kin sneakmask]);
-        tempEquipment((lockkeyHunt ? "item drop, -combat" : "-3 combat, item drop") + ", sea",
+        tempEquipment((lockkeyHunt ? "item drop, -combat" : "-3 combat, item drop") + ", sea" + guideRegen(),
             guideWeapon(post, sneakLeg) + hat + bathysphere($item[none]));
         if (!lockkeyHunt)
             guideGearCheck("Mer-kin Outpost", "", true);
@@ -1978,7 +2001,7 @@ string DropsItems;
                     // The trainer's chaps share the pants slot with scale-mail underwear.
                     if (outpostLassoTraining() && !contains_text(conditional, "scale-mail underwear"))
                         conditional += "sea cowboy hat,sea chaps,";
-                    tempEquipment("item drop,sea", guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
+                    tempEquipment("item drop,sea" + guideRegen(), guideWeapon($location[The Mer-Kin Outpost], contains_text("step6,step7,step8", get_property("questS02Monkees")))
                         + bathysphere($item[toy cupid bow]) + conditional + freeKill());
                     if (!contains_text(conditional, "roman candelabra") && !contains_text(conditional, "backup camera")) {
                         if (acornOutpostWanted())
@@ -2443,7 +2466,7 @@ string DropsItems;
             if (tame && doneWithSeaCow() && doneWithCowboy())
                 guideWaffle();
             set_location(corral);
-            tempEquipment("item drop,sea", gear);
+            tempEquipment("item drop,sea" + guideRegen(), gear);
             mood("itdrop");
             if (!doneWithSeaCow())
                 corralItemReport();
@@ -2699,7 +2722,7 @@ string DropsItems;
                 && available_amount($item[tearaway pants]) > 0) {
                 conditional += "tearaway pants,";
             }
-            tempEquipment(DropsItems, guideWeapon($location[The Coral Corral], false) + conditional + delay());
+            tempEquipment(DropsItems + guideRegen(), guideWeapon($location[The Coral Corral], false) + conditional + delay());
             
             while (item_amount($item[sea lasso]) == 0)
                 monkeypaw($item[sea lasso]);
@@ -2857,7 +2880,7 @@ string DropsItems;
         use_familiar("-combat");
         string run = freeRun();
         mood("itdrop");
-        tempEquipment("-2 combat, item drop, sea", if_equip(divingHelmet()) + if_equip(tailpiece())
+        tempEquipment("-2 combat, item drop, sea" + guideRegen(), if_equip(divingHelmet()) + if_equip(tailpiece())
             + guideWeapon(school, true) + bathysphere($item[none]) + run);
         mood("-combat");
         zoneStall(waitingFor, gate, school, spent, 20);
@@ -4193,7 +4216,7 @@ string DropsItems;
             use_familiar("itdrop");
         mood(to_string(replace_string(res, " ", "")));
         mood("itdrop");
-        tempEquipment("200 " + res + " 18 max, item drop, sea", extra + guideWeapon(zone, false) + bathysphere($item[none]));
+        tempEquipment("200 " + res + " 18 max, item drop, sea" + guideRegen(), extra + guideWeapon(zone, false) + bathysphere($item[none]));
         guideGearCheck(zone + " (the pearl takes longer)", res, false);
     }
 
