@@ -969,9 +969,10 @@ void main(int round, monster mob, string page_text) {
         case $location[Madness Reef]:
         case $location[The Briniest Deepests]:
         case $location[The Limerick Dungeon]:
-            // The guide trains the lasso in Madness Reef too, keeping one sea lasso back.
+            // Lasso training on the guide route, in Madness Reef and The Briniest Deepests, keeps one sea lasso back.
             // No lasso on the magic dragonfish, so the kill starts at once.
-            if (guideRoute() && my_location() == $location[Madness Reef] && last_monster() != $monster[magic dragonfish]
+            if (guideRoute() && ($locations[Madness Reef, The Briniest Deepests] contains my_location())
+                && last_monster() != $monster[magic dragonfish]
                 && lassoTrainable() && item_amount($item[sea lasso]) > 1) {
                 buffer lassoed = throw_item($item[sea lasso]);
             }

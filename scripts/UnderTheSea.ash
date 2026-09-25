@@ -4212,8 +4212,23 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             && get_property("questS02Monkees") != "finished";
     }
 
+    // Stage 1's zone: the Marinara Trench for the comb jelly, Madness Reef for the Economist, else lasso training
+    // in the next pearl zone with its pearl unclaimed, Anemone Mine aside, else Madness Reef or the Trench.
+    location pearlStage1Zone(boolean jelly, boolean scales) {
+        location trench = $location[The Marinara Trench];
+        location reef = $location[Madness Reef];
+        if (jelly)
+            return trench;
+        if (scales)
+            return reef;
+        location zone = guidePearlZone();
+        if (zone != $location[none] && zone != $location[Anemone Mine])
+            return zone;
+        return can_adventure(reef) ? reef : trench;
+    }
+
     // Stage 1 of the guide's pearl zones, between the Corral's two stages: the Marinara Trench until the
-    // comb jelly drops, then Madness Reef for expert lasso training and the Economist's pristine scales.
+    // comb jelly drops, Madness Reef for the Economist's pristine scales, and expert lasso training.
     void pearlStage1() {
         if (!guideRoute() || get_property("seahorseName") != "")
             return;
@@ -4231,6 +4246,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
         int passes;
         int scaleTurns;
+        string last;
         while (true) {
             string trainer = lassoTrainerGear();
             boolean jelly = combJellyWanted() && can_adventure(trench);
@@ -4251,8 +4267,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 jelly = false;
                 lasso = false;
             }
-            // Lasso training goes on in the Marinara Trench when Madness Reef is closed.
-            location zone = jelly || !can_adventure(reef) ? trench : reef;
+            location zone = pearlStage1Zone(jelly, scales);
             if (!can_adventure(zone)) {
                 print("Neither " + trench + " nor " + reef + " is open, so pearl zones stage 1 stops here.", "red");
                 break;
@@ -4267,6 +4282,13 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             passes += 1;
             if (!jelly && !lasso)
                 scaleTurns += 1;
+            string why = zone + (jelly ? " for the comb jelly." : scales ? " for the Economist's pristine scales."
+                : get_property(pearlClaimed[zone]) != "true" ? " for lasso training, its pearl still unclaimed." : " for lasso training.");
+            if (why != last)
+                print("Pearl zones stage 1: " + why, "blue");
+            last = why;
+            if (!jelly && !scales)
+                guidePearlTurns[zone] += 1;
             guidePearlGear(zone, lasso ? trainer : "");
             adv(zone);
         }
