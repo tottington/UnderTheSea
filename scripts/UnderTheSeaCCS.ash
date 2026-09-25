@@ -359,15 +359,15 @@ boolean yogDocPair() {
 boolean yogDocReady() {
     if (have_skill($skill[Ambidextrous Funkslinging]))
         return yogDocPair();
-    return yogUnused($item[Doc Galaktik's Homeopathic Elixir])
-        || yogUnused($item[Doc Galaktik's Pungent Unguent]);
+    return (item_amount($item[Doc Galaktik's Homeopathic Elixir]) > 0 && !itemUsedThisCombat($item[Doc Galaktik's Homeopathic Elixir]))
+        || (item_amount($item[Doc Galaktik's Pungent Unguent]) > 0 && !itemUsedThisCombat($item[Doc Galaktik's Pungent Unguent]));
 }
 
 // One round's Doc Galaktik throw; call only when yogDocReady().
 void yogDocThrow() {
     if (have_skill($skill[Ambidextrous Funkslinging]))
         throw_items($item[Doc Galaktik's Homeopathic Elixir], $item[Doc Galaktik's Pungent Unguent]);
-    else if (yogUnused($item[Doc Galaktik's Homeopathic Elixir]))
+    else if (item_amount($item[Doc Galaktik's Homeopathic Elixir]) > 0 && !itemUsedThisCombat($item[Doc Galaktik's Homeopathic Elixir]))
         throw_item($item[Doc Galaktik's Homeopathic Elixir]);
     else
         throw_item($item[Doc Galaktik's Pungent Unguent]);
