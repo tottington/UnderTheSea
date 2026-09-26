@@ -4087,6 +4087,19 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         guideGearCheck(zone + " (the pearl takes longer)", res, false);
     }
 
+    // Madness Reef after its pearl, waiting on the Economist's noncombat: -combat, no resistance target.
+    void guideEconomistGear(location zone) {
+        set_location(zone);
+        if (have_familiar($familiar[Peace Turkey]) || have_familiar($familiar[Disgeist]))
+            use_familiar("-combat");
+        else if (guidePearlFamiliar == $familiar[none] || !use_familiar(guidePearlFamiliar))
+            use_familiar("itdrop");
+        mood("-combat");
+        mood("itdrop");
+        tempEquipment("-3 combat, item drop, sea" + guideRegen(), guideWeapon(zone, false) + bathysphere($item[none]));
+        guideGearCheck(zone + " (the Economist takes longer)", "", true);
+    }
+
     // One turn in the next pearl zone. False, with no turn spent, once no zone is left.
     boolean guidePearlTurn(string why) {
         location zone = guidePearlZone();
@@ -4321,7 +4334,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             boolean jelly = combJellyWanted() && can_adventure(trench);
             boolean lasso = trainer != "" && to_int(get_property("lassoTrainingCount")) < 20
                 && item_amount($item[sea lasso]) > 1;
-            boolean scales = pristineScalesNeeded() > 0 && economistCanTrade() && can_adventure(reef) && scaleTurns < 25;
+            boolean scales = pristineScalesNeeded() > 0 && economistCanTrade() && can_adventure(reef) && scaleTurns < 60
+                && to_int(get_property("uts_lowIOTMGrandpaScales")) == my_ascensions();
             if (!jelly && !lasso && !scales)
                 break;
             // With two or fewer turns left on the sea cow's Snokebomb, the comb jelly and lasso training stop here.
@@ -4341,8 +4355,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 print("Neither " + trench + " nor " + reef + " is open, so pearl zones stage 1 stops here.", "red");
                 break;
             }
-            if (passes >= 60) {
-                print("60 turns into pearl zones stage 1 without finishing: " + corralKit() + ", "
+            if (passes >= 90) {
+                print("90 turns into pearl zones stage 1 without finishing: " + corralKit() + ", "
                     + pristineScalesNeeded() + " pristine fish scales short.", "red");
                 break;
             }
@@ -4351,21 +4365,28 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             passes += 1;
             if (!jelly && !lasso)
                 scaleTurns += 1;
-            string why = zone + (jelly ? " for the comb jelly." : scales ? " for the Economist's pristine scales."
+            // Once the Reef's pearl is claimed, only the Economist's noncombat is left there, so it runs -combat.
+            boolean sneak = zone == reef && scales && !jelly && !lasso && get_property(pearlClaimed[reef]) == "true";
+            string why = zone + (jelly ? " for the comb jelly." : sneak ? " at -combat for the Economist, its pearl claimed."
+                : scales ? " for the Economist's pristine scales."
                 : get_property(pearlClaimed[zone]) != "true" ? " for lasso training, its pearl still unclaimed." : " for lasso training.");
             if (why != last)
                 print("Pearl zones stage 1: " + why, "blue");
             last = why;
             if (!jelly && !scales)
                 guidePearlTurns[zone] += 1;
-            guidePearlGear(zone, lasso ? trainer : "");
+            if (sneak)
+                guideEconomistGear(zone);
+            else
+                guidePearlGear(zone, lasso ? trainer : "");
             adv(zone);
         }
         if (to_int(get_property("lassoTrainingCount")) < 20)
             print("Lasso training is at " + get_property("lassoTrainingCount") + "/20 after pearl zones stage 1, "
                 + "so the Coral Corral finishes it: " + corralKit() + ".", "red");
         if (pristineScalesNeeded() > 0)
-            print("Still " + pristineScalesNeeded() + " pristine fish scales short after pearl zones stage 1: "
+            print("Still " + pristineScalesNeeded() + " pristine fish scales short after pearl zones stage 1"
+                + (economistCanTrade() ? ", " + scaleTurns + " " + reef + " turns without the Economist" : "") + ": "
                 + item_amount($item[rough fish scale]) + " rough and " + item_amount($item[dull fish scale])
                 + " dull fish scales held.", "red");
     }
