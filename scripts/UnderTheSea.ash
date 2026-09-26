@@ -203,17 +203,19 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         use_familiar("itdrop");
         equip($item[really, really nice swimming trunks]);
         visit_url("monkeycastle.php?who=1");
-        // After Little Brother, Big Brother hands the black glass over for free. It is bought
-        // only once that talk has passed without it, and only from dollars nothing else needs.
+        // Big Brother offers the black glass after Little Brother and refunds its 13 sand dollars,
+        // so the guide buys it as soon as 13 are held, trading spare sand pennies when short.
         if (guideRoute()) {
             visit_url("monkeycastle.php?who=2");
             boolean talked = contains_text(",step11,step12,finished,", "," + get_property("questS02Monkees") + ",");
             if (available_amount($item[black glass]) > 0 || !talked)
                 return;
-            int owed = sandDollarsOwed() - pearlMapsOwed();
-            if (item_amount($item[sand dollar]) < owed)
-                print("Big Brother didn't hand over the " + $item[black glass] + ", and " + item_amount($item[sand dollar])
-                    + " sand dollars can't buy it with " + owed + " owed.", "red");
+            int trade = dollarsFromPennies(item_amount($item[sand penny]), guidePennyReserve(true), item_amount($item[sand dollar]), 13);
+            if (trade > 0 && !buy($coinmaster[Wet Crap For Sale], trade, $item[sand dollar]))
+                print("Couldn't trade sand pennies for " + trade + " sand dollars.", "red");
+            if (item_amount($item[sand dollar]) < 13)
+                print("Big Brother offers the " + $item[black glass] + " for 13 sand dollars, refunded, and "
+                    + item_amount($item[sand dollar]) + " are held with " + item_amount($item[sand penny]) + " sand pennies.", "red");
             else if (!buy($coinmaster[Big Brother], 1, $item[black glass]))
                 print("Couldn't buy the " + $item[black glass] + " from Big Brother.", "red");
         } else if (available_amount($item[black glass]) == 0) 
@@ -977,7 +979,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     boolean guideSandDollar() {
         if (item_amount($item[mer-kin thingpouch]) > 0)
             return use(item_amount($item[mer-kin thingpouch]), $item[mer-kin thingpouch]);
-        if (item_amount($item[sand penny]) >= 100)
+        if (item_amount($item[sand penny]) >= 100 + guidePennyReserve(true))
             return buy($coinmaster[Wet Crap For Sale], 1, $item[sand dollar]);
         return false;
     }
@@ -1060,6 +1062,10 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
     void oldGuy(){
+        // The guide route buys the black glass before the boot while Big Brother offers it.
+        if (guideRoute() && available_amount($item[black glass]) == 0
+            && contains_text(",step10,step11,", "," + get_property("questS02Monkees") + ","))
+            blackGlass();
         // The boot trade ends the quest, and with it the tank offer, so the tank comes first while the lasso still trains.
         if (guideRoute() && get_property("seahorseName") == "" && !buyOldScubaTank())
             return;
@@ -2338,6 +2344,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         location corral = $location[The Coral Corral];
         int passes;
         while (get_property("seahorseName") == "" && (tame || !doneWithSeaCow() || !doneWithCowboy())) {
+            if (!tame)
+                guideOceanRum();
             if (my_adventures() < 1)
                 abort("Out of adventures in The Coral Corral: " + corralKit() + ".");
             if (passes >= 80)
@@ -2732,6 +2740,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
     // Defined with the pearl zones below.
     boolean guidePearlTurn(string why);
+    location guidePearlZone();
     int pearlsHeld();
     string guidePearlShortfall();
     void pearlStage2();
@@ -3219,15 +3228,16 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             // YogUrt fight
             int hpCheckPasses;
             while (get_property("yogUrtDefeated") == "false") {
-                // With under three prayerbeads the guide burns a Sea Strength under 40 turns off in the pearl zones.
+                // With under three prayerbeads the guide burns Sea Strength, Briney Brawn or a legend pizza
+                // under 40 turns off in the pearl zones.
                 if (guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3
                     && get_property("_utsYogBeadFarm") != "true"
-                    && have_effect($effect[Sea Strength]) > 0 && have_effect($effect[Sea Strength]) < 40
-                    && guidePearlTurn("burning off Sea Strength"))
+                    && yogStatBuffTurns() > 0 && yogStatBuffTurns() < 40
+                    && guidePearlTurn("burning off " + yogStatBuffList()))
                     continue;
-                // With 40 or more turns of Sea Strength the guide farms the third prayerbead instead, to the end.
+                // With 40 or more turns of them the guide farms the third prayerbead instead, to the end.
                 if (guideRoute() && available_amount($item[mer-kin prayerbeads]) < 3
-                    && (have_effect($effect[Sea Strength]) >= 40 || get_property("_utsYogBeadFarm") == "true")) {
+                    && (yogStatBuffTurns() >= 40 || get_property("_utsYogBeadFarm") == "true")) {
                     set_property("_utsYogBeadFarm", "true");
                     if (my_adventures() < 1)
                         abort("Out of adventures farming the third prayerbead for Yog-Urt.");
@@ -3320,10 +3330,17 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                                 ? " (Gummiheart is still up and no antidote could be pulled)"
                                 : "")
                             + " -- check what is granting maximum HP.");
-                    if (guideRoute() && available_amount($item[mer-kin prayerbeads]) >= 3)
+                    // With 3 prayerbeads a Muscle or HP buff of 40 turns or less is spent in the pearl zones, else removed with an antidote.
+                    if (guideRoute() && available_amount($item[mer-kin prayerbeads]) >= 3) {
+                        if (yogStatBuffTurns() > 0 && yogStatBuffTurns() <= 40 && guidePearlTurn("burning off " + yogStatBuffList()))
+                            continue;
+                        if (yogStatBuffTurns() > 0 && yogStatBuffAntidote(guidePearlZone() != $location[none]))
+                            continue;
                         abort("Predicted HP is too high for Yog-Urt even with 3 prayerbeads. "
-                            + "Remove the Muscle and HP sources first: Sea Strength (" + have_effect($effect[Sea Strength])
-                            + " turns), other Muscle or maximum HP buffs, and Muscle or HP gear. Then rerun.");
+                            + "Remove the Muscle and HP sources first: " + yogStatBuffList()
+                            + ", other Muscle or maximum HP buffs, and Muscle or HP gear. A " + $item[soft green echo eyedrop antidote]
+                            + " removes a buff; none was held or pullable within autoBuyPriceLimit. Then rerun.");
+                    }
                     if (guideRoute() && my_adventures() < 1)
                         abort("Out of adventures farming prayerbeads for Yog-Urt's HP check.");
                     hpCheckPasses += 1;
@@ -3348,6 +3365,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if (my_path().id == 55){
             // ── Post-YogUrt skate park / gladiator gear ───────────────────────────────
             if (guideRoute()) {
+                guideSeaStrengthAfterYog();
+                eatLegendPizza(nigiriKeep());
                 guideSkatePark();
             } else {
                 while (get_property("skateParkStatus") == "war")
@@ -3797,6 +3816,15 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             // The guide finishes the pearl zones, then the Abyss, before the Colosseum.
             if (guideRoute()) {
                 pearlStage2();
+                // The path needs Mom, and The Caliginous Abyss needs the black glass worn.
+                if (get_property("questS02Monkees") != "finished" && available_amount($item[black glass]) == 0) {
+                    blackGlass();
+                    if (available_amount($item[black glass]) == 0)
+                        abort("No " + $item[black glass] + ", so The Caliginous Abyss and Mom are out of reach, and the path needs Mom. "
+                            + "Big Brother offers it after Little Brother (quest " + get_property("questS02Monkees") + ") and refunds its "
+                            + "13 sand dollars, but 13 must be held: " + item_amount($item[sand dollar]) + " sand dollars and "
+                            + item_amount($item[sand penny]) + " sand pennies, 100 a dollar at Wet Crap For Sale. Get the glass, then rerun.");
+                }
                 int abyssPasses;
                 while (get_property("questS02Monkees") == "step12") {
                     if (my_adventures() < 1)
@@ -4330,6 +4358,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         int scaleTurns;
         string last;
         while (true) {
+            guideOceanRum();
             string trainer = lassoTrainerGear();
             boolean jelly = combJellyWanted() && can_adventure(trench);
             boolean lasso = trainer != "" && to_int(get_property("lassoTrainingCount")) < 20

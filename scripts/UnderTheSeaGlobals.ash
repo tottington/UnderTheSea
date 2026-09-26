@@ -2824,13 +2824,14 @@ int spellLowDamage(int base, float share, float mys, int cap, float flat, float 
     return max(0, to_int(floor(dmg * (100 - res) / 100 * elem)));
 }
 
-// Rounds to take hp at perRound damage with nine tenths of it counted, over the chance each round lands.
-// 99 when it does no damage.
+// Rounds to take hp at perRound damage with nine tenths of it counted, plus the expected misses less a quarter
+// round, so a near-certain swing adds none. 99 when it does no damage.
 int roundsToKill(int hp, int perRound, float landRate) {
     if (perRound <= 0 || landRate <= 0)
         return 99;
     int hits = ceil(max(1, hp) / (perRound * 0.9));
-    return min(99, ceil(hits / landRate));
+    float misses = hits * (1.0 / landRate - 1.0);
+    return min(99, hits + max(0, ceil(misses - 0.25)));
 }
 
 // MP to heal damage back in whole casts of the cheapest known heal: Cannelloni Cocoon 1000 HP for 20 MP,
@@ -2887,11 +2888,11 @@ int fastestKill(int [int] rounds, int [int] cost, int mp) {
     return best;
 }
 
-// The magic dragonfish's res debuff lands after round 1: the cheapest paid one-round kill, else the fastest paid
-// spell, and melee only when no spell is paid for. -1 when nothing is.
-int dragonfishKill(int [int] rounds, int [int] cost, int mp) {
+// The magic dragonfish's res debuff lands after round 1: the cheapest paid one-round spell, then a one-swing melee
+// kill at the capped hit rate, then the fastest paid spell, then melee. -1 when nothing is.
+int dragonfishKill(int [int] rounds, int [int] cost, int mp, boolean meleeCapped) {
     int best = -1;
-    for i from 0 to 2 {
+    for i from 1 to 2 {
         if (!(rounds contains i) || !(cost contains i) || rounds[i] != 1 || cost[i] > mp)
             continue;
         if (best < 0 || cost[i] < cost[best])
@@ -2899,6 +2900,8 @@ int dragonfishKill(int [int] rounds, int [int] cost, int mp) {
     }
     if (best >= 0)
         return best;
+    if (meleeCapped && (rounds contains 0) && rounds[0] == 1)
+        return 0;
     int [int] spells;
     foreach i, r in rounds
         if (i != 0)
@@ -3392,6 +3395,9 @@ guidePull [int] guidePulls = {
     new guidePull($items[petrified wood wizard's pouch, Congressional Medal of Insanity,
         petrified wood water purifier], false, "The lantern for the Colosseum spell route."),
     new guidePull($items[large box], false, "A blessed large box of bang potions, for the seed finder."),
+    new guidePull($items[Deep Dish of Legend, Calzone of Legend, Pizza of Legend], true,
+        "About 20 adventures and 100 turns of +300% mainstat, the one for your class: Deep Dish (Muscle), Calzone (Mysticality), "
+        + "Pizza (Moxie). Cooked from the Cookbookbat recipe before ascending; untradeable, so pulled only from Hagnk's."),
     new guidePull($items[Mer-kin hallpass], true, "Skips most of the scholar route."),
     new guidePull($items[hardened slime belt, six-rainbow shield], true, "Elemental resistance."),
     new guidePull($items[Pocket Square of Loathing], true, "Elemental resistance."),
@@ -3596,11 +3602,11 @@ boolean guidePullOnDemand(guidePull gp) {
     return false;
 }
 
-// Pulls the on-demand lines and reservedPulls() may still need, kept free of the regen pull.
-int onDemandPulls() {
+// Pulls reservedPulls() and the on-demand lines ranked above rank may still need.
+int onDemandPullsAbove(int rank) {
     int n = reservedPulls();
     foreach num, gp in guidePulls {
-        if (!guidePullOnDemand(gp))
+        if (num >= rank || !guidePullOnDemand(gp))
             continue;
         boolean needed = true;
         foreach it in gp.any
@@ -3612,6 +3618,11 @@ int onDemandPulls() {
             n += 1;
     }
     return n;
+}
+
+// Pulls reservedPulls() and every on-demand line may still need, kept free of the regen pull.
+int onDemandPulls() {
+    return onDemandPullsAbove(count(guidePulls));
 }
 
 // The low IOTM breakfast runs once per ascension, recorded as the ascension number.
@@ -3649,6 +3660,33 @@ item regenPullChoice() {
     return fin;
 }
 
+// The Cookbookbat legend pizza for a class's mainstat.
+item legendPizza(stat prime) {
+    if (prime == $stat[mysticality])
+        return $item[Calzone of Legend];
+    if (prime == $stat[moxie])
+        return $item[Pizza of Legend];
+    return $item[Deep Dish of Legend];
+}
+
+// The legend pizza's effect: +300% mainstat and +100% maximum HP and MP for 100 turns.
+effect legendPizzaEffect(item pizza) {
+    if (pizza == $item[Calzone of Legend])
+        return $effect[In the 'zone zone!];
+    if (pizza == $item[Pizza of Legend])
+        return $effect[Endless Drool];
+    return $effect[In the Depths];
+}
+
+// Its once per ascension preference.
+string legendPizzaEatenProp(item pizza) {
+    if (pizza == $item[Calzone of Legend])
+        return "calzoneOfLegendEaten";
+    if (pizza == $item[Pizza of Legend])
+        return "pizzaOfLegendEaten";
+    return "deepDishOfLegendEaten";
+}
+
 // The item to pull for a guide line: none when one is on hand, already pulled
 // today or unused by this route, else Hagnk's stock, else the cheapest listing.
 item guidePullChoice(guidePull gp) {
@@ -3657,6 +3695,11 @@ item guidePullChoice(guidePull gp) {
             return $item[none];
     if (gp.any contains $item[aquamariner's necklace])
         return regenPullChoice();
+    // Untradeable, so Hagnk's or nothing.
+    if (gp.any contains $item[Deep Dish of Legend]) {
+        item pizza = legendPizza(my_primestat());
+        return storage_amount(pizza) > 0 && get_property(legendPizzaEatenProp(pizza)) != "true" ? pizza : $item[none];
+    }
     if ((gp.any contains $item[shark jumper])
         && !have_skill($skill[Torso Awareness]) && !have_skill($skill[Best Dressed])) {
         print("Low IOTM pulls: no Torso Awareness, so no " + $item[shark jumper] + ".", "red");
@@ -3720,8 +3763,8 @@ void lowIOTMPulls() {
             continue;
         item it = guidePullChoice(gp);
         boolean pulling = it != $item[none] && pulls_remaining() != 0;
-        if (pulling && (gp.any contains $item[aquamariner's necklace])
-            && pulls_remaining() > 0 && pulls_remaining() <= onDemandPulls()) {
+        int kept = (gp.any contains $item[aquamariner's necklace]) ? onDemandPulls() : onDemandPullsAbove(num);
+        if (pulling && gp.flexible && pulls_remaining() > 0 && pulls_remaining() <= kept) {
             print("Low IOTM pulls: no " + it + ", its pull is kept for the on-demand pulls.", "blue");
             continue;
         }
@@ -3782,6 +3825,34 @@ boolean fishyFoodsAllowed() {
     return my_level() >= 4;
 }
 
+// Stomach room kept for one nigiri while a crate or fish meat can still feed Fishy.
+int nigiriKeep() {
+    return (get_property("questS01OldGuy") != "finished"
+        || item_amount($item[crate of fish meat]) + item_amount($item[beefy fish meat])
+            + item_amount($item[glistening fish meat]) + item_amount($item[slick fish meat]) > 0)
+        ? 2 : 0;
+}
+
+// Eat the legend pizza now: held, uneaten, its effect off and 2 fullness free past keep. Before Yog-Urt only in the
+// first 20 turns and with no legendary pasta stomach charge; after Yog-Urt any time.
+boolean legendPizzaNow(boolean held, boolean eaten, int effectTurns, int freeFullness, int keep, boolean yogDone,
+    int stomachCharges, int turnsPlayed) {
+    if (!held || eaten || effectTurns > 0 || freeFullness - keep < 2)
+        return false;
+    return yogDone || (stomachCharges == 0 && turnsPlayed <= 20);
+}
+
+// The guide route's legend pizza, when legendPizzaNow() allows it.
+void eatLegendPizza(int keep) {
+    item pizza = legendPizza(my_primestat());
+    if (!guideRoute() || !legendPizzaNow(item_amount(pizza) > 0, get_property(legendPizzaEatenProp(pizza)) == "true",
+            have_effect(legendPizzaEffect(pizza)), fullness_limit() - my_fullness(), keep,
+            get_property("yogUrtDefeated") == "true", to_int(get_property("legendaryNoodlesStomach")), turns_played()))
+        return;
+    if (!eatsilent(1, pizza))
+        print("Couldn't eat the " + pizza + ".", "red");
+}
+
 // A legendary pasta food eaten with option 5 of choice 1599, the stomach,
 // which doubles the effects of the next three foods.
 void eatLegendaryPasta() {
@@ -3830,6 +3901,11 @@ void lowIOTMDiet() {
     if (!fishyFoodsAllowed())
         print("Low IOTM diet: below level 4, so the " + $item[Aldebaran sardines] + ", "
             + $item[Centauri fish wine] + " and legendary pasta wait.", "red");
+    // Eaten before the legendary pasta, keeping 2 fullness for held sardines and 1 for held pasta.
+    int pastaHeld;
+    foreach it in pasta_prices
+        pastaHeld += item_amount(it);
+    eatLegendPizza(nigiriKeep() + (item_amount($item[Aldebaran sardines]) > 0 ? 2 : 0) + (pastaHeld > 0 ? 1 : 0));
     eatPastaAndSardines();
     if (item_amount($item[astral six-pack]) > 0 && !use(1, $item[astral six-pack]))
         print("Low IOTM diet: couldn't open the " + $item[astral six-pack] + ".", "red");
@@ -3865,6 +3941,142 @@ boolean scubaTankOnRoute() {
         + available_amount($item[Mer-kin scholar tailpiece]);
     return tankOnRoute(available_amount($item[old SCUBA tank]) > 0, get_property("seahorseName") != "",
         to_int(get_property("lassoTrainingCount")), available_amount($item[sea chaps]) > 0, tailpieces > 0);
+}
+
+// True for a Muscle class.
+boolean muscleAttack() {
+    return my_primestat() == $stat[muscle];
+}
+
+// Sand pennies held back: 100 for the surveying goggles, 30 for the Ocean-Touched Rum, 20 for Yog-Urt's sea gel and scroll.
+int pennyReserve(boolean goggles, boolean rum, boolean yogHeals) {
+    return (goggles ? 100 : 0) + (rum ? 30 : 0) + (yogHeals ? 20 : 0);
+}
+
+// Sand dollars to buy at 100 pennies each, from pennies past the reserve, toward wanted.
+int dollarsFromPennies(int pennies, int reserve, int held, int wanted) {
+    return max(0, min((pennies - reserve) / 100, wanted - held));
+}
+
+// Guide route: the goggles are still to buy for the Outpost's lockkey hunt.
+boolean gogglesPending() {
+    return guideRoute() && available_amount($item[undersea surveying goggles]) == 0
+        && get_property("corralUnlocked") != "true"
+        && item_amount($item[Mer-kin lockkey]) == 0 && get_property("merkinLockkeyMonster") == "";
+}
+
+// The Ocean-Touched Rum's Briney Brawn is wanted: a Muscle attacker before Yog-Urt and the seahorse, not drunk yet,
+// through turn 75 so its 50 turns end by turn 125.
+boolean rumPending(boolean guide, boolean muscle, boolean yogDone, boolean tamed, int brineyTurns, boolean drunk, int turnsPlayed) {
+    return guide && muscle && !yogDone && !tamed && brineyTurns == 0 && !drunk && turnsPlayed <= 75;
+}
+
+boolean guideRumPending() {
+    return rumPending(guideRoute(), muscleAttack(), get_property("yogUrtDefeated") == "true",
+        get_property("seahorseName") != "", have_effect($effect[Briney Brawn]),
+        get_property("uts_oceanRum") == to_string(my_ascensions()), turns_played());
+}
+
+// Liver the rum leaves free: 3 for a held Lambada Lambic, and 2 for a Centauri fish wine that is held or still
+// pullable today while Fishy runs out before today's adventures do.
+int rumLiverKeep(boolean lambicHeld, boolean wineAvailable, int fishyTurns, int adventures) {
+    return (lambicHeld ? 3 : 0) + (wineAvailable && fishyTurns < adventures ? 2 : 0);
+}
+
+int guideRumLiverKeep() {
+    item wine = $item[Centauri fish wine];
+    return rumLiverKeep(item_amount($item[bottle of Lambada Lambic]) > 0, item_amount(wine) > 0 || !pulledToday(wine),
+        have_effect($effect[Fishy]), my_adventures());
+}
+
+// Drink the rum now: 2 liver free past keep, and 30 pennies past the reserve unless one is held.
+boolean rumNow(boolean pending, int liverFree, int liverKeep, int pennies, int reserve, boolean rumHeld) {
+    return pending && liverFree - liverKeep >= 2 && (rumHeld || pennies - reserve >= 30);
+}
+
+// The rum can still be drunk in Coral Corral stage 1 or pearl zones stage 1, pennies aside.
+boolean guideRumDrinkable() {
+    return guideRumPending() && rumNow(true, inebriety_limit() - my_inebriety(), guideRumLiverKeep(), 0, 0, true);
+}
+
+// Pennies the guide route keeps from other spending.
+int guidePennyReserve(boolean withRum) {
+    return pennyReserve(gogglesPending(), withRum && guideRumDrinkable(), guideRoute() && get_property("yogUrtDefeated") != "true");
+}
+
+// Briney Brawn's +100% underwater Muscle from the rum, bought from Wet Crap For Sale with pennies past the goggles,
+// once an ascension.
+void guideOceanRum() {
+    item rum = $item[Ocean-Touched Rum];
+    if (!rumNow(guideRumPending(), inebriety_limit() - my_inebriety(), guideRumLiverKeep(),
+            item_amount($item[sand penny]), pennyReserve(gogglesPending(), false, false), item_amount(rum) > 0))
+        return;
+    if (item_amount(rum) == 0 && !buy($coinmaster[Wet Crap For Sale], 1, rum)) {
+        print("Couldn't buy an " + rum + ".", "red");
+        return;
+    }
+    odeUp();
+    if (!drink(1, rum))
+        print("Couldn't drink the " + rum + ".", "red");
+    else
+        set_property("uts_oceanRum", my_ascensions());
+}
+
+// A scroll of sea strength after Yog-Urt: a Muscle attacker without it, the tank settled, and meat past price and reserve.
+boolean seaStrengthScrollNow(boolean yogDone, boolean muscle, int seaTurns, boolean tankPending, int meat, int price, int reserve) {
+    return yogDone && muscle && seaTurns == 0 && !tankPending && meat >= price + reserve;
+}
+
+void guideSeaStrengthAfterYog() {
+    item scroll = $item[scroll of sea strength];
+    int price = npc_price(scroll) > 0 ? npc_price(scroll) : 950;
+    if (!guideRoute() || !seaStrengthScrollNow(get_property("yogUrtDefeated") == "true", muscleAttack(),
+            have_effect($effect[Sea Strength]), scubaTankOnRoute(), my_meat(), item_amount(scroll) > 0 ? 0 : price, 2000))
+        return;
+    if (!retrieve_item(1, scroll) || !use(1, scroll))
+        print("Couldn't use a " + scroll + ".", "red");
+}
+
+// Turns left on the Muscle and HP buffs that break the Yog-Urt HP check: Sea Strength, Briney Brawn and the legend pizzas.
+int yogStatBuffTurns() {
+    int turns;
+    foreach ef in $effects[Sea Strength, Briney Brawn, In the Depths, In the 'zone zone!, Endless Drool]
+        turns = max(turns, have_effect(ef));
+    return turns;
+}
+
+// Names the ones still active, for the Yog-Urt abort.
+string yogStatBuffList() {
+    string out;
+    foreach ef in $effects[Sea Strength, Briney Brawn, In the Depths, In the 'zone zone!, Endless Drool]
+        if (have_effect(ef) > 0)
+            out += (out == "" ? "" : ", ") + ef + " (" + have_effect(ef) + " turns)";
+    return out == "" ? "none active" : out;
+}
+
+// The Yog-Urt buff with the most turns left, skipping those of 40 turns or less while a pearl zone is open. None when all are.
+effect yogBuffToRemove(int [effect] turns, boolean pearlZoneOpen) {
+    effect pick = $effect[none];
+    foreach ef, n in turns
+        if (n > 0 && !(pearlZoneOpen && n <= 40) && (pick == $effect[none] || n > turns[pick]))
+            pick = ef;
+    return pick;
+}
+
+// Removes yogBuffToRemove()'s pick with a soft green echo eyedrop antidote, pulled within autoBuyPriceLimit while a pull
+// is spare. True when it came off.
+boolean yogStatBuffAntidote(boolean pearlZoneOpen) {
+    item antidote = $item[soft green echo eyedrop antidote];
+    int [effect] turns;
+    foreach ef in $effects[Sea Strength, Briney Brawn, In the Depths, In the 'zone zone!, Endless Drool]
+        turns[ef] = have_effect(ef);
+    effect ef = yogBuffToRemove(turns, pearlZoneOpen);
+    if (ef == $effect[none])
+        return false;
+    if (item_amount(antidote) == 0 && pulls_remaining() > reservedPulls()) {
+        boolean pulled = guidePullOne(antidote);
+    }
+    return item_amount(antidote) > 0 && cli_execute("uneffect " + ef) && have_effect(ef) == 0;
 }
 
 // Free rests at the housing, toward 400 MP.
@@ -3980,17 +4192,14 @@ boolean lowIOTMFishyPull() {
     return have_effect($effect[Fishy]) > 0;
 }
 
-// More adventures at zero on the low IOTM route: kelp pucks, then Ocean-Touched
+// More adventures at zero on the low IOTM route: the legend pizza, kelp pucks, then Ocean-Touched
 // Rum once Yog-Urt is down, since its Muscle would break the Yog-Urt HP check.
 boolean lowIOTMTopUp() {
     int before = my_adventures();
-    // Room for one nigiri stays free while a crate or fish meat can still feed Fishy.
-    int keep = (get_property("questS01OldGuy") != "finished"
-        || item_amount($item[crate of fish meat]) + item_amount($item[beefy fish meat])
-            + item_amount($item[glistening fish meat]) + item_amount($item[slick fish meat]) > 0)
-        ? 2 : 0;
+    int keep = nigiriKeep();
+    eatLegendPizza(keep);
     if (fullness_limit() - my_fullness() - keep >= 2) {
-        if (item_amount($item[kelp puck]) == 0 && item_amount($item[sand penny]) >= 30
+        if (item_amount($item[kelp puck]) == 0 && item_amount($item[sand penny]) >= 30 + guidePennyReserve(true)
             && !buy($coinmaster[Wet Crap For Sale], 1, $item[kelp puck]))
             print("Couldn't buy a " + $item[kelp puck] + ".", "red");
         if (item_amount($item[kelp puck]) > 0 && !eat(1, $item[kelp puck]))

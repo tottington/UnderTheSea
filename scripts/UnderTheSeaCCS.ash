@@ -267,6 +267,13 @@ int [int] guideKillRounds() {
     return rounds;
 }
 
+// The attack lands at the capped 21 in 22: a weapon or bare hands, not a Mysticality weapon.
+boolean meleeHitCapped() {
+    item weapon = equipped_item($slot[weapon]);
+    stat kind = weapon == $item[none] ? $stat[muscle] : weapon_type(weapon);
+    return kind != $stat[mysticality] && meleeHitRate(my_buffedstat(kind), monster_defense()) >= 21.0 / 22.0 - 0.0001;
+}
+
 // Guide route finisher: each round the cheapest kill in three rounds that survives the hits, healing included, else
 // the quickest paid one. Melee stops after two swings do no damage; no plan runs past round 25. False hands back.
 boolean guideKill() {
@@ -284,7 +291,7 @@ boolean guideKill() {
     int shown = -1;
     while (current_round() > 0 && actions < 30) {
         int [int] rounds = plannableRounds(guideKillRounds(), misses >= 2, current_round(), 25);
-        int pick = last_monster() == $monster[magic dragonfish] ? dragonfishKill(rounds, cost, my_mp())
+        int pick = last_monster() == $monster[magic dragonfish] ? dragonfishKill(rounds, cost, my_mp(), meleeHitCapped())
             : cheapestKill(rounds, cost, my_mp(), my_hp(), expected_damage(), 3, cocoon, walrus);
         if (pick < 0)
             pick = fastestKill(rounds, cost, my_mp());
