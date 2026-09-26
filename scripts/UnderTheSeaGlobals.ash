@@ -801,6 +801,11 @@ import <seedfinder/seedfinder.ash>;
     // Defined with the fish scale helpers.
     boolean scimitarRetired();
 
+    // Guide route: a club picked for the weapon slot belongs in the main hand, where Batter Up! swings it.
+    boolean clubNeedsMainHand(boolean guide, item club, item mainHand) {
+        return guide && club != $item[none] && item_type(club) == "club" && mainHand != club;
+    }
+
     void tempEquipment(string maximizerInput, string itemInput){
         string [int] itemMap = split_string(itemInput, ",");
         item [slot] equipmentSelection;
@@ -853,6 +858,17 @@ import <seedfinder/seedfinder.ash>;
             maximizerInput += ", -equip cozy scimitar";
         if (!maximize(maximizerInput, false))
             abort("Maximizer failed");
+        // The maximizer may hold the club in the off-hand; the weapon it displaced moves there when it fits.
+        item club = equipmentSelection[$slot[weapon]];
+        item displaced = equipped_item($slot[weapon]);
+        if (clubNeedsMainHand(guideRoute(), club, displaced)) {
+            if (!equip($slot[weapon], club))
+                print("Couldn't wield the " + club + " in the main hand.", "red");
+            else if (displaced != $item[none] && weapon_hands(displaced) == 1 && available_amount(displaced) > 0
+                && have_skill($skill[Double-Fisted Skull Smashing]) && equipped_item($slot[off-hand]) == $item[none]
+                && !equip($slot[off-hand], displaced))
+                print("Couldn't hold the " + displaced + " in the off-hand.", "red");
+        }
         if (modes != "")
             cli_execute(modes);
     }
@@ -2357,6 +2373,54 @@ int scalesNeeded() {
         + dullScalesNeeded();
 }
 
+// Dull scales past the 25 for the scale-mail underwear and the ten a rough scale the missing pristine ones take.
+int dullScalesSurplus(int dull, int rough, boolean underwear, int pristineNeeded) {
+    int reserve = (underwear ? 0 : 25) + 10 * max(0, 10 * pristineNeeded - rough);
+    return max(0, dull - reserve);
+}
+
+// Rough scales past the ten each missing pristine scale takes.
+int roughScalesSurplus(int rough, int pristineNeeded) {
+    return max(0, rough - 10 * pristineNeeded);
+}
+
+// Healscrolls past one for Yog-Urt and one for the dreadscroll's healscroll clue.
+int healscrollSurplus(int held, boolean yogDone, boolean clueOpen) {
+    return max(0, held - (yogDone ? 0 : 1) - (clueOpen ? 1 : 0));
+}
+
+// A surplus sale waits for 400 meat of goods unless meat is short.
+boolean surplusSaleNow(int value, int meat) {
+    return value > 0 && (value >= 400 || meat < 2000);
+}
+
+// Room for one more song after the route's own songs that are known and not up.
+boolean polkaFits(int songs, int limit, int routeSongsMissing) {
+    return songs + routeSongsMissing < limit;
+}
+
+int songsActive() {
+    int n;
+    foreach ef in my_effects()
+        if (ef.song)
+            n += 1;
+    return n;
+}
+
+int songLimit() {
+    return 3 + to_int(numeric_modifier("Additional Song")) + (boolean_modifier("Four Songs") ? 1 : 0);
+}
+
+// Songs the item drop and -combat moods cast before the seahorse, known but not up.
+int routeSongsMissing() {
+    int n;
+    foreach ef in $effects[Fat Leon's Phat Loot Lyric, Donho's Bubbly Ballad, The Ballad of Richie Thingfinder,
+        The Sonata of Sneakiness]
+        if (ef.song && have_skill(to_skill(ef)) && have_effect(ef) == 0)
+            n += 1;
+    return n;
+}
+
 // The cozy wears off after 48 to 52 uses, so the scimitar is set aside at 45 or once no scales are left to farm.
 boolean scimitarWornOut(int uses, int scalesLeft) {
     return scalesLeft == 0 || uses >= 45;
@@ -2531,6 +2595,25 @@ int snokebombsSpare() {
     return 3 - to_int(get_property("_snokebombUsed")) - snokeTargetsAhead();
 }
 
+// Guide route: Shattering Punch is kept for the Corral sea cow until its cowbells and leather are in.
+boolean punchReserved(boolean guide, boolean seaCowFight, boolean tamed, boolean seaCowDone) {
+    return guide && !seaCowFight && !tamed && !seaCowDone;
+}
+
+// Steely-Eyed Squint lasts one turn, so it waits for a free kill left for the sea cow, when one is known at all.
+boolean squintNow(boolean known, boolean active, boolean usedToday, boolean freeKillKnown, boolean freeKillLeft) {
+    return known && !active && !usedToday && (freeKillLeft || !freeKillKnown);
+}
+
+boolean seaCowFreeKillKnown() {
+    return have_skill($skill[Shattering Punch]) || have_skill($skill[Gingerbread Mob Hit]);
+}
+
+boolean seaCowFreeKillLeft() {
+    return (have_skill($skill[Shattering Punch]) && to_int(get_property("_shatteringPunchUsed")) < 3)
+        || (have_skill($skill[Gingerbread Mob Hit]) && get_property("_gingerbreadMobHitUsed") != "true");
+}
+
 // True while Batter Up! holds none of the zone's targets and one is still unbanished.
 // One attempt per zone until Batter Up! is spent elsewhere.
 boolean batterUpPending(location loc) {
@@ -2561,6 +2644,27 @@ boolean restWouldCostFury() {
         && ($locations[The Marinara Trench, The Dive Bar, Madness Reef, The Briniest Deepests] contains my_location()))
         return true;
     return batterUpPending(my_location());
+}
+
+// The VIP pool's swim sprints need a Clan VIP Lounge key in inventory and the pool unused today.
+boolean poolSprintOpen(int keys, boolean usedToday) {
+    return keys > 0 && !usedToday;
+}
+
+// Guide route: mafia's mana burning stays off for the run. The user's threshold waits in uts_manaBurnSaved.
+void manaBurnOff() {
+    if (get_property("uts_manaBurnSaved") == "")
+        set_property("uts_manaBurnSaved", get_property("manaBurningThreshold"));
+    set_property("manaBurningThreshold", "-0.05");
+}
+
+// Puts back the threshold manaBurnOff() saved, one a killed run left behind included.
+void manaBurnRestore() {
+    string saved = get_property("uts_manaBurnSaved");
+    if (saved == "")
+        return;
+    set_property("manaBurningThreshold", saved);
+    set_property("uts_manaBurnSaved", "");
 }
 
 // Club when a banish is due and Fury is full, cozy scimitar while scales are short, else the
@@ -2632,6 +2736,84 @@ float elementFactor(element spell, element mob) {
     return contains_text("," + beats[spell] + ",", "," + mob + ",") ? 2.0 : 1.0;
 }
 
+// A monster's resistance to one element.
+int monsterElementRes(monster mob, element e) {
+    switch (e) {
+        case $element[hot]: return mob.hot_resistance;
+        case $element[cold]: return mob.cold_resistance;
+        case $element[spooky]: return mob.spooky_resistance;
+        case $element[sleaze]: return mob.sleaze_resistance;
+        case $element[stench]: return mob.stench_resistance;
+    }
+    return 0;
+}
+
+float lanternTop(float [element] comp) {
+    float top;
+    foreach e, v in comp
+        top = max(top, v);
+    return top;
+}
+
+// Low roll weight of a spell hit and its lanterns in unresisted hits; share is each element's factor after res, none is physical.
+// Lanterns add the highest component in wiki order; the Medal sets its picks to it, the worst picks assumed.
+float lanternWeight(element spell, element [int] before, int medalPicks, element [int] after, float [element] share) {
+    float [element] comp;
+    comp[spell] = 1.0;
+    foreach i, e in before
+        comp[e] += lanternTop(comp);
+    float medal;
+    if (medalPicks > 0) {
+        float top = lanternTop(comp);
+        float [int] gains;
+        foreach e in $elements[hot, cold, spooky, sleaze, stench]
+            gains[count(gains)] = (top - comp[e]) * share[e];
+        sort gains by value;
+        for i from 0 to min(medalPicks, 3) - 1
+            medal += gains[i];
+    }
+    foreach i, e in after
+        comp[e] += lanternTop(comp);
+    float w = medal;
+    foreach e, v in comp
+        w += v * share[e];
+    return w;
+}
+
+// Lantern elements that act before the Medal, in the wiki's order; none stands for the pouch's physical copy.
+element [int] lanternsBeforeMedal() {
+    element [int] out;
+    if (my_familiar() == $familiar[Foul Ball])
+        out[count(out)] = $element[stench];
+    foreach it in $items[meteorb, big hot pepper]
+        if (have_equipped(it))
+            out[count(out)] = $element[hot];
+    if (have_equipped($item[snow mobile]))
+        out[count(out)] = $element[cold];
+    if (have_equipped($item[Rain-Doh green lantern]))
+        out[count(out)] = $element[stench];
+    if (have_equipped($item[petrified wood wizard's pouch])) {
+        out[count(out)] = $element[hot];
+        out[count(out)] = $element[none];
+    }
+    if (have_equipped($item[petrified wood water purifier])) {
+        out[count(out)] = $element[cold];
+        out[count(out)] = $element[sleaze];
+    }
+    if (have_effect($effect[Frigidalmatian]) > 0)
+        out[count(out)] = $element[cold];
+    return out;
+}
+
+// The retro cape's spooky lantern acts after the Medal.
+element [int] lanternsAfterMedal() {
+    element [int] out;
+    if (have_equipped($item[unwrapped knock-off retro superhero cape]) && get_property("retroCapeSuperhero") == "heck"
+        && get_property("retroCapeWashingInstructions") == "kill")
+        out[count(out)] = $element[spooky];
+    return out;
+}
+
 // Low roll of one sauce hit: base + floor(share * Mys) + flat bonuses under the cap (0 for none), then
 // the percent bonus, resistance and the element factor, rounded down.
 int spellLowDamage(int base, float share, float mys, int cap, float flat, float percent, int res, float elem) {
@@ -2651,20 +2833,17 @@ int roundsToKill(int hp, int perRound, float landRate) {
     return min(99, ceil(hits / landRate));
 }
 
-// HP a heal skill restores per MP: Cannelloni Cocoon's 1000 for 20, Tongue of the Walrus's 35 for 10, else 2.
-float healRatio(boolean cocoon, boolean walrus) {
-    if (cocoon)
-        return 50.0;
-    if (walrus)
-        return 3.5;
-    return 2.0;
-}
-
-// MP to heal damage back at ratio HP a MP. 0 without a ratio.
-int healMP(int damage, float ratio) {
-    if (damage <= 0 || ratio <= 0)
+// MP to heal damage back in whole casts of the cheapest known heal: Cannelloni Cocoon 1000 HP for 20 MP,
+// Tongue of the Walrus 35 HP for 10 MP. Without either, 2 HP a MP.
+int healMP(int damage, boolean cocoon, boolean walrus) {
+    if (damage <= 0)
         return 0;
-    return ceil(damage / ratio);
+    int best = -1;
+    if (cocoon)
+        best = ceil(damage / 1000.0) * 20;
+    if (walrus && (best < 0 || ceil(damage / 35.0) * 10 < best))
+        best = ceil(damage / 35.0) * 10;
+    return best >= 0 ? best : ceil(damage / 2.0);
 }
 
 // The rounds map with 99 for melee once it is off and for any option that ends past lastRound.
@@ -2676,8 +2855,8 @@ int [int] plannableRounds(int [int] rounds, boolean meleeOff, int roundNow, int 
 }
 
 // The paid finisher (0 attack, 1 Saucestorm, 2 Saucegeyser, -1 none) killing within maxRounds and surviving a hit
-// a round, with the least MP for casts and healing at ratio HP a MP. Ties take the lower index.
-int cheapestKill(int [int] rounds, int [int] cost, int mp, int hp, int hitTaken, int maxRounds, float ratio) {
+// a round, with the least MP for casts and healing casts. Ties take the lower index.
+int cheapestKill(int [int] rounds, int [int] cost, int mp, int hp, int hitTaken, int maxRounds, boolean cocoon, boolean walrus) {
     int best = -1;
     int bestMP;
     for i from 0 to 2 {
@@ -2687,7 +2866,7 @@ int cheapestKill(int [int] rounds, int [int] cost, int mp, int hp, int hitTaken,
         int damage = rounds[i] * hitTaken;
         if (spend > mp || damage >= hp)
             continue;
-        int total = spend + healMP(damage, ratio);
+        int total = spend + healMP(damage, cocoon, walrus);
         if (best < 0 || total < bestMP) {
             best = i;
             bestMP = total;
@@ -2706,6 +2885,26 @@ int fastestKill(int [int] rounds, int [int] cost, int mp) {
             best = i;
     }
     return best;
+}
+
+// The magic dragonfish's res debuff lands after round 1: the cheapest paid one-round kill, else the fastest paid
+// spell, and melee only when no spell is paid for. -1 when nothing is.
+int dragonfishKill(int [int] rounds, int [int] cost, int mp) {
+    int best = -1;
+    for i from 0 to 2 {
+        if (!(rounds contains i) || !(cost contains i) || rounds[i] != 1 || cost[i] > mp)
+            continue;
+        if (best < 0 || cost[i] < cost[best])
+            best = i;
+    }
+    if (best >= 0)
+        return best;
+    int [int] spells;
+    foreach i, r in rounds
+        if (i != 0)
+            spells[i] = r;
+    best = fastestKill(spells, cost, mp);
+    return best >= 0 ? best : fastestKill(rounds, cost, mp);
 }
 
 // ─── EVERFULL DART ────────────────────────────────────────────────────────────
@@ -3568,6 +3767,10 @@ boolean odeUp() {
         return true;
     if (have_effect($effect[Donho's Bubbly Ballad]) > 0
         && cli_execute("shrug Donho's Bubbly Ballad")
+        && use_skill(1, $skill[The Ode to Booze]))
+        return true;
+    if (guideRoute() && have_effect($effect[Polka of Plenty]) > 0
+        && cli_execute("shrug Polka of Plenty")
         && use_skill(1, $skill[The Ode to Booze]))
         return true;
     print("Couldn't cast " + $skill[The Ode to Booze] + ".", "red");

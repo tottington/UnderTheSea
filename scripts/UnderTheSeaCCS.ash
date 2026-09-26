@@ -121,6 +121,10 @@ void free_kill(string ptext, boolean drop) {
         if (freeskill == $skill[BCZ: Sweat Bullets]
             && (my_basestat($stat[submoxie]) - 22500) < BCZcost("SweatBulletsCasts"))
             continue;
+        if (freeskill == $skill[Shattering Punch]
+            && punchReserved(guideRoute(), my_location() == $location[The Coral Corral] && last_monster() == $monster[sea cow],
+                get_property("seahorseName") != "", doneWithSeaCow()))
+            continue;
         if (contains_text(ptext, to_string(freeskill)))
             use_skill(freeskill);
     }
@@ -194,11 +198,15 @@ void free_run(string ptext, boolean banish) {
     }
 }
 
+// Refracted Gaze needs the blood cubic zirconia worn and Mysticality past the next cast's cost.
+boolean gazeAffordable(boolean worn, boolean nctoc, int subMys, int cost) {
+    return worn && !nctoc && subMys - 40000 > cost;
+}
+
 // BCZ refracted gaze helper — checks stat threshold before casting
 boolean bcz_gaze_ready() {
-    if (get_property("NCtoC") == "true")
-        return false;
-    return (my_basestat($stat[submysticality]) - 40000) > BCZcost("RefractedGazeCasts");
+    return gazeAffordable(have_equipped($item[blood cubic zirconia]), get_property("NCtoC") == "true",
+        my_basestat($stat[submysticality]), BCZcost("RefractedGazeCasts"));
 }
 
 void attackCleanUp() {
@@ -236,14 +244,24 @@ int [int] guideKillRounds() {
     float percent = numeric_modifier("Spell Damage Percent");
     float hotFlat = flat + numeric_modifier("Hot Spell Damage");
     float coldFlat = flat + numeric_modifier("Cold Spell Damage");
+    // Each sauce hit and its lantern copies, from the unresisted hit.
+    float [element] share;
+    foreach e in $elements[hot, cold, spooky, sleaze, stench]
+        share[e] = elementFactor(e, own) * (100 - monsterElementRes(mob, e)) / 100.0;
+    share[$element[none]] = 1.0;
+    element [int] before = lanternsBeforeMedal();
+    element [int] after = lanternsAfterMedal();
+    int medal = have_equipped($item[Congressional Medal of Insanity]) ? 3 : 0;
+    float hotWeight = lanternWeight($element[hot], before, medal, after, share);
+    float coldWeight = lanternWeight($element[cold], before, medal, after, share);
     if (have_skill($skill[Saucestorm])) {
-        int storm = spellLowDamage(20, 0.2, mys, 50, coldFlat, percent, mob.cold_resistance, elementFactor($element[cold], own))
-            + spellLowDamage(20, 0.2, mys, 50, hotFlat, percent, mob.hot_resistance, elementFactor($element[hot], own));
+        int storm = to_int(floor(spellLowDamage(20, 0.2, mys, 50, coldFlat, percent, 0, 1.0) * coldWeight))
+            + to_int(floor(spellLowDamage(20, 0.2, mys, 50, hotFlat, percent, 0, 1.0) * hotWeight));
         rounds[1] = roundsToKill(hp, storm, 1.0);
     }
     if (have_skill($skill[Saucegeyser]) && mob != $monster[Yog-Urt, Elder Goddess of Hatred]) {
-        int geyser = max(spellLowDamage(60, 0.4, mys, 0, hotFlat, percent, mob.hot_resistance, elementFactor($element[hot], own)),
-            spellLowDamage(60, 0.4, mys, 0, coldFlat, percent, mob.cold_resistance, elementFactor($element[cold], own)));
+        int geyser = max(to_int(floor(spellLowDamage(60, 0.4, mys, 0, hotFlat, percent, 0, 1.0) * hotWeight)),
+            to_int(floor(spellLowDamage(60, 0.4, mys, 0, coldFlat, percent, 0, 1.0) * coldWeight)));
         rounds[2] = roundsToKill(hp, geyser, 1.0);
     }
     return rounds;
@@ -258,14 +276,16 @@ boolean guideKill() {
         return false;
     string [int] names = {0: "attack", 1: to_string($skill[Saucestorm]), 2: to_string($skill[Saucegeyser])};
     int [int] cost = {0: 0, 1: mp_cost($skill[Saucestorm]), 2: mp_cost($skill[Saucegeyser])};
-    float ratio = healRatio(have_skill($skill[Cannelloni Cocoon]), have_skill($skill[Tongue of the Walrus]));
+    boolean cocoon = have_skill($skill[Cannelloni Cocoon]);
+    boolean walrus = have_skill($skill[Tongue of the Walrus]);
     int actions;
     int stuck;
     int misses;
     int shown = -1;
     while (current_round() > 0 && actions < 30) {
         int [int] rounds = plannableRounds(guideKillRounds(), misses >= 2, current_round(), 25);
-        int pick = cheapestKill(rounds, cost, my_mp(), my_hp(), expected_damage(), 3, ratio);
+        int pick = last_monster() == $monster[magic dragonfish] ? dragonfishKill(rounds, cost, my_mp())
+            : cheapestKill(rounds, cost, my_mp(), my_hp(), expected_damage(), 3, cocoon, walrus);
         if (pick < 0)
             pick = fastestKill(rounds, cost, my_mp());
         if (pick < 0)

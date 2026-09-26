@@ -121,6 +121,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         if (ef == $effect[Wild and Westy!]
                             && (to_int(get_property("_photoBoothEffects")) >= 3 || !have_item($item[Clan VIP Lounge key]))) continue;
                         if (ef == $effect[Apriling Band Patrol Beat] && (!have_item($item[apriling band helmet]) || total_turns_played() < to_int(get_property("nextAprilBandTurn")))) continue;
+                        if (ef == $effect[silent running]
+                            && !poolSprintOpen(item_amount($item[Clan VIP Lounge key]), get_property("_olympicSwimmingPool") == "true")) continue;
                         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))) continue;
                         cli_execute(ef.default);
                     }
@@ -128,6 +130,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 print("Combat rate is " + numeric_modifier("Combat Rate"));
                 break;
             case "combat":
+                // Shrugs the guide's Polka so the +combat song fits.
+                if (guideRoute() && have_effect($effect[Polka of Plenty]) > 0 && !cli_execute("shrug Polka of Plenty"))
+                    print("Couldn't shrug " + $effect[Polka of Plenty] + ".", "red");
                 foreach ef in $effects[Carlweather's Cantata of Confrontation,
                     Fresh Breath, Musk of the Moose, Crunchy Steps, Apriling Band Battle Cadence,
                     Towering Muscles, Attracting Snakes, Bloodbathed] {
@@ -219,6 +224,38 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     void oldGuy();
     void guideEarlyTank();
 
+    // Guide route meat: The Polka of Plenty while the old SCUBA tank is still to buy, and spare scales and healscrolls sold.
+    void guideMeat() {
+        if (!guideRoute())
+            return;
+        skill polka = $skill[The Polka of Plenty];
+        if (scubaTankOnRoute() && have_skill(polka) && have_effect($effect[Polka of Plenty]) == 0
+            && my_mp() >= mp_cost(polka) + killReserveMP() && polkaFits(songsActive(), songLimit(), routeSongsMissing())
+            && !use_skill(1, polka))
+            print("Couldn't cast " + polka + ".", "red");
+        item rough = $item[rough fish scale];
+        int pristine = pristineScalesNeeded();
+        int [item] spare;
+        spare[$item[dull fish scale]] = dullScalesSurplus(item_amount($item[dull fish scale]), item_amount(rough),
+            available_amount($item[scale-mail underwear]) > 0, pristine);
+        spare[rough] = roughScalesSurplus(item_amount(rough), pristine);
+        spare[$item[Mer-kin healscroll]] = healscrollSurplus(item_amount($item[Mer-kin healscroll]),
+            get_property("yogUrtDefeated") == "true", get_property("dreadScroll2") == "0");
+        int value;
+        foreach it, n in spare
+            value += n * autosell_price(it);
+        if (!surplusSaleNow(value, my_meat()))
+            return;
+        foreach it, n in spare {
+            if (n < 1)
+                continue;
+            if (autosell(n, it))
+                print("Sold " + n + " spare " + it + " for meat.", "blue");
+            else
+                print("Couldn't sell the spare " + it + ".", "red");
+        }
+    }
+
     void post_adv() {
         if (get_property("_lastCombatLost") == "true"){
             if (have_effect($effect[beaten up]) > 0){
@@ -261,6 +298,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     use($item[astral six-pack]);
                 if (item_amount($item[astral pilsner]) > 0) {
                     cli_execute("shrug Donho's Bubbly Ballad");            
+                    if (guideRoute() && have_effect($effect[Polka of Plenty]) > 0 && !cli_execute("shrug Polka of Plenty"))
+                        print("Couldn't shrug " + $effect[Polka of Plenty] + ".", "red");
                     if (have_skill($skill[The Ode to Booze]))
                         use_skill($skill[the ode to booze]);
                     drink($item[astral pilsner]);
@@ -393,6 +432,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 dolphinSaidWhy = "";
             }
         }
+        guideMeat();
         if (my_meat( ) < 300 && (!guideRoute() || pristineScalesWanted() == 0)){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
@@ -1747,21 +1787,37 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // The Outpost is all combat and the lockkey drop ignores item drop, so -combat serves only the sneak leg
+    // before Grandma and the stashbox leg after the lockkey.
+    boolean outpostWantsNoncombat(boolean sneakLeg, boolean lockkeyFound) {
+        return sneakLeg || lockkeyFound;
+    }
+
+    // A held Mer-kin hidepaint for the noncombat legs, while Colorfully Concealed is off.
+    boolean hidepaintNow(boolean noncombat, int concealed, int held) {
+        return noncombat && concealed == 0 && held > 0;
+    }
+
     // Low IOTM Outpost gear. Before Grandma is freed: less combat first, item drop second, the
     // shootin' iron. After: the cozy scimitar, with the goggles until the lockkey drops.
     void outpostGuideGear(boolean sneakLeg) {
         location post = $location[The Mer-Kin Outpost];
         item goggles = $item[undersea surveying goggles];
-        boolean lockkeyHunt = !sneakLeg && item_amount($item[Mer-kin lockkey]) == 0;
+        item paint = $item[Mer-kin hidepaint];
+        boolean lockkeyFound = item_amount($item[Mer-kin lockkey]) > 0 || get_property("merkinLockkeyMonster") != "";
+        boolean lockkeyHunt = !outpostWantsNoncombat(sneakLeg, lockkeyFound);
         if (lockkeyHunt && available_amount(goggles) == 0 && item_amount($item[sand penny]) >= 100
             && !buy($coinmaster[Wet Crap For Sale], 1, goggles))
             print("Couldn't buy the " + goggles + ".", "red");
         set_location(post);
         use_familiar(lockkeyHunt ? "itdrop" : "-combat");
-        mood("-combat");
+        if (!lockkeyHunt)
+            mood("-combat");
+        if (hidepaintNow(!lockkeyHunt, have_effect($effect[Colorfully Concealed]), item_amount(paint)) && !use(1, paint))
+            print("Couldn't use the " + paint + ".", "red");
         mood("itdrop");
         string hat = lockkeyHunt ? if_equip(goggles) : if_equip($item[Mer-kin sneakmask]);
-        tempEquipment((lockkeyHunt ? "item drop, -combat" : "-3 combat, item drop") + ", sea" + guideRegen(),
+        tempEquipment((lockkeyHunt ? "item drop" : "-3 combat, item drop") + ", sea" + guideRegen(),
             guideWeapon(post, sneakLeg) + hat + bathysphere($item[none]));
         if (!lockkeyHunt)
             guideGearCheck("Mer-kin Outpost", "", true);
@@ -2211,8 +2267,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 print("No room for the Corral's +100% item drop consumable.", "red");
         }
         skill squint = $skill[Steely-Eyed Squint];
-        if (have_skill(squint) && have_effect($effect[Steely-Eyed Squint]) == 0
-            && get_property("_steelyEyedSquintUsed") == "false" && !use_skill(1, squint))
+        if (squintNow(have_skill(squint), have_effect($effect[Steely-Eyed Squint]) > 0,
+                get_property("_steelyEyedSquintUsed") == "true", seaCowFreeKillKnown(), seaCowFreeKillLeft())
+            && !use_skill(1, squint))
             print("Couldn't cast " + squint + ".", "red");
     }
 
@@ -3344,6 +3401,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             $item[Mer-kin scholar tailpiece]: $item[crappy Mer-kin tailpiece]};
         item [item] gladiator = {$item[Mer-kin scholar mask]: $item[Mer-kin gladiator mask],
             $item[Mer-kin scholar tailpiece]: $item[Mer-kin gladiator tailpiece]};
+        int [item] traded;
         foreach scholar in row {
             if (available_amount(scholar) == 0 || available_amount(crappy[scholar]) > 0
                 || available_amount(gladiator[scholar]) > 0)
@@ -3351,10 +3409,21 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             if (have_equipped(scholar) && !equip(to_slot(scholar), $item[none]))
                 abort("Couldn't take off the " + scholar + " to trade it to Grandma.");
             equipSwimTrunks();
+            int before = available_amount(scholar);
             visit_url("shop.php?whichshop=grandma&action=buyitem&quantity=1&whichrow=" + row[scholar]);
             if (available_amount(crappy[scholar]) == 0)
                 abort("Grandma didn't trade the " + scholar + " for a " + crappy[scholar] + ".");
+            traded[scholar] = before - 1;
         }
+        // mafia doesn't take the traded pieces out of inventory, so the maximizer would reach for them.
+        if (count(traded) == 0)
+            return;
+        if (!cli_execute("refresh inventory"))
+            abort("Couldn't refresh the inventory after Grandma's trades.");
+        foreach scholar, left in traded
+            if (available_amount(scholar) > left || available_amount(crappy[scholar]) == 0)
+                abort("After Grandma's trade the inventory shows " + available_amount(scholar) + " " + scholar + " and "
+                    + available_amount(crappy[scholar]) + " " + crappy[scholar] + ".");
     }
 
     boolean guideGymNeeds() {
@@ -4768,6 +4837,8 @@ void seaMonkees() {
 // parameter, but collects a vararg silently, so a bare "UnderTheSea" runs
 // without a dialog.
 void main(string... args) {
+    // A killed run's saved mana burning threshold comes back on any entry.
+    manaBurnRestore();
     string command = count(args) > 0 ? to_lower_case(args[0]) : "";
     if (command == "sim") {
         // Report-only mode: the same ownership checklists the run prints at
@@ -4830,8 +4901,11 @@ void main(string... args) {
         set_property("choiceAdventure1387", "3");
         print("Starting UnderTheSea");
         initialization();
+        if (guideRoute())
+            manaBurnOff();
         seaMonkees();
     } finally {
+        manaBurnRestore();
         set_property("choiceAdventureScript", choiceStorage);
         set_property("betweenBattleScript", betweenBattleStorage);
         set_property("afterAdventureScript", afterAdventureStorage);
