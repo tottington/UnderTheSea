@@ -2627,6 +2627,11 @@ boolean batterUpPending(location loc) {
     return false;
 }
 
+// A guide route banish can fire on a Batter Up! target still due: Batter Up! itself, or a spare Snokebomb.
+boolean guideBanishDue(boolean pending, boolean batterPossible, boolean snokeKnown, int snokeSpare) {
+    return pending && (batterPossible || (snokeKnown && snokeSpare >= 1));
+}
+
 // On the guide route Snokebomb goes to the guide's own targets, and to Batter Up! targets
 // only when Batter Up! is out of reach and a Snokebomb is left over after the targets ahead.
 boolean snokebombReserved(location loc, monster mob) {
@@ -3352,19 +3357,19 @@ guideSkill [int] guideSkills = {
     new guideSkill($skills[Musk of the Moose], 1, "Combat rate."),
     new guideSkill($skills[Carlweather's Cantata of Confrontation], 1, "Combat rate."),
     new guideSkill($skills[The Ode to Booze], 1, "More adventures from the astral pilsners."),
-    new guideSkill($skills[Batter Up!], 1, "The route's unlimited banish, with a club and full Fury."),
+    new guideSkill($skills[Batter Up!], 1, "Unlimited banish, with a club and 5 Fury."),
     new guideSkill($skills[Wrath of the Wolverine], 1, "Fills Fury for Batter Up!"),
     new guideSkill($skills[Ire of the Orca], 1, "Fills Fury for Batter Up!"),
     new guideSkill($skills[Snokebomb], 1, "Three banishes a day."),
-    new guideSkill($skills[Summon Leviatuga], 1, "Fish scales with the cozy scimitar, and it replaces the scale-mail underwear pull."),
-    new guideSkill($skills[Secret Door Awareness], 1, "Listed by the guide for elemental resistance."),
+    new guideSkill($skills[Summon Leviatuga], 1, "Fish scales with the cozy scimitar."),
+    new guideSkill($skills[Secret Door Awareness], 1, "Finds scrolls of minor invulnerability: +3 all resistance for 20 turns."),
     new guideSkill($skills[Elemental Saucesphere], 1, "Elemental resistance."),
-    new guideSkill($skills[Cold-Blooded Fearlessness, Hypersane, Bravery Gland], 1, "A passive spooky resistance perm."),
+    new guideSkill($skills[Cold-Blooded Fearlessness, Hypersane, Bravery Gland], 1, "Spooky resistance."),
     new guideSkill($skills[Who's Going to Pay This Drunken Sailor?, Mad Looting Skillz,
         Fat Leon's Phat Loot Lyric, Donho's Bubbly Ballad, Powers of Observatiogn,
-        Singer's Faithful Ocelot, Object Quasi-Permanence], 2, "Item drop perms, at least two."),
-    new guideSkill($skills[The Polka of Plenty], 1, "Meat, to afford the 10,000 meat SCUBA tank."),
-    new guideSkill($skills[Saucestorm], 1, "A cheap elemental damage spell."),
+        Singer's Faithful Ocelot, Object Quasi-Permanence], 2, "Item drop, any two."),
+    new guideSkill($skills[The Polka of Plenty], 1, "Meat."),
+    new guideSkill($skills[Saucestorm], 1, "Cheap elemental damage."),
     new guideSkill($skills[Steely-Eyed Squint], 1, "Doubles item drops once a day."),
     new guideSkill($skills[Shattering Punch], 1, "Three free kills a day."),
     new guideSkill($skills[Torso Awareness], 1, "Lets you wear the shark jumper."),
@@ -3380,7 +3385,7 @@ record guidePull {
 
 guidePull [int] guidePulls = {
     new guidePull($items[shark jumper], false, "Elemental resistance, and the Mom fight."),
-    new guidePull($items[pro skateboard], false, "The McTwist on the unholy diver, for the diving helmet."),
+    new guidePull($items[pro skateboard], false, "McTwist on the unholy diver, for the diving helmet."),
     new guidePull($items[pulled yellow taffy], false, "Used on the unholy diver after the McTwist."),
     new guidePull($items[cozy scimitar], false, "Fish scales with Harpoon! and Summon Leviatuga."),
     new guidePull($items[Centauri fish wine], false, "60 turns of Fishy."),
@@ -3390,21 +3395,20 @@ guidePull [int] guidePulls = {
         Gnocci Domani, Formica e Pepe], false, "Fishy, doubled by eating it with your stomach."),
     new guidePull($items[Bram's choker], false, "Noncombat rate."),
     new guidePull($items[rusted-out shootin' iron], false, "Noncombat rate, and a club for Batter Up!"),
-    new guidePull($items[null-day exploit], false, "Null Afternoon for the Colosseum and Shub-Jigguwatt."),
+    new guidePull($items[null-day exploit], false, "Null Afternoon for the Colosseum, Shub-Jigguwatt and the Sorceress."),
     new guidePull($items[patent aggression tonic, lion musk], false, "Combat rate."),
     new guidePull($items[petrified wood wizard's pouch, Congressional Medal of Insanity,
-        petrified wood water purifier], false, "The lantern for the Colosseum spell route."),
+        petrified wood water purifier], false, "Lantern for the Colosseum spell route."),
     new guidePull($items[large box], false, "A blessed large box of bang potions, for the seed finder."),
     new guidePull($items[Deep Dish of Legend, Calzone of Legend, Pizza of Legend], true,
-        "About 20 adventures and 100 turns of +300% mainstat, the one for your class: Deep Dish (Muscle), Calzone (Mysticality), "
-        + "Pizza (Moxie). Cooked from the Cookbookbat recipe before ascending; untradeable, so pulled only from Hagnk's."),
+        "Optional, ~20 adventures and 100 turns of +300% mainstat. Untradeable; cook it before ascending."),
     new guidePull($items[Mer-kin hallpass], true, "Skips most of the scholar route."),
     new guidePull($items[hardened slime belt, six-rainbow shield], true, "Elemental resistance."),
-    new guidePull($items[Pocket Square of Loathing], true, "Elemental resistance."),
+    new guidePull($items[Pocket Square of Loathing], true, "Elemental resistance, worth 10+ turns in the pearl zones."),
     new guidePull($items[1\,970 carat gold], true, "Meat."),
-    new guidePull($items[bottle of Lambada Lambic], true, "Item drop for the Coral Corral."),
+    new guidePull($items[bottle of Lambada Lambic], true, "Item drop for the Coral Corral, and ~19 adventures."),
     new guidePull($items[Mer-kin sneakmask], true, "Noncombat rate."),
-    new guidePull($items[peppermint parasol], true, "Free runaways, about 9 turns saved."),
+    new guidePull($items[peppermint parasol], true, "Free runaways, ~9 turns saved."),
     new guidePull($items[lodestone], true, "Saves 5 turns."),
     new guidePull($items[waffle], true, "Finds the seahorse sooner."),
     new guidePull($items[stench jelly, Clara's bell, handheld Allied radio], true, "A noncombat forcer."),
@@ -3425,25 +3429,81 @@ string itemNames(boolean [item] list) {
     return out;
 }
 
-void printGuidePulls(boolean flexible) {
+// Pulled by the phase that uses them, not by the breakfast plan.
+boolean [item] guidePullsOnDemand = $items[lodestone, waffle, stench jelly, Clara's bell,
+    handheld Allied radio];
+
+boolean lowIOTMBreakfastDone();
+item legendPizza(stat prime);
+
+// One guide pull line. In run, a line still in Hagnk's reads as pulled on demand, skipped or still to pull.
+string guidePullLine(string names, string why, boolean runStart, boolean pulled, boolean onHand, boolean inStorage,
+    boolean onDemand, boolean pullsDone, boolean buyable) {
+    string line = names + ": " + why + (!runStart && onDemand ? " Pulled on demand." : "");
+    if (!runStart && (pulled || onHand || inStorage))
+        return "✓ " + line;
+    if (pulled)
+        return "✓ " + line + " Pulled.";
+    if (onHand)
+        return "✓ " + line + " On hand.";
+    if (inStorage && onDemand)
+        return "○ " + line + " In Hagnk's, pulled on demand.";
+    if (inStorage && pullsDone)
+        return "○ " + line + " In Hagnk's, skipped for pulls.";
+    if (inStorage)
+        return "○ " + line + " In Hagnk's, to pull.";
+    if (buyable)
+        return "✗ " + line + " Not in Hagnk's, mall-buyable.";
+    return "✗ " + line + " NOT mall-buyable, get it before you ascend.";
+}
+
+// The pulls the lists want against the day's allowance.
+string pullBudgetLine(int wanted, int perDay) {
+    if (wanted <= perDay)
+        return "✓ Pulls: " + wanted + " guide pulls wanted, " + perDay + " a day.";
+    return "✗ Pulls: " + wanted + " guide pulls wanted, " + perDay + " a day; the last " + (wanted - perDay) + " are skipped.";
+}
+
+// Prints one list's lines and returns how many want a pull after ascending. The pizza line shows one pizza:
+// the Seal Clubber's in the sim, your class's in run.
+int printGuidePulls(boolean flexible, boolean runStart) {
+    int wanted;
     foreach num, gp in guidePulls {
         if (gp.flexible != flexible)
             continue;
-        boolean held;
+        boolean [item] items = gp.any;
+        if (gp.any contains $item[Deep Dish of Legend]) {
+            boolean [item] mine;
+            mine[legendPizza(runStart ? my_primestat() : $stat[muscle])] = true;
+            items = mine;
+        }
+        boolean pulled;
+        boolean onHand;
+        boolean inStorage;
+        boolean onDemand;
         boolean buyable;
-        foreach it in gp.any {
-            if (have_item(it) || pulledToday(it))
-                held = true;
+        foreach it in items {
+            if (pulledToday(it))
+                pulled = true;
+            if (have_item(it)) {
+                if (storage_amount(it) > 0 && available_amount(it) == 0)
+                    inStorage = true;
+                else
+                    onHand = true;
+            }
+            if (guidePullsOnDemand contains it)
+                onDemand = true;
             if (is_tradeable(it))
                 buyable = true;
         }
-        if (held)
-            print("✓ " + itemNames(gp.any) + ": " + gp.why, "blue");
-        else if (buyable)
-            print("✗ " + itemNames(gp.any) + ": " + gp.why + " Not in Hagnk's, mall-buyable.", "red");
-        else
-            print("✗ " + itemNames(gp.any) + ": " + gp.why + " NOT mall-buyable, get it before you ascend.", "red");
+        if (!pulled && (onHand || inStorage || buyable))
+            wanted += 1;
+        string names = itemNames(items) + (!runStart && (items contains $item[Deep Dish of Legend]) ? " for a Seal Clubber" : "");
+        string line = guidePullLine(names, gp.why, runStart, pulled, onHand, inStorage, onDemand,
+            lowIOTMBreakfastDone(), buyable);
+        print(line, line.starts_with("✗") ? "red" : line.starts_with("○") ? "gray" : "blue");
     }
+    return wanted;
 }
 
 // Resting MP as mafia works it out: the base, scaled by the percent bonus, plus the flat bonus.
@@ -3454,61 +3514,30 @@ int restingMP(float base, float percent, float bonus) {
     return mp + to_int(bonus);
 }
 
-// Under 50 MP a rest, a tent or the bare ground, the route buys most of its MP.
-boolean housingWeak(int restMP) {
-    return restMP < 50;
-}
-
-// The sim lists housing to pull and install after ascending, since the dwelling does not carry over.
-// In run it reads the resting MP of the dwelling and furniture and names housing on hand when that is weak.
-void guideHousingCheck(boolean runStart) {
-    boolean [item] homes = $items[Xiblaxian residence-cube, hobo fortress blueprints, gingerbread house,
-        house-sized mushroom, house of twigs and spit];
-    string onHand;
-    string buyable;
-    foreach it in homes {
-        int more = to_int(numeric_modifier(it, "Base Resting MP"));
-        if (available_amount(it) + storage_amount(it) > 0)
-            onHand += (onHand == "" ? "" : ", ") + it + " (" + more + " MP"
-                + (runStart && available_amount(it) == 0 ? ", one pull" : "") + ")";
-        else if (!runStart && mall_price(it) > 0)
-            buyable += (buyable == "" ? "" : ", ") + it + " (" + more + " MP, " + mall_price(it) + " meat)";
-    }
-    if (!runStart) {
-        if (onHand != "")
-            print("✓ Housing: the dwelling is lost on ascending; " + onHand + " on hand to pull and install in run.", "blue");
-        else
-            print("✗ Housing: the dwelling is lost on ascending, and the route rests for most of its MP. Put one of these in Hagnk's "
-                + "to pull and install in run: " + (buyable == "" ? "none is in the mall" : buyable) + ".", "red");
-        return;
-    }
+// In run, the dwelling's resting MP.
+void guideHousingCheck() {
     item home = get_dwelling();
     string name = home == $item[none] ? "the ground" : to_string(home);
     int mp = restingMP(numeric_modifier("Base Resting MP"), numeric_modifier("Resting MP Percent"), numeric_modifier("Bonus Resting MP"));
-    if (!housingWeak(mp)) {
-        print("✓ Housing: " + name + ", " + mp + " MP a rest", "blue");
-        return;
-    }
-    print("✗ Housing: " + name + " gives " + mp + " MP a rest, and the route rests for most of its MP. Short of it, mafia buys MP restores with meat."
-        + (onHand == "" ? "" : " Install one now: " + onHand + "."), "red");
+    print("Housing: " + name + ", " + mp + " MP a rest.", "blue");
 }
 
 // Prints the low IOTM route's requirements and returns the hard blockers as
 // abort text, empty when the route can start. runStart is false for the sim report.
 string lowIOTMChecklist(boolean runStart) {
     string blockers;
-    print("Low IOTM route: no Monodent of the Sea, so the run follows the low IOTM guide.", "blue");
+    print("Low IOTM route: no Monodent of the Sea.", "blue");
 
     if (!runStart)
-        print("Ascend as a Seal Clubber for best results. Batter Up!, its Fury skills and the Colosseum combat route are Seal Clubber skills.", "blue");
+        print("Seal Clubber recommended: Batter Up!, Fury and the Colosseum combat route need it.", "blue");
     else if (my_class() == $class[Seal Clubber])
         print("✓ Seal Clubber", "blue");
     else
-        print("Warning: this low IOTM run is a " + my_class() + ", not a Seal Clubber. A one day run may not complete off Seal Clubber on a low IOTM account. Continuing.", "red");
+        print("✗ " + my_class() + ", not a Seal Clubber: no Batter Up! or combat route, and a one day run may not finish. Continuing.", "red");
 
     if (runStart && in_hardcore()) {
         print("✗ Hardcore: the low IOTM route is softcore only.", "red");
-        blockers += "The route is softcore only, it needs the guide's pulls. ";
+        blockers += "The route is softcore only. ";
     }
 
     // The ice house banish never resets, so mafia's record survives ascending.
@@ -3516,9 +3545,9 @@ string lowIOTMChecklist(boolean runStart) {
     if (iceHouse == $monster[Mer-kin rustler])
         print("✓ Ice house: Mer-kin rustler", "blue");
     else if (iceHouse == $monster[none])
-        print("✗ Ice house: mafia has no monster recorded there. The route assumes the Mer-kin rustler.", "red");
+        print("✗ Ice house: nothing recorded; the route assumes the Mer-kin rustler.", "red");
     else
-        print("✗ Ice house: holds the " + iceHouse + ". The route assumes the Mer-kin rustler.", "red");
+        print("✗ Ice house: holds the " + iceHouse + "; the route assumes the Mer-kin rustler.", "red");
 
     // Big Brother's sea maps stay bought across ascensions, and the guide buys them all beforehand.
     string [item] seaMaps = {
@@ -3536,33 +3565,33 @@ string lowIOTMChecklist(boolean runStart) {
     if (unbought == "")
         print("✓ Sea maps: all bought from Big Brother", "blue");
     else
-        print("✗ Sea maps not bought from Big Brother yet: " + unbought
-            + ". The guide buys them before ascending. In run, Little Brother opens Anemone Mine, the Marinara Trench or the Dive Bar for a Muscle, Mysticality or Moxie class.", "red");
+        print("✗ Sea maps not bought from Big Brother: " + unbought + ". Buy them before ascending.", "red");
 
     // Untradeable, so only Hagnk's can supply it. Pulled today or past day one,
     // a missing scimitar has broken after its fights.
     if (have_item($item[cozy scimitar]))
         print("✓ cozy scimitar", "blue");
     else if (runStart && (pulledToday($item[cozy scimitar]) || my_daycount() > 1))
-        print("✗ cozy scimitar: not held, so the run falls back to the script's other fish scale sources.", "red");
+        print("✗ cozy scimitar: not held; other fish scale sources are used.", "red");
     else
-        print("✗ cozy scimitar: NOT mall-buyable, make it from a scimitar cozy and a fish scimitar before you ascend. Without it the run falls back to the script's other fish scale sources.", "red");
+        print("✗ cozy scimitar: not mall-buyable; make it from a scimitar cozy and a fish scimitar before ascending.", "red");
 
-    guideHousingCheck(runStart);
+    if (runStart)
+        guideHousingCheck();
 
     string route = colosseumRoute(runStart);
     if (route == "spell") {
         print("✓ Colosseum: spell route, lantern " + colosseumLantern() + ".", "blue");
         if (!have_skill($skill[Carol of the Hells]) && !have_skill($skill[Song of Sauce]))
-            print("✗ Carol of the Hells or Song of Sauce: a heavy spell damage buff for the spell route.", "red");
+            print("✗ Carol of the Hells or Song of Sauce: spell damage for the spell route.", "red");
     } else if (route == "combat") {
-        print("✓ Colosseum: combat route with Furious Wallop. The Mer-kin weapons are trained in-run.", "blue");
+        print("✓ Colosseum: combat route, Mer-kin weapons trained in run.", "blue");
         if (!nullDayAvailable())
-            print("✗ null-day exploit: none owned and none buyable with a pull. The combat route leans on Null Afternoon.", "red");
+            print("✗ null-day exploit: none owned or buyable; the combat route leans on Null Afternoon.", "red");
     } else if (to_int(get_property("lastColosseumRoundWon")) >= 15) {
         print("✓ Colosseum: already won.", "blue");
     } else {
-        print("✗ Colosseum: no route yet, the run stops at the Colosseum without one. " + colosseumMissing(), "red");
+        print("✗ Colosseum: no route, so the run stops there. " + colosseumMissing(), "red");
     }
 
     print("Low IOTM check, guide perms:");
@@ -3580,10 +3609,14 @@ string lowIOTMChecklist(boolean runStart) {
     }
     print("Low IOTM check: " + skillsMet + " of " + count(guideSkills) + " guide perms owned.");
 
-    print("Low IOTM check, guide pulls (practically mandatory):");
-    printGuidePulls(false);
-    print("Low IOTM check, guide pulls (flexible):");
-    printGuidePulls(true);
+    print("Low IOTM check, core pulls:");
+    int wanted = printGuidePulls(false, runStart);
+    print("Low IOTM check, optional pulls:");
+    wanted += printGuidePulls(true, runStart);
+    if (!runStart) {
+        string budget = pullBudgetLine(wanted, 20);
+        print(budget, budget.starts_with("✗") ? "red" : "blue");
+    }
 
     if (blockers != "")
         print("Low IOTM check: the run can't start. " + blockers, "red");
@@ -3591,10 +3624,6 @@ string lowIOTMChecklist(boolean runStart) {
 }
 
 // ─── LOW IOTM PULLS, BREAKFAST AND DIET ──────────────────────────────────────
-// Pulled by the phase that uses them, not by the breakfast plan.
-boolean [item] guidePullsOnDemand = $items[lodestone, waffle, stench jelly, Clara's bell,
-    handheld Allied radio];
-
 boolean guidePullOnDemand(guidePull gp) {
     foreach it in gp.any
         if (guidePullsOnDemand contains it)
@@ -4027,11 +4056,97 @@ boolean seaStrengthScrollNow(boolean yogDone, boolean muscle, int seaTurns, bool
     return yogDone && muscle && seaTurns == 0 && !tankPending && meat >= price + reserve;
 }
 
+// Melee still ahead after Yog-Urt: everything but a spell route Colosseum that is next, then Shub-Jigguwatt,
+// then a Sorceress kill without the sauce spells.
+boolean seaStrengthMeleeAhead(string route, int roundsWon, boolean colosseumNext, boolean shubDone, boolean sorceressMelee) {
+    if (roundsWon < 15)
+        return route != "spell" || !colosseumNext;
+    return !shubDone || sorceressMelee;
+}
+
+// cleanUp() stops its sauce casts under this MP; the guide route's Center Door casts only from the gate up.
+int sauceStopMP = 24;
+int sorceressSpellGate = 60;
+
+// MP one cleanUp() sauce cast spends: Saucegeyser, else Saucestorm with Stuffed Mortar Shell before it when known.
+int sauceCastMP(boolean geyser, boolean mortar, int geyserCost, int stormCost, int mortarCost) {
+    if (geyser)
+        return geyserCost;
+    return stormCost + (mortar ? mortarCost : 0);
+}
+
+int sauceCastMP() {
+    return sauceCastMP(have_skill($skill[Saucegeyser]), have_skill($skill[Stuffed Mortar Shell]),
+        mp_cost($skill[Saucegeyser]), mp_cost($skill[Saucestorm]), mp_cost($skill[Stuffed Mortar Shell]));
+}
+
+// MP for the Sorceress's spell kill: a cast per low roll hit of her HP, the last one still above cleanUp()'s
+// stop, and at least the gate, capped at max MP.
+int sorceressMP(int hp, int hit, int perCast, int maxMP) {
+    int casts = max(1, (hp + max(1, hit) - 1) / max(1, hit));
+    return min(maxMP, max(sorceressSpellGate, (casts - 1) * perCast + max(sauceStopMP, perCast)));
+}
+
+// The two Raise Backup Dancer casts fit only in MP past the kill's.
+boolean dancersFit(int mp, int dancerCost, int killMP) {
+    return mp - 2 * dancerCost >= killMP;
+}
+
+// Mafia's MP recovery held to goal: it restores up to goal and never past it.
+void holdMPRecovery(int goal) {
+    float target = to_float(round(min(1.0, goal / to_float(max(1, my_maxmp()))) * 10000)) / 10000;
+    set_property("mpAutoRecoveryTarget", to_string(target));
+    set_property("mpAutoRecovery", to_string(to_float(round(max(0.0, target - 0.01) * 10000)) / 10000));
+}
+
+// Low roll of the Sorceress kill's spell in the worn gear, lanterns aside: Saucegeyser, else both Saucestorm hits.
+int sorceressSpellHit() {
+    float mys = my_buffedstat($stat[mysticality]);
+    float percent = numeric_modifier("Spell Damage Percent");
+    float hotFlat = numeric_modifier("Spell Damage") + numeric_modifier("Hot Spell Damage");
+    float coldFlat = numeric_modifier("Spell Damage") + numeric_modifier("Cold Spell Damage");
+    if (have_skill($skill[Saucegeyser]))
+        return max(spellLowDamage(60, 0.4, mys, 0, hotFlat, percent, 0, 1.0), spellLowDamage(60, 0.4, mys, 0, coldFlat, percent, 0, 1.0));
+    return spellLowDamage(20, 0.2, mys, 50, hotFlat, percent, 0, 1.0) + spellLowDamage(20, 0.2, mys, 50, coldFlat, percent, 0, 1.0);
+}
+
+// A combat skill that deals no damage, to wait out a bladeswitcher's bust.
+skill colosseumPassSkill(boolean bandages, boolean shell, boolean noodles) {
+    if (bandages)
+        return $skill[Lasagna Bandages];
+    if (shell)
+        return $skill[Shell Up];
+    if (noodles)
+        return $skill[Entangling Noodles];
+    return $skill[none];
+}
+
+skill colosseumPassSkill() {
+    return colosseumPassSkill(have_skill($skill[Lasagna Bandages]), have_skill($skill[Shell Up]),
+        have_skill($skill[Entangling Noodles]));
+}
+
+// MP before a spell route Colosseum fight: one cast and a bust's 10 passes, two casts for a champion, at least 200.
+int colosseumMPGoal(boolean champion, int cost, int passCost, int maxMP) {
+    return min(maxMP, max(200, (champion ? 2 : 1) * cost + 10 * passCost));
+}
+
+// Only the Colosseum is left before Shub-Jigguwatt: the park war over or its map unbought, the gladiator
+// outfit held, Mom found and five pearls in hand.
+boolean guideColosseumNext() {
+    return (get_property("skateParkStatus") != "war" || get_property("mapToTheSkateParkPurchased") != "true")
+        && available_amount($item[Mer-kin gladiator mask]) > 0 && available_amount($item[Mer-kin gladiator tailpiece]) > 0
+        && get_property("questS02Monkees") == "finished" && item_amount($item[unblemished pearl]) >= 5;
+}
+
 void guideSeaStrengthAfterYog() {
     item scroll = $item[scroll of sea strength];
     int price = npc_price(scroll) > 0 ? npc_price(scroll) : 950;
     if (!guideRoute() || !seaStrengthScrollNow(get_property("yogUrtDefeated") == "true", muscleAttack(),
-            have_effect($effect[Sea Strength]), scubaTankOnRoute(), my_meat(), item_amount(scroll) > 0 ? 0 : price, 2000))
+            have_effect($effect[Sea Strength]), scubaTankOnRoute(), my_meat(), item_amount(scroll) > 0 ? 0 : price, 2000)
+        || !seaStrengthMeleeAhead(colosseumRoute(false), to_int(get_property("lastColosseumRoundWon")), guideColosseumNext(),
+            get_property("shubJigguwattDefeated") == "true", get_property("questL13Final") != "finished"
+                && !have_skill($skill[Saucegeyser]) && !have_skill($skill[Saucestorm])))
         return;
     if (!retrieve_item(1, scroll) || !use(1, scroll))
         print("Couldn't use a " + scroll + ".", "red");
@@ -4192,8 +4307,14 @@ boolean lowIOTMFishyPull() {
     return have_effect($effect[Fishy]) > 0;
 }
 
-// More adventures at zero on the low IOTM route: the legend pizza, kelp pucks, then Ocean-Touched
-// Rum once Yog-Urt is down, since its Muscle would break the Yog-Urt HP check.
+// A 1-drunk booze takes liver past the keep, and only odd liver while the rum can still be drunk.
+boolean oneDrunkNow(boolean held, boolean levelMet, int liverFree, int keep, boolean rumLater) {
+    int spare = liverFree - keep;
+    return held && levelMet && spare >= 1 && (!rumLater || spare % 2 == 1);
+}
+
+// More adventures at zero on the low IOTM route: the legend pizza, kelp pucks, Ocean-Touched Rum once
+// Yog-Urt is down, then an Alewife Ale on liver left over.
 boolean lowIOTMTopUp() {
     int before = my_adventures();
     int keep = nigiriKeep();
@@ -4216,6 +4337,13 @@ boolean lowIOTMTopUp() {
             if (!drink(1, $item[Ocean-Touched Rum]))
                 print("Couldn't drink the " + $item[Ocean-Touched Rum] + ".", "red");
         }
+    }
+    item ale = $item[Alewife&trade; Ale];
+    if (my_adventures() == before && oneDrunkNow(item_amount(ale) > 0, my_level() >= ale.levelreq,
+            inebriety_limit() - my_inebriety(), guideRumLiverKeep(), guideRumDrinkable())) {
+        odeUp();
+        if (!drink(1, ale))
+            print("Couldn't drink the " + ale + ".", "red");
     }
     return my_adventures() > before;
 }

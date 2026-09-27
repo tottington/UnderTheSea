@@ -80,9 +80,38 @@ boolean guideBanish(string page_text) {
     return current_round() == 0;
 }
 
-// A balldodger's neutrality or a bladeswitcher's bust, from the fight text.
-boolean colosseumDanger(string text) {
-    return contains_text(text, "<b>bust</b>") || contains_text(text, "<b>neutrality</b>");
+// The strongest spell MP allows: the route's spell, then Saucegeyser, then Saucestorm.
+skill championSpell(skill route, int mp, boolean geyser, boolean storm) {
+    if (route != $skill[none] && mp >= mp_cost(route))
+        return route;
+    if (geyser && mp >= mp_cost($skill[Saucegeyser]))
+        return $skill[Saucegeyser];
+    if (storm && mp >= mp_cost($skill[Saucestorm]))
+        return $skill[Saucestorm];
+    return $skill[none];
+}
+
+// Low HP for a regular gladiator: under 30% of max, or under half max plus a hit while a runner wind-up shows.
+boolean colosseumHpLow(int hp, int maxHP, int hit, boolean runner) {
+    if (runner)
+        return hp < maxHP / 2 + hit;
+    return hp * 100 < maxHP * 30;
+}
+
+// One spell route Colosseum action: "spell", "pass", "run" or "attack". A boss passes a live bust (a runaway when no
+// pass skill is castable); a gladiator runs on live neutrality, low HP or round 28, and passes a bust MP covers.
+string colosseumSpellAction(boolean boss, boolean neutral, int bustLeft, boolean passNow, boolean passPlan, int round,
+    boolean hpLow, boolean spellNow) {
+    if (boss) {
+        if (bustLeft > 0)
+            return passNow ? "pass" : "run";
+        return spellNow ? "spell" : "attack";
+    }
+    if (neutral || hpLow || round >= 28)
+        return "run";
+    if (bustLeft > 0)
+        return passPlan && round + bustLeft < 28 ? "pass" : "run";
+    return spellNow ? "spell" : "run";
 }
 
 // Attempt a free kill using available skills/items.
@@ -348,7 +377,7 @@ void cleanUp() {
             if (loopCount > 3)
                 abort("May be stuck in an infinite saucegeyser loop");
         }
-        if (my_mp() < 24)
+        if (my_mp() < sauceStopMP)
             break;
     }
 }
@@ -1411,29 +1440,48 @@ void main(int round, monster mob, string page_text) {
             // Colosseum rounds need WINS, so this drains free kills and never
             // Use the Force (which forfeits the win); the saber is not
             // equipped here, so its last-resort clause stays dead.
-            // The spell route opens with its lantern spell in round 1 unless the page already shows bust or
-            // neutrality. A champion that survives, or any gladiator showing either, is run from until the fight ends.
+            // The spell route casts from round 1 through any wind-up. A live bust lasts 10 rounds from its
+            // twirl, a live neutrality the rest of the fight, and a runner wind-up hits for half max HP.
             if (guideRoute() && colosseumRoute() == "spell") {
                 string seen = page_text;
-                if (current_round() == 1 && !colosseumDanger(page_text)) {
-                    skill opener = colosseumSpell();
-                    if (opener != $skill[none] && my_mp() >= mp_cost(opener))
-                        seen = to_string(use_skill(opener));
-                }
-                if (current_round() > 0 && (last_monster().boss || colosseumDanger(seen))) {
-                    int stuck;
-                    while (current_round() > 0) {
-                        int round = current_round();
+                int bustEnds;
+                boolean neutral;
+                int stuck;
+                int actions;
+                while (current_round() > 0) {
+                    if (actions >= 40)
+                        abort("40 actions against " + last_monster() + " in the Mer-kin Colosseum and the fight goes on. Finish it by hand, then rerun.");
+                    actions += 1;
+                    if (contains_text(seen, "twirling his blade around himself"))
+                        bustEnds = current_round() + 10;
+                    if (contains_text(seen, "glowing eerily"))
+                        neutral = true;
+                    int bustLeft = max(0, bustEnds - current_round());
+                    boolean geyser = have_skill($skill[Saucegeyser]);
+                    boolean storm = have_skill($skill[Saucestorm]);
+                    skill spell = championSpell(colosseumSpell(), my_mp(), geyser, storm);
+                    skill pass = colosseumPassSkill();
+                    boolean passNow = pass != $skill[none] && my_mp() >= mp_cost(pass);
+                    boolean passPlan = pass != $skill[none]
+                        && championSpell(colosseumSpell(), my_mp() - mp_cost(pass) * bustLeft, geyser, storm) != $skill[none];
+                    boolean hpLow = colosseumHpLow(my_hp(), my_maxhp(), expected_damage(),
+                        contains_text(seen, "If you were a <b>runner</b>"));
+                    string act = colosseumSpellAction(last_monster().boss, neutral, bustLeft, passNow, passPlan, current_round(),
+                        hpLow, spell != $skill[none]);
+                    int round = current_round();
+                    if (act == "spell")
+                        seen = to_string(use_skill(spell));
+                    else if (act == "pass")
+                        seen = to_string(use_skill(pass));
+                    else if (act == "attack")
+                        seen = to_string(attack());
+                    else
                         seen = to_string(runaway());
-                        if (current_round() == round) {
-                            stuck += 1;
-                            if (stuck >= 3)
-                                abort("Running from " + last_monster() + " in the Mer-kin Colosseum isn't moving the fight on. Finish it by hand, then rerun.");
-                        }
-                    }
+                    stuck = current_round() == round ? stuck + 1 : 0;
+                    if (stuck >= 3)
+                        abort("The " + act + " against " + last_monster() + " in the Mer-kin Colosseum isn't moving the fight on. Finish it by hand, then rerun.");
                 }
-                if (current_round() == 0)
-                    break;
+                break;
             }
             if (guideRoute() && colosseumRoute() == "combat") {
                 colosseumCombatFight(page_text);
@@ -1486,13 +1534,15 @@ void main(int round, monster mob, string page_text) {
         case $location[Mer-kin Temple (Center Door)]:
             // Raise Backup Dancer is a Pastamancer skill; it is only a damage boost
             // here, so skip it rather than erroring out on accounts without it.
+            // The guide route casts them only with MP left for the spell kill.
             if (have_skill($skill[raise backup dancer])
-                && (!guideRoute() || my_mp() >= 2 * mp_cost($skill[raise backup dancer]))) {
+                && (!guideRoute() || dancersFit(my_mp(), mp_cost($skill[raise backup dancer]),
+                    sorceressMP(monster_hp(), sorceressSpellHit(), sauceCastMP(), 99999)))) {
             use_skill($skill[raise backup dancer]);
             use_skill($skill[raise backup dancer]);
             }
             // The guide route arrives drained by Shub-Jigguwatt, so spells only with MP to spare.
-            if (!guideRoute() || my_mp() >= 60)
+            if (!guideRoute() || my_mp() >= sorceressSpellGate)
                 cleanUp();
             if (guideRoute())
                 attackCleanUp();
