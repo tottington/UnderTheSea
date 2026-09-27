@@ -369,6 +369,7 @@ string DropsItems;
                     abort("no more easy diet");
                 }
             }
+            guideSeaStrengthAfterYog();
             if (have_effect($effect[Driving Waterproofly]) == 0) {
                 if (get_workshed() == $item[Asdon Martin keyfob (on ring)]){
                     if (get_fuel() == 0 && !pulledToday($item[pie man was not meant to eat])){
@@ -1618,7 +1619,9 @@ string DropsItems;
                     conditional += baseball_equip();
 
                 if (to_int(get_property("rwbMonsterCount")) == 0 && !mapReady()){
-                    print("Initiating banishes in Octopus Garden", "red");
+                    if (!guideRoute() || guideBanishDue(batterUpPending($location[An Octopus's Garden]), batterUpPossible(),
+                            have_skill($skill[Snokebomb]), snokebombsSpare()))
+                        print("Initiating banishes in Octopus Garden", "red");
                     if (highShiny())
                         conditional += if_equip($item[monodent of the sea]);
                 }
@@ -3767,13 +3770,13 @@ string DropsItems;
             if (autoAttack != 0)
                 set_auto_attack(0);
             int visits;
-            int losses;
-            int lossRound = -1;
+            int runs;
+            int runRound = -1;
             while (to_int(get_property("lastColosseumRoundWon")) < 15) {
                 int won = to_int(get_property("lastColosseumRoundWon"));
-                if (won != lossRound) {
-                    losses = 0;
-                    lossRound = won;
+                if (won != runRound) {
+                    runs = 0;
+                    runRound = won;
                 }
                 if (my_adventures() < 1)
                     abort("Out of adventures in the Mer-kin Colosseum after " + won + " of 15 rounds.");
@@ -3791,7 +3794,8 @@ string DropsItems;
                 int cost = mp_cost(spell);
                 if (my_maxmp() < cost)
                     abort("Max MP " + my_maxmp() + " is below the " + cost + " MP " + spell + " costs in the Colosseum gear.");
-                int goal = min(my_maxmp(), max(200, cost));
+                skill pass = colosseumPassSkill();
+                int goal = colosseumMPGoal(won >= 12, cost, pass == $skill[none] ? 0 : mp_cost(pass), my_maxmp());
                 if (my_mp() < goal && !restore_mp(goal))
                     print("Couldn't restore MP to " + goal + " for the Mer-kin Colosseum.", "red");
                 if (my_mp() < cost)
@@ -3802,9 +3806,10 @@ string DropsItems;
                     set_property("lastColosseumRoundWon", "15");
                     set_property("isMerkinGladiatorChampion", "true");
                 } else if (to_int(get_property("lastColosseumRoundWon")) == won && total_turns_played() > turns) {
-                    losses += 1;
-                    if (losses >= 3)
-                        abort("Three Mer-kin Colosseum fights for round " + (won + 1) + " ended without a win, lost or run from. "
+                    // Only fights run from reach this count. A lost fight stops the run in post_adv.
+                    runs += 1;
+                    if (runs >= 3)
+                        abort("Three Mer-kin Colosseum fights for round " + (won + 1) + " were run from without a win. "
                             + spell + " isn't killing in one cast; raise spell damage or Mysticality, then rerun.");
                 }
             }
@@ -3846,13 +3851,13 @@ string DropsItems;
             if (autoAttack != 0)
                 set_auto_attack(0);
             int visits;
-            int losses;
-            int lossRound = -1;
+            int runs;
+            int runRound = -1;
             while (to_int(get_property("lastColosseumRoundWon")) < 15) {
                 int won = to_int(get_property("lastColosseumRoundWon"));
-                if (won != lossRound) {
-                    losses = 0;
-                    lossRound = won;
+                if (won != runRound) {
+                    runs = 0;
+                    runRound = won;
                 }
                 if (my_adventures() < 1)
                     abort("Out of adventures in the Mer-kin Colosseum after " + won + " of 15 rounds.");
@@ -3886,9 +3891,10 @@ string DropsItems;
                     set_property("lastColosseumRoundWon", "15");
                     set_property("isMerkinGladiatorChampion", "true");
                 } else if (to_int(get_property("lastColosseumRoundWon")) == won && total_turns_played() > turns) {
-                    losses += 1;
-                    if (losses >= 3)
-                        abort("Three Mer-kin Colosseum fights for round " + (won + 1) + " ended without a win, lost or run from. "
+                    // Only fights run from reach this count. A lost fight stops the run in post_adv.
+                    runs += 1;
+                    if (runs >= 3)
+                        abort("Three Mer-kin Colosseum fights for round " + (won + 1) + " were run from without a win. "
                             + "Raise " + (attackStat == "mox" ? "Moxie" : "Muscle") + " or weapon damage, or train the " + weapon + ", then rerun.");
                 }
             }
@@ -4155,10 +4161,8 @@ string DropsItems;
                     if (!guideNullAfternoon(1))
                         abort("Null Afternoon has run out and no null-day exploit is left for the Nautical Seaceress: Attack 2000, "
                             + "Defense 2500, 4000 HP. Get a null-day exploit, one pull a day, then rerun.");
-                    // The spells go first while MP lasts, so MP is filled for them. Without one the kill is melee.
+                    // The spells go first while MP lasts. Without one the kill is melee.
                     guideMelee = !have_skill($skill[Saucegeyser]) && !have_skill($skill[Saucestorm]);
-                    if (!guideMelee && my_mp() < my_maxmp() && !restore_mp(my_maxmp()))
-                        print("Couldn't restore MP before the Nautical Seaceress.", "red");
                 }
                 if (guideMelee) {
                     string attackStat = my_buffedstat($stat[moxie]) > my_buffedstat($stat[muscle]) ? "mox" : "mus";
@@ -4181,11 +4185,30 @@ string DropsItems;
                     }
                 }
                 // The first visit is a no-turn intro and the second the fight, unless the intro was already seen.
-                adv($location[Mer-kin Temple (center Door)]);
-                if (get_property("questL13Final") != "finished") {
-                    if (guideRoute() && !guideNullAfternoon(1))
-                        abort("Null Afternoon ran out before the Nautical Seaceress fight, and no null-day exploit is left. Get one, then rerun.");
+                // The spell kill's MP in the worn gear. Mafia's recovery is held to it through the intro and the fight.
+                boolean holdMP = guideRoute() && !guideMelee;
+                int goal = holdMP ? sorceressMP(4000 + max(0, to_int(numeric_modifier("Monster Level"))), sorceressSpellHit(), sauceCastMP(), my_maxmp()) : 0;
+                string mpRecovery = get_property("mpAutoRecovery");
+                string mpTarget = get_property("mpAutoRecoveryTarget");
+                try {
+                    if (holdMP)
+                        holdMPRecovery(goal);
                     adv($location[Mer-kin Temple (center Door)]);
+                    if (get_property("questL13Final") != "finished") {
+                        if (guideRoute() && !guideNullAfternoon(1))
+                            abort("Null Afternoon ran out before the Nautical Seaceress fight, and no null-day exploit is left. Get one, then rerun.");
+                        if (holdMP) {
+                            holdMPRecovery(goal);
+                            if (my_mp() < goal && !restore_mp(goal))
+                                print("Couldn't restore MP to " + goal + " before the Nautical Seaceress.", "red");
+                        }
+                        adv($location[Mer-kin Temple (center Door)]);
+                    }
+                } finally {
+                    if (holdMP) {
+                        set_property("mpAutoRecovery", mpRecovery);
+                        set_property("mpAutoRecoveryTarget", mpTarget);
+                    }
                 }
             }
         } else if (my_path().id == 0 && boss == "Dad"){
