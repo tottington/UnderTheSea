@@ -643,7 +643,7 @@ import <seedfinder/seedfinder.ash>;
     boolean [item] whistleWorthy = $items[Mer-kin prayerbeads, Mer-kin healscroll,
         Mer-kin lockkey, Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig,
         rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
-        sea cowbell, sea lasso, Mer-kin digpick];
+        sea cowbell, sea lasso, Mer-kin digpick, Mer-kin knucklebone];
 
     // Charges cap at seaPoints, and one in Hagnk's is unusable in Ronin, so
     // possession is not readiness.
@@ -1129,12 +1129,87 @@ import <seedfinder/seedfinder.ash>;
         return answers;
     }
 
-    // Distinct dreadscroll answers among seedfinder's seeds. When they all agree, the unset properties are filled.
-    int dreadAnswersLeft() {
+    // seedfinder's dreadscroll answers, one entry per seed.
+    string [int] dreadSeedAnswers() {
         SeedData[int] seeds = find_seeds();
         string [int] list;
         foreach idx, data in seeds
             list[count(list)] = seedAnswers(data);
+        return list;
+    }
+
+    // True when the answers disagree at position pos, counted from 1.
+    boolean dreadDiffersAt(string [int] answers, int pos) {
+        string first;
+        foreach i, a in answers {
+            if (length(a) < pos)
+                continue;
+            string c = char_at(a, pos - 1);
+            if (first == "")
+                first = c;
+            else if (c != first)
+                return true;
+        }
+        return false;
+    }
+
+    // An unknown clue at pos that would split the answers.
+    boolean dreadClueWanted(string [int] answers, int pos) {
+        return to_int(get_property("dreadScroll" + pos)) == 0 && dreadDiffersAt(answers, pos);
+    }
+
+    // The answers whose rejection leaves the fewest behind in the worst case. A rejection tells how many
+    // positions were wrong, so the others group by their distance from the guess. Ties go to more groups.
+    string dreadSplitPick(string [int] answers) {
+        string best;
+        int bestWorst = 999;
+        int bestGroups = -1;
+        foreach i, guess in answers {
+            if (count(answers) > 40)
+                return guess;
+            int [int] groups;
+            foreach j, other in answers
+                if (other != guess)
+                    groups[dreadMismatches(guess, other)] += 1;
+            int worst;
+            foreach d, n in groups
+                worst = max(worst, n);
+            if (worst < bestWorst || (worst == bestWorst && count(groups) > bestGroups)) {
+                best = guess;
+                bestWorst = worst;
+                bestGroups = count(groups);
+            }
+        }
+        return best;
+    }
+
+    // Few enough answers left that reading a guess settles them sooner than more clues.
+    boolean dreadGuessWorthIt(int left) {
+        return left >= 1 && left <= 3;
+    }
+
+    // Library clue hunting goes on while a guess is not yet worth it and turns remain under the cap.
+    boolean dreadHuntMore(int left, int turns, int cap) {
+        return !dreadGuessWorthIt(left) && turns < cap;
+    }
+
+    // The Daily Dungeon's seed clues are worth their turns only with many answers left.
+    boolean dreadDungeonWorthIt(int left) {
+        return left > 4;
+    }
+
+    // Adventures one dreadscroll read costs. Underwater turns cost two without Fishy.
+    int dreadReadCost(boolean fishy) {
+        return fishy ? 1 : 2;
+    }
+
+    boolean dreadReadAffordable(int adventures, boolean fishy) {
+        return adventures >= dreadReadCost(fishy);
+    }
+
+    // Distinct dreadscroll answers among seedfinder's seeds. When they all agree, the unset properties are filled.
+    int dreadAnswersLeft() {
+        string [int] list = dreadSeedAnswers();
         string agreed = dreadAgreed(list);
         if (agreed != "")
             for x from 1 to 8
@@ -1143,8 +1218,8 @@ import <seedfinder/seedfinder.ash>;
         return dreadDistinct(list);
     }
 
-    // Sets the dreadscroll answers from one untried seedfinder seed that fits the clues and the rejected answers.
-    // False, with the clue properties restored, when no such seed is left.
+    // Sets the dreadscroll answers from the untried seedfinder seed that fits the clues and the rejected answers
+    // and best splits the rest. False, with the clue properties restored, when no such seed is left.
     boolean dreadGuessNext() {
         string clues = dreadClues();
         string stored = dreadGuessActive();
@@ -1157,19 +1232,41 @@ import <seedfinder/seedfinder.ash>;
         string tried = get_property("_utsDreadTriedSeeds");
         string rejected = get_property("dreadScrollGuesses") + "," + dreadAscList(get_property("utsDreadRejected"), my_ascensions());
         SeedData[int] seeds = find_seeds();
+        string [int] fits;
+        int [string] seedOf;
         foreach idx, data in seeds {
             string answers = seedAnswers(data);
-            if (!dreadCandidate(answers, data.seed, clues, tried, rejected))
+            if ((seedOf contains answers) || !dreadCandidate(answers, data.seed, clues, tried, rejected))
                 continue;
-            set_property("_utsDreadTriedSeeds", dreadTriedAdd(tried, data.seed));
-            set_property("utsDreadGuess", my_ascensions() + ":" + clues + ":" + answers);
-            for x from 1 to 8
-                set_property("dreadScroll" + x, char_at(answers, x - 1));
-            print("Trying ascension seed " + data.seed + " of the " + count(seeds)
-                + " seedfinder still lists: dreadscroll answers " + answers + ".", "blue");
-            return true;
+            seedOf[answers] = data.seed;
+            fits[count(fits)] = answers;
         }
-        return false;
+        string pick = dreadSplitPick(fits);
+        if (pick == "")
+            return false;
+        int seed = seedOf[pick];
+        set_property("_utsDreadTriedSeeds", dreadTriedAdd(tried, seed));
+        set_property("utsDreadGuess", my_ascensions() + ":" + clues + ":" + pick);
+        for x from 1 to 8
+            set_property("dreadScroll" + x, char_at(pick, x - 1));
+        print("Trying ascension seed " + seed + " of the " + count(seeds) + " seedfinder still lists, the best split of "
+            + count(fits) + " different answers left: dreadscroll answers " + pick + ".", "blue");
+        return true;
+    }
+
+    // Sets a seed guess when the dreadscroll answers are not all known. False when no seed fits.
+    boolean dreadFallbackGuess(string why) {
+        if (dreadAnswered())
+            return true;
+        int left = dreadAnswersLeft();
+        if (dreadAnswered())
+            return true;
+        if (left == 0) {
+            print("Dreadscroll: " + why + ", but seedfinder matches no ascension seed to guess from.", "red");
+            return false;
+        }
+        print("Dreadscroll: " + why + "; guessing among " + left + " different answers.", "blue");
+        return dreadGuessNext();
     }
 
     // The Gelatinous Cubeling's three Daily Dungeon drops held.
@@ -1435,6 +1532,9 @@ boolean stillWanted(item it) {
     case $item[sea leather]:
         return seaCowNeeded();
     case $item[Mer-kin cheatsheet]:
+        // The guide route takes no wordquizzes.
+        if (guideRoute())
+            return false;
         // One is consumed per wordquiz, and each quiz is ten of the ninety wanted.
         return item_amount($item[Mer-kin cheatsheet]) * 10
             < 90 - to_int(get_property("merkinVocabularyMastery"));
@@ -1442,6 +1542,9 @@ boolean stillWanted(item it) {
         return prayerbeadsShort();
     case $item[Mer-kin bunwig]:
         return available_amount($item[mer-kin bunwig]) == 0;
+    case $item[Mer-kin knucklebone]:
+        // The guide route reads one for dreadscroll clue 4.
+        return guideRoute() && item_amount($item[Mer-kin knucklebone]) == 0 && dreadClueWanted(dreadSeedAnswers(), 4);
     case $item[Mer-kin digpick]:
         // Only the low IOTM route mines the teflon ore with a dropped digpick.
         return guideRoute() && available_amount($item[Mer-kin digpick]) == 0

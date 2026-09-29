@@ -2798,32 +2798,54 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
-    // The library's own clues while seedfinder leaves several answers: the knucklebone for clue 4,
-    // then up to 10 library turns for the catalog clues 1, 6 and 8. Returns the answers left.
-    int guideLibraryClues(int seeds) {
+    // Pulls a knucklebone for dreadscroll clue 4, or says why it can't.
+    boolean dreadBonePull(boolean guide) {
         item bone = $item[Mer-kin knucklebone];
-        if (seeds > 1 && get_property("dreadScroll4") == "0") {
-            if (item_amount(bone) == 0 && pulls_remaining() > reservedPulls() && !guidePullOne(bone))
-                print("Couldn't pull a " + bone + " for dreadscroll clue 4.", "red");
-            if (item_amount(bone) > 0) {
-                if (use(1, bone))
-                    seeds = dreadAnswersLeft();
-                else
-                    print("Couldn't use the " + bone + " for dreadscroll clue 4.", "red");
-            }
-        }
+        string why;
+        if (pulls_remaining() == 0)
+            why = "no pulls are left";
+        else if (pulledToday(bone))
+            why = "one was already pulled today";
+        else if (guide && pulls_remaining() <= reservedPulls())
+            why = "the " + pulls_remaining() + " pulls left are reserved";
+        else if (guide ? guidePullOne(bone) : pullSequence(bone))
+            return true;
+        else
+            why = "the pull failed";
+        print("Wanted a " + bone + " for dreadscroll clue 4, but " + why + ".", "red");
+        return false;
+    }
+
+    // The splitting clues the library gives: a held knucklebone for clue 4, then up to cap
+    // library turns for catalog clues 1, 6 and 8. Returns the answers left.
+    int guideLibraryClues(int seeds, int cap) {
+        item bone = $item[Mer-kin knucklebone];
+        if (seeds > 1 && item_amount(bone) == 0 && dreadClueWanted(dreadSeedAnswers(), 4))
+            dreadBonePull(true);
         int turns;
-        while (seeds > 1 && (get_property("dreadScroll1") == "0" || get_property("dreadScroll6") == "0" || get_property("dreadScroll8") == "0")) {
+        boolean boneFailed;
+        while (seeds > 1) {
+            string [int] answers = dreadSeedAnswers();
+            if (!boneFailed && item_amount(bone) > 0 && dreadClueWanted(answers, 4)) {
+                if (use(1, bone)) {
+                    seeds = dreadAnswersLeft();
+                    continue;
+                }
+                boneFailed = true;
+                print("Couldn't use the " + bone + " for dreadscroll clue 4.", "red");
+            }
+            if (!dreadHuntMore(seeds, turns, cap))
+                break;
+            if (!dreadClueWanted(answers, 1) && !dreadClueWanted(answers, 6) && !dreadClueWanted(answers, 8))
+                break;
             if (my_adventures() < 1)
                 abort("Out of adventures in the Mer-kin Library looking for dreadscroll clues, with " + seeds + " different answers left.");
-            if (turns >= 10) {
-                print("10 library turns without dreadscroll clues 1, 6 and 8; moving on with " + seeds + " different answers left.", "red");
-                break;
-            }
             merkinLib();
             turns += 1;
             seeds = dreadAnswersLeft();
         }
+        if (turns >= cap && seeds > 1)
+            print(turns + " library turns for dreadscroll clues; moving on with " + seeds + " different answers left.", "red");
         return seeds;
     }
 
@@ -2846,20 +2868,23 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             return;
         dreadSeedCheck();
         int seeds = dreadAnswersLeft();
-        if (seeds > 1 && get_property("dreadScroll3") == "0" && have_skill($skill[Deep Dark Visions])) {
+        if (seeds > 1 && have_skill($skill[Deep Dark Visions]) && dreadClueWanted(dreadSeedAnswers(), 3)) {
             deepDarkVisions(true);
             seeds = dreadAnswersLeft();
         }
         if (seeds > 1)
-            seeds = guideLibraryClues(seeds);
-        if (seeds > 1)
+            seeds = guideLibraryClues(seeds, 3);
+        if (dreadDungeonWorthIt(seeds))
             seeds = guideDungeonSeeds(seeds);
+        // More than a guess handles still left: the library again, up to 10 clue turns in all.
+        if (seeds > 1 && !dreadGuessWorthIt(seeds))
+            seeds = guideLibraryClues(seeds, 7);
         if (dreadAnswered())
             return;
         if (seeds == 0)
             abort("seedfinder matches no ascension seed. Check the identified bang potions and the seahorse name, then run seedfinder find by hand.");
-        // The guide tries one of the seeds left after the Daily Dungeon.
-        if (!dreadGuessNext())
+        // The guide tries the seed that best splits those left.
+        if (!dreadFallbackGuess(seeds + " different answers left after the clues"))
             abort("seedfinder still leaves " + seeds + " different dreadscroll answers and none fits the clues and rejected answers. "
                 + "Run seedfinder find by hand, set dreadScroll1 through dreadScroll8 and rerun. Answers set by hand end the seed guessing.");
     }
@@ -3073,15 +3098,26 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 step("phase: library (dreadscroll)");
                 if (guideRoute())
                     guideLibrary();
-                // Dread scroll acquisition
-                while (available_amount($item[mer-kin dreadscroll]) == 0 || get_property("dreadScroll1") == "0" || get_property("dreadScroll6") == "0" || get_property("dreadScroll8") == "0") {
-                    merkinLib();
-                    if (available_amount($item[mer-kin dreadscroll]) > 0){
+                // Dread scroll acquisition. Clue turns are capped, and few answers left go to a seed guess.
+                int libTurns;
+                int clueTurns;
+                boolean bonePullTried;
+                boolean boneUseFailed;
+                while (!guideRoute()) {
+                    boolean scrollHeld = available_amount($item[mer-kin dreadscroll]) > 0;
+                    if (libTurns == 0 && scrollHeld && get_property("dreadScroll1") != "0" && get_property("dreadScroll6") != "0" && get_property("dreadScroll8") != "0")
+                        break;
+                    if (scrollHeld){
                         // Knucklebone for scroll 4
                         if (get_property("dreadScroll4") == "0") {
-                            if (item_amount($item[mer-kin knucklebone]) == 0)
-                                pullSequence($item[mer-kin knucklebone]);
-                            use($item[Mer-kin knucklebone]);
+                            if (item_amount($item[mer-kin knucklebone]) == 0 && !bonePullTried) {
+                                bonePullTried = true;
+                                dreadBonePull(false);
+                            }
+                            if (!boneUseFailed && item_amount($item[mer-kin knucklebone]) > 0 && !use(1, $item[Mer-kin knucklebone])) {
+                                boneUseFailed = true;
+                                print("Couldn't use the Mer-kin knucklebone for dreadscroll clue 4.", "red");
+                            }
                             dreadSeedCheck();
                         }
                         if (get_property("dreadScroll7") == "0" && to_int(get_property("merkinVocabularyMastery")) < 90) {
@@ -3091,7 +3127,24 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                             eatSushi();
                         }
                         dreadSeedCheck();
+                        if (get_property("dreadScroll1") != "0" && get_property("dreadScroll6") != "0" && get_property("dreadScroll8") != "0")
+                            break;
+                        int left = dreadAnswersLeft();
+                        // A guess at 1 to 3 answers left, otherwise one only past 15 clue turns.
+                        if (dreadGuessWorthIt(left) || clueTurns >= 15) {
+                            if (!dreadFallbackGuess(clueTurns + " clue turns and " + left + " different answers left"))
+                                print("No dreadscroll seed guess; the clue check below decides.", "red");
+                            break;
+                        }
+                    } else if (libTurns >= 25) {
+                        abort(libTurns + " turns in the Mer-kin Library without the dreadscroll. Check the zone and rerun.");
                     }
+                    if (my_adventures() < 1)
+                        abort("Out of adventures in the Mer-kin Library looking for the dreadscroll and its clues.");
+                    merkinLib();
+                    libTurns += 1;
+                    if (scrollHeld)
+                        clueTurns += 1;
                 }
 
                 // The guide fights Yog-Urt with two prayerbeads.
@@ -3131,7 +3184,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 }
 
                 step("phase: becoming High Priest");
+                int priestPasses;
+                int dreadReads;
                 while (get_property("isMerkinHighPriest") == "false") {
+                    priestPasses += 1;
+                    if (priestPasses > 40)
+                        abort("40 passes at the dreadscroll without becoming High Priest. Check dreadScroll1 through dreadScroll8 and rerun.");
                     if (turns_played() <= 17 && get_property("uts_godRunGuard") == "true" && get_property("dreadScroll7") == "0"){
                         if (item_amount($item[mer-kin worktea]) > 0){
                             retrieve_item($item[white rice]);
@@ -3154,10 +3212,10 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         for x from 1 to 8
                             answer += get_property("dreadScroll" + x);
                         // A rejected seed guess moves on to the next seed that fits.
-                        boolean guessing = guideRoute() && dreadGuessActive() != "";
+                        boolean guessing = dreadGuessActive() != "";
                         boolean rejected = contains_text("," + get_property("dreadScrollGuesses"), "," + answer + ":")
                             || (guessing && dreadAscList(get_property("utsDreadLastUse"), my_ascensions()) == answer);
-                        if (guideRoute() && rejected && guessing) {
+                        if (rejected && guessing) {
                             set_property("utsDreadRejected", dreadAscAdd(get_property("utsDreadRejected"), my_ascensions(), answer));
                             if (count(split_string(get_property("_utsDreadTriedSeeds"), ",")) >= 5)
                                 abort("Five ascension seed guesses failed today. Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8. "
@@ -3167,9 +3225,16 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                                     + "Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8. Answers set by hand end the seed guessing.");
                             continue;
                         }
-                        if (guideRoute() && rejected)
+                        // Answers set without a seed guess leave no clues to guess from, so a rejection stops here.
+                        if (rejected)
                             abort("The dreadscroll already rejected the answers " + answer
                                 + ". Run seedfinder find by hand and correct dreadScroll1 through dreadScroll8.");
+                        if (dreadReads >= 8)
+                            abort("8 dreadscroll reads without becoming High Priest. Check dreadScroll1 through dreadScroll8 and rerun.");
+                        boolean fishy = have_effect($effect[Fishy]) > 0;
+                        if (!dreadReadAffordable(my_adventures(), fishy))
+                            abort("Reading the dreadscroll takes " + dreadReadCost(fishy) + " adventures and " + my_adventures() + " are left.");
+                        dreadReads += 1;
                         if (!use($item[mer-kin dreadscroll]))
                             abort("Couldn't use the dreadscroll; see the message above.");
                         set_property("utsDreadLastUse", my_ascensions() + ":" + answer);
@@ -4291,21 +4356,21 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
     // The guide's Daily Dungeon walk: seedfinder again after every chamber through the 14th,
-    // until one dreadscroll answer is left. Returns the answers left.
+    // until few enough dreadscroll answers are left to guess. Returns the answers left.
     int guideDungeonSeeds(int seeds) {
         location dungeon = $location[The Daily Dungeon];
         int chamber = to_int(get_property("_lastDailyDungeonRoom"));
-        if (seeds <= 1 || get_property("dailyDungeonDone") == "true" || chamber >= 14)
+        if (!dreadDungeonWorthIt(seeds) || get_property("dailyDungeonDone") == "true" || chamber >= 14)
             return seeds;
         if (!can_adventure(dungeon)) {
-            print(dungeon + " is not open, so the dreadscroll answers come from a seed guess.", "red");
+            print(dungeon + " is not open, so clues come from the library, then a seed guess.", "red");
             return seeds;
         }
         guideCubelingDrops();
         step("phase: Daily Dungeon for the ascension seed, " + seeds + " different answers left");
         int visits;
         int idle;
-        while (seeds > 1 && get_property("dailyDungeonDone") != "true" && chamber < 14) {
+        while (seeds > 1 && !dreadGuessWorthIt(seeds) && get_property("dailyDungeonDone") != "true" && chamber < 14) {
             if (my_adventures() < 1)
                 abort("Out of adventures in " + dungeon + " after chamber " + chamber + " with " + seeds + " different dreadscroll answers left.");
             if (visits >= 20)
