@@ -226,15 +226,9 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     void oldGuy();
     void guideEarlyTank();
 
-    // Guide route meat: The Polka of Plenty while the old SCUBA tank is still to buy, and spare scales and healscrolls sold.
-    void guideMeat() {
-        if (!guideRoute())
-            return;
-        skill polka = $skill[The Polka of Plenty];
-        if (scubaTankOnRoute() && have_skill(polka) && have_effect($effect[Polka of Plenty]) == 0
-            && my_mp() >= mp_cost(polka) + killReserveMP() && polkaFits(songsActive(), songLimit(), routeSongsMissing())
-            && !use_skill(1, polka))
-            print("Couldn't cast " + polka + ".", "red");
+    // Sells spare scales and healscrolls, and dense meat stacks and gems while meat is short.
+    // With force set, everything spare sells regardless of its value.
+    void guideSellSpare(boolean force) {
         item rough = $item[rough fish scale];
         int pristine = pristineScalesNeeded();
         int [item] spare;
@@ -243,10 +237,12 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         spare[rough] = roughScalesSurplus(item_amount(rough), pristine);
         spare[$item[Mer-kin healscroll]] = healscrollSurplus(item_amount($item[Mer-kin healscroll]),
             get_property("yogUrtDefeated") == "true", get_property("dreadScroll2") == "0");
+        foreach it in $items[dense meat stack, Azurite, Lapis Lazuli, Eye Agate]
+            spare[it] = looseSaleCount(item_amount(it), my_meat(), force);
         int value;
         foreach it, n in spare
             value += n * autosell_price(it);
-        if (!surplusSaleNow(value, my_meat()))
+        if (!force && !surplusSaleNow(value, my_meat()))
             return;
         foreach it, n in spare {
             if (n < 1)
@@ -256,6 +252,30 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             else
                 print("Couldn't sell the spare " + it + ".", "red");
         }
+    }
+
+    // Guide route meat: The Polka of Plenty while the old SCUBA tank is still to buy, and spare goods sold.
+    void guideMeat() {
+        if (!guideRoute())
+            return;
+        skill polka = $skill[The Polka of Plenty];
+        if (scubaTankOnRoute() && have_skill(polka) && have_effect($effect[Polka of Plenty]) == 0
+            && my_mp() >= mp_cost(polka) + killReserveMP() && polkaFits(songsActive(), songLimit(), routeSongsMissing())
+            && !use_skill(1, polka))
+            print("Couldn't cast " + polka + ".", "red");
+        guideSellSpare(false);
+    }
+
+    // Before a fight whose MP mafia buys as tonics: sells everything spare when meat is under their cost,
+    // and says so when it is still short.
+    void guideMeatFor(int mpNeeded, string fight) {
+        int meat = tonicMeatNeeded(mpNeeded, my_mp(), npc_price($item[Doc Galaktik's Invigorating Tonic]));
+        if (!guideRoute() || my_meat() >= meat)
+            return;
+        guideSellSpare(true);
+        if (my_meat() < meat)
+            print("Only " + my_meat() + " meat against an estimated " + meat + " in " + $item[Doc Galaktik's Invigorating Tonic]
+                + "s for " + fight + ". If MP runs short, mafia's recovery can fail mid-fight; get meat, then rerun.", "red");
     }
 
     void post_adv() {
@@ -436,6 +456,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             }
         }
         guideMeat();
+        economistFallback();
         if (my_meat( ) < 300 && (!guideRoute() || pristineScalesWanted() == 0)){
             foreach it in $items[dull fish scale, rough fish scale]{
                 autosell(item_amount(it), it );
@@ -3627,6 +3648,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         item lipstick = $item[Mer-kin lipstick];
         if (have_effect($effect[Red Around the Gills]) == 0 && item_amount(lipstick) > 0 && !use(1, lipstick))
             print("Couldn't use the " + lipstick + ".", "red");
+        guideMeatFor(colosseumMPToBuy(to_int(get_property("lastColosseumRoundWon")), mp_cost(spell),
+            have_effect($effect[Red Around the Gills])), "the Mer-kin Colosseum");
         int autoAttack = get_auto_attack();
         try {
             if (autoAttack != 0)
@@ -4048,6 +4071,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 // The spell kill's MP in the worn gear. Mafia's recovery is held to it through the intro and the fight.
                 boolean holdMP = guideRoute() && !guideMelee;
                 int goal = holdMP ? sorceressMP(4000 + max(0, to_int(numeric_modifier("Monster Level"))), sorceressSpellHit(), sauceCastMP(), my_maxmp()) : 0;
+                if (holdMP)
+                    guideMeatFor(goal, "the Nautical Seaceress");
                 string mpRecovery = get_property("mpAutoRecovery");
                 string mpTarget = get_property("mpAutoRecoveryTarget");
                 try {
@@ -4999,6 +5024,7 @@ void main(string... args) {
         // none of them set this does nothing but set up and tear down.
         try {
             set_property("choiceAdventureScript", "UnderTheSea_Choice.ash");
+            economistFallback();
             set_property("betweenBattleScript", "");
             set_property("afterAdventureScript", "");
             // Same defensive clear initialization() does: a run killed
@@ -5019,6 +5045,10 @@ void main(string... args) {
                 cli_execute(get_property("uts_postloopCommand"));
         } finally {
             set_property("choiceAdventureScript", choiceStorage);
+            set_property("choiceAdventure310", choice310Storage);
+            set_property("choiceAdventure311", choice311Storage);
+            set_property("_utsEconomist310", "");
+            set_property("_utsEconomist311", "");
             set_property("betweenBattleScript", betweenBattleStorage);
             set_property("afterAdventureScript", afterAdventureStorage);
             set_ccs(CCSStorage);
@@ -5030,6 +5060,7 @@ void main(string... args) {
         abort("Unknown command \"" + command + "\" -- plain \"UnderTheSea\" runs the loop, \"UnderTheSea sim\" prints the IOTM and pull checklists, \"UnderTheSea postloop\" runs only the postloop steps.");
     try {
         set_property("choiceAdventureScript", "UnderTheSea_Choice.ash");
+        economistFallback();
         set_property("betweenBattleScript", "");
         set_property("afterAdventureScript", "");
         set_property("mpAutoRecoveryItems", get_property("mpAutoRecoveryItems")+";magical mystery juice;doc galaktik's invigorating tonic");
@@ -5048,6 +5079,10 @@ void main(string... args) {
         set_property("betweenBattleScript", betweenBattleStorage);
         set_property("afterAdventureScript", afterAdventureStorage);
         set_property("choiceAdventure1387", choice1387Storage);
+        set_property("choiceAdventure310", choice310Storage);
+        set_property("choiceAdventure311", choice311Storage);
+        set_property("_utsEconomist310", "");
+        set_property("_utsEconomist311", "");
         set_property("mpAutoRecoveryItems", mpAutoRecoveryItemsStorage);
         visit_url("showclan.php?whichclan="+clanID+"&action=joinclan&confirm=on");
         set_ccs(CCSStorage);

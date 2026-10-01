@@ -118,12 +118,13 @@ void main(int whichchoice, string page) {
             break;
 
         // ── Madness Reef Economist: the guide trades while pristine scales are short ──
+        // Off the guide route a choice the player set is left to mafia.
         case 311:
-            if (guideRoute())
-                run_choice(pristineScalesNeeded() > 0 ? 1 : 2);
+            if (economistOwned(311))
+                run_choice(economistChoice(pristineScalesNeeded(), economistCanTrade()));
             break;
         case 310:
-            if (guideRoute())
+            if (economistOwned(310))
                 economistTrade();
             break;
 

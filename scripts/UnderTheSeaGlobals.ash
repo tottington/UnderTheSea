@@ -10,6 +10,8 @@ import <seedfinder/seedfinder.ash>;
     int clanID = get_clan_id();
     if (CCSStorage == "temp") CCSStorage = "default";
     string choice1387Storage = get_property("choiceAdventure1387");
+    string choice310Storage = get_property("choiceAdventure310");
+    string choice311Storage = get_property("choiceAdventure311");
     string [stat] pearlRes = {
         $stat[mysticality]: "hot res",
         $stat[moxie]:       "sleaze res",
@@ -643,7 +645,7 @@ import <seedfinder/seedfinder.ash>;
     boolean [item] whistleWorthy = $items[Mer-kin prayerbeads, Mer-kin healscroll,
         Mer-kin lockkey, Mer-kin hallpass, Mer-kin cheatsheet, Mer-kin bunwig,
         rusty rivet, rusty porthole, rusty broken diving helmet, sea leather,
-        sea cowbell, sea lasso, Mer-kin digpick, Mer-kin knucklebone];
+        sea cowbell, sea lasso, Mer-kin digpick, Mer-kin knucklebone, Mer-kin lipstick];
 
     // Charges cap at seaPoints, and one in Hagnk's is unusable in Ronin, so
     // possession is not readiness.
@@ -986,8 +988,12 @@ import <seedfinder/seedfinder.ash>;
         return bool;
     }
 
+    // Seed count last printed, so the count prints only when it changes.
+    int seedPossSaid = -1;
+
     void dreadSeedCheck(){
-        if (seedPoss() == 1){
+        int seeds = seedPoss();
+        if (seeds == 1){
             for x from 1 to 8{
                 if (get_property("dreadScroll" + x) == 0){
                     SeedData[int] possibleSeeds=find_seeds();
@@ -995,8 +1001,9 @@ import <seedfinder/seedfinder.ash>;
                         set_property("dreadScroll" + x,possibleSeeds[idx].dreadscroll[x-1]);
                 }
             }
-        } else {
-            print(seedPoss() + " possible seeds right now");
+        } else if (seeds != seedPossSaid) {
+            print(seeds + " possible seeds right now");
+            seedPossSaid = seeds;
         }
     }
 
@@ -1521,6 +1528,17 @@ boolean prayerbeadsShort() {
     return available_amount($item[mer-kin prayerbeads]) < 3;
 }
 
+// Healscrolls past one for Yog-Urt and one for the dreadscroll's healscroll clue.
+int healscrollSurplus(int held, boolean yogDone, boolean clueOpen) {
+    return max(0, held - (yogDone ? 0 : 1) - (clueOpen ? 1 : 0));
+}
+
+// The guide's Colosseum spell route uses one Mer-kin lipstick on the way in, so one is wanted
+// until the rounds are won or Red Around the Gills already lasts through them.
+boolean lipstickWanted(boolean guide, string route, int roundsWon, int held, int gillsTurns) {
+    return guide && route == "spell" && roundsWon < 15 && held == 0 && gillsTurns < 15 - roundsWon;
+}
+
 // Whether a dolphin's item is still worth a turn. The predicates above answer
 // that, so ask them rather than restating their numbers.
 boolean stillWanted(item it) {
@@ -1549,6 +1567,15 @@ boolean stillWanted(item it) {
         // Only the low IOTM route mines the teflon ore with a dropped digpick.
         return guideRoute() && available_amount($item[Mer-kin digpick]) == 0
             && item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none];
+    case $item[Mer-kin healscroll]:
+        // The guide route keeps one for Yog-Urt and one for the clue, so it wants one more only while that one is not surplus.
+        if (guideRoute())
+            return healscrollSurplus(item_amount($item[Mer-kin healscroll]) + 1,
+                get_property("yogUrtDefeated") == "true", get_property("dreadScroll2") == "0") == 0;
+        break;
+    case $item[Mer-kin lipstick]:
+        return lipstickWanted(guideRoute(), colosseumRoute(false), to_int(get_property("lastColosseumRoundWon")),
+            item_amount($item[Mer-kin lipstick]), have_effect($effect[Red Around the Gills]));
     }
     // The rest are thrown or spent, so what the run wants of them moves. The
     // cowbell and the lasso outlive the seahorse as Yog-Urt delevelers.
@@ -2470,6 +2497,41 @@ boolean economistCanTrade() {
     return item_amount($item[rough fish scale]) >= 10 || dullScalesSpare() >= 10;
 }
 
+// Heavily Invested in Pun Futures: 1 visits the Economist of Scales, 2 skips.
+int economistChoice(int pristineNeeded, boolean canTrade) {
+    return pristineNeeded > 0 && canTrade ? 1 : 2;
+}
+
+// A choice setting that hands the choice to the player, which aborts automation.
+boolean choiceUnset(string value) {
+    return value == "" || value == "0";
+}
+
+// The script answers an Economist choice on the guide route, and elsewhere only where the player left it unset.
+boolean economistOwned(int choice) {
+    return guideRoute() || get_property("_utsEconomist" + choice) == "true"
+        || choiceUnset(get_property("choiceAdventure" + choice));
+}
+
+// Property answers for the Economist's choices the script owns, used if the choice script leaves one unanswered.
+// 310 option 6 leaves the Economist without trading.
+void economistFallback() {
+    boolean guide = guideRoute();
+    if (guide || choiceUnset(choice311Storage)) {
+        if (get_property("_utsEconomist311") != "true")
+            set_property("_utsEconomist311", "true");
+        string visit = to_string(economistChoice(pristineScalesNeeded(), economistCanTrade()));
+        if (get_property("choiceAdventure311") != visit)
+            set_property("choiceAdventure311", visit);
+    }
+    if (guide || choiceUnset(choice310Storage)) {
+        if (get_property("_utsEconomist310") != "true")
+            set_property("_utsEconomist310", "true");
+        if (get_property("choiceAdventure310") != "6")
+            set_property("choiceAdventure310", "6");
+    }
+}
+
 // Scales still to farm: ten rough per missing pristine, traded at Madness Reef, plus the dull shortfall.
 int scalesNeeded() {
     return max(0, 10 * pristineScalesNeeded() - available_amount($item[rough fish scale]))
@@ -2485,11 +2547,6 @@ int dullScalesSurplus(int dull, int rough, boolean underwear, int pristineNeeded
 // Rough scales past the ten each missing pristine scale takes.
 int roughScalesSurplus(int rough, int pristineNeeded) {
     return max(0, rough - 10 * pristineNeeded);
-}
-
-// Healscrolls past one for Yog-Urt and one for the dreadscroll's healscroll clue.
-int healscrollSurplus(int held, boolean yogDone, boolean clueOpen) {
-    return max(0, held - (yogDone ? 0 : 1) - (clueOpen ? 1 : 0));
 }
 
 // A surplus sale waits for 400 meat of goods unless meat is short.
@@ -4232,6 +4289,33 @@ skill colosseumPassSkill() {
 // MP before a spell route Colosseum fight: one cast and a bust's 10 passes, two casts for a champion, at least 200.
 int colosseumMPGoal(boolean champion, int cost, int passCost, int maxMP) {
     return min(maxMP, max(200, (champion ? 2 : 1) * cost + 10 * passCost));
+}
+
+// MP the Colosseum rounds after roundsWon take: one cast a round, two for the champions in rounds 13 to 15.
+int colosseumMPNeeded(int roundsWon, int cost) {
+    int mp;
+    for r from 1 to 15
+        if (r > roundsWon)
+            mp += (r >= 13 ? 2 : 1) * cost;
+    return mp;
+}
+
+// Colosseum MP left to buy: the casts less Red Around the Gills' low roll of 140 MP after each fight it covers but the last.
+int colosseumMPToBuy(int roundsWon, int cost, int gillsTurns) {
+    int fights = max(0, 15 - roundsWon);
+    int regen = 140 * max(0, min(gillsTurns, fights - 1));
+    return max(0, colosseumMPNeeded(roundsWon, cost) - regen);
+}
+
+// Meat for the Doc Galaktik's tonics that cover an MP shortfall, at their low roll of 9 MP.
+int tonicMeatNeeded(int mpNeeded, int mpHeld, int price) {
+    int shortfall = max(0, mpNeeded - mpHeld);
+    return price * ((shortfall + 8) / 9);
+}
+
+// Dense meat stacks and gems sell while meat is under 2000, or whenever a fight's restores need meat.
+int looseSaleCount(int held, int meat, boolean force) {
+    return force || meat < 2000 ? held : 0;
 }
 
 // Only the Colosseum is left before Shub-Jigguwatt: the park war over or its map unbought, the gladiator
