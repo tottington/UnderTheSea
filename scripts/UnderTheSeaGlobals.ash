@@ -708,6 +708,25 @@ import <seedfinder/seedfinder.ash>;
         return n;
     }
 
+    // What an adventure attempt changes. Every fight, free ones too, moves the zone's turns_spent.
+    string advMark(string zone, int turns, int adventures, int zoneTurns, string combatStart, string encounter) {
+        return zone + "|" + turns + "|" + adventures + "|" + zoneTurns + "|" + combatStart + "|" + encounter;
+    }
+
+    // Consecutive adv() passes that changed neither the mark nor meat. A change since the
+    // last pass's mark, a new zone included, restarts the count.
+    int advNoops(string lastAfter, string before, string after, int meatBefore, int meatAfter, int noops) {
+        if (before != lastAfter)
+            noops = 0;
+        return before == after && meatBefore == meatAfter ? noops + 1 : 0;
+    }
+
+    // adv1 returns without adventuring while mafia's goal list is met, and goals outlive a script.
+    void clearGoals() {
+        if (count(get_goals()) > 0 && !cli_execute("goals clear"))
+            print("Couldn't clear mafia's goals; adv1 may return without adventuring.", "red");
+    }
+
     // Names what an unbounded zone loop is waiting for, every ten turns past the
     // mark. Call before adv(): the modifiers read are whatever is worn.
     void zoneStall(string waitingFor, item gate, location zone, int spent, int mark) {

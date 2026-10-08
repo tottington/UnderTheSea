@@ -525,8 +525,30 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             guideEarlyTank();
     }
 
+    int advNoopCount;
+    string advLastMark;
+
+    string advMark(location loc) {
+        return advMark(to_string(loc), total_turns_played(), my_adventures(), loc.turns_spent,
+            get_property("_lastCombatStarted"), get_property("lastEncounter"));
+    }
+
     void adv(location loc) {
+        // At 0 adventures adv1 does nothing; post_adv refuels on path 55 or stops the run.
+        if (my_adventures() == 0)
+            post_adv();
+        if (my_adventures() == 0)
+            abort("Out of adventures before " + loc + ". Eat or drink, then rerun.");
+        clearGoals();
+        string before = advMark(loc);
+        int meat = my_meat();
         adv1(loc);
+        string after = advMark(loc);
+        advNoopCount = advNoops(advLastMark, before, after, meat, my_meat(), advNoopCount);
+        advLastMark = after;
+        if (advNoopCount >= 20)
+            abort(advNoopCount + " tries at " + loc + " spent no turn, fought nothing and met no new encounter. "
+                + "Check adventures left, drunkenness and whether " + loc + " is open, then rerun.");
         post_adv();
     }
 
@@ -5025,6 +5047,7 @@ void main(string... args) {
         try {
             set_property("choiceAdventureScript", "UnderTheSea_Choice.ash");
             economistFallback();
+            clearGoals();
             set_property("betweenBattleScript", "");
             set_property("afterAdventureScript", "");
             // Same defensive clear initialization() does: a run killed
@@ -5061,6 +5084,7 @@ void main(string... args) {
     try {
         set_property("choiceAdventureScript", "UnderTheSea_Choice.ash");
         economistFallback();
+        clearGoals();
         set_property("betweenBattleScript", "");
         set_property("afterAdventureScript", "");
         set_property("mpAutoRecoveryItems", get_property("mpAutoRecoveryItems")+";magical mystery juice;doc galaktik's invigorating tonic");
