@@ -488,6 +488,8 @@ boolean gladiatorTrainingFight(string page_text) {
         free_run(page_text, false);
     if (current_round() > 0 && (have_skill($skill[saucegeyser]) || have_skill($skill[saucestorm])))
         cleanUp();
+    if (current_round() > 0 && free_monster(last_monster()))
+        finishFreeFight();
     int runs;
     while (current_round() > 0 && runs < 3) {
         runs += 1;
