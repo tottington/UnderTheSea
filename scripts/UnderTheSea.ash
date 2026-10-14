@@ -386,7 +386,10 @@ string DropsItems;
                         use_skill($skill[the ode to booze]);
                     drink($item[astral pilsner]);
                 } else if (!guideRoute() || !lowIOTMTopUp()) {
-                    abort("no more easy diet");
+                    string why = "Out of adventures with no " + $item[astral pilsner] + " left"
+                        + (guideRoute() ? " and nothing the low IOTM top-up could eat or drink. " + lowIOTMTopUpReport() : ".");
+                    print(why, "red");
+                    abort("no more easy diet: " + why);
                 }
             }
             guideSeaStrengthAfterYog();
@@ -605,6 +608,7 @@ string DropsItems;
         if (get_property("mpAutoRecoveryTarget") == mpTargetSet)
             setMPRecovery();
         clearGoals();
+        scimitarAway();
         string before = advMark(loc);
         int meat = my_meat();
         adv1(loc);
@@ -679,7 +683,7 @@ string DropsItems;
         }
         // The props only buy three free kills, so a run without them is a run
         // three turns longer. Every site that would dress them checks for them.
-        if (!sheriffOutfit())
+        if (!sheriffOutfit() && have_item($item[Clan VIP Lounge key]))
             print("No Sheriff outfit -- either its props are not unlocked, or today's "
                 + "three prop borrows are spent. Skipping the Assert your Authority "
                 + "free kills; the run costs up to three more turns.", "blue");
@@ -2578,7 +2582,9 @@ string DropsItems;
                 guideWaffle();
             set_location(corral);
             tempEquipment("item drop,sea" + guideRegen(), gear);
-            mood("itdrop");
+            // Stage 2 waits only on the seahorse, so it skips the item drop buffs.
+            if (!doneWithSeaCow() || !doneWithCowboy())
+                mood("itdrop");
             if (!doneWithSeaCow())
                 corralItemReport();
             adv(corral);
@@ -3716,6 +3722,40 @@ string DropsItems;
         abort(why);
     }
 
+    // Adventures toward n the way post_adv() refuels at zero: an astral six-pack and pilsners, then lowIOTMTopUp().
+    void guideAdventuresFor(int n) {
+        int passes;
+        while (my_adventures() < n && passes < 20) {
+            passes += 1;
+            int before = my_adventures();
+            if (item_amount($item[astral six-pack]) > 0 && !use(1, $item[astral six-pack]))
+                print("Couldn't open the " + $item[astral six-pack] + ".", "red");
+            if (item_amount($item[astral pilsner]) > 0 && my_inebriety() < inebriety_limit()) {
+                odeUp();
+                if (!drink(1, $item[astral pilsner]))
+                    print("Couldn't drink an " + $item[astral pilsner] + ".", "red");
+            } else {
+                boolean ignored = lowIOTMTopUp();
+            }
+            if (my_adventures() <= before)
+                break;
+        }
+    }
+
+    // Before the Colosseum spends Null Afternoon, the lipstick and its buffs: adventures topped up toward turns,
+    // then a clean stop when the rounds left still don't fit.
+    void guideColosseumAdventures(int turns) {
+        int won = to_int(get_property("lastColosseumRoundWon"));
+        guideAdventuresFor(turns);
+        if (!colosseumAdventuresShort(my_adventures(), won))
+            return;
+        string why = "The Mer-kin Colosseum has " + (15 - won) + " rounds left and only " + my_adventures()
+            + " adventures after topping up, so it doesn't start. Null Afternoon, the lipstick and the buffs are untouched. "
+            + lowIOTMTopUpReport() + " Get more adventures, then rerun.";
+        print(why, "red");
+        abort(why);
+    }
+
     // Null Afternoon for the next turnsNeeded turns, from the held null-day exploit or a pull. True while it is active.
     boolean guideNullAfternoon(int turnsNeeded) {
         item exploit = $item[null-day exploit];
@@ -3853,6 +3893,7 @@ string DropsItems;
             print("Only " + item_amount($item[unblemished pearl]) + " of 5 unblemished pearls. Farming the rest after the Colosseum spends Null Afternoon the Sorceress needs.", "red");
         // The rounds left, then Shub-Jigguwatt and both Center Door visits.
         int needed = 18 - to_int(get_property("lastColosseumRoundWon"));
+        guideColosseumAdventures(needed);
         if (!guideNullAfternoon(needed))
             print("No Null Afternoon for the Colosseum. The spell still kills in one cast, but Shub-Jigguwatt and the Sorceress need a null-day exploit.", "red");
         else if (have_effect($effect[Null Afternoon]) < needed)
@@ -3952,6 +3993,7 @@ string DropsItems;
         if (item_amount($item[unblemished pearl]) < 5)
             print("Only " + item_amount($item[unblemished pearl]) + " of 5 unblemished pearls. Farming the rest after the Colosseum spends Null Afternoon the Sorceress needs.", "red");
         int needed = 18 - to_int(get_property("lastColosseumRoundWon"));
+        guideColosseumAdventures(needed);
         if (!guideNullAfternoon(needed))
             print("No Null Afternoon for the Colosseum, so the gladiators keep their full Attack and Defense.", "red");
         else if (have_effect($effect[Null Afternoon]) < needed)

@@ -935,6 +935,16 @@ import <seedfinder/seedfinder.ash>;
     // Defined with the fish scale helpers.
     boolean scimitarRetired();
 
+    // A retired cozy scimitar comes out of whichever hand holds it.
+    void scimitarAway() {
+        item scimitar = $item[cozy scimitar];
+        if (!have_equipped(scimitar) || !scimitarRetired())
+            return;
+        foreach sl in $slots[weapon, off-hand]
+            if (equipped_item(sl) == scimitar && !equip(sl, $item[none]))
+                print("Couldn't take off the " + scimitar + ".", "red");
+    }
+
     // Guide route: a club picked for the weapon slot belongs in the main hand, where Batter Up! swings it.
     boolean clubNeedsMainHand(boolean guide, item club, item mainHand) {
         return guide && club != $item[none] && item_type(club) == "club" && mainHand != club;
@@ -1009,9 +1019,11 @@ import <seedfinder/seedfinder.ash>;
             else
                 maximizerInput += ", equip " + equipmentSelection[slo];
         }
-        // A retired cozy scimitar stays whole for the next run.
-        if (scimitarRetired())
+        // A retired cozy scimitar stays whole for the next run. Taken off first, the maximizer can't keep it on a tie.
+        if (scimitarRetired()) {
             maximizerInput += ", -equip cozy scimitar";
+            scimitarAway();
+        }
         if (!maximize(maximizerInput, false))
             abort("Maximizer failed");
         // The maximizer may hold the club in the off-hand; the weapon it displaced moves there when it fits.
@@ -1061,6 +1073,19 @@ import <seedfinder/seedfinder.ash>;
         return to_string(buf);
     }
 
+    // Mining order for a promising chunk at row y, given the ore images beside it: lower ranks first, -1 never.
+    // Rows 5 and 6 hold no ore and row 4 rarely does. Teflon beside a chunk ranks it first, velcro or vinyl last.
+    int mineSpotRank(int y, string adjacent) {
+        if (y >= 5)
+            return -1;
+        int rank = 1;
+        if (contains_text(adjacent, "teflonore"))
+            rank = 0;
+        else if (contains_text(adjacent, "velcroore") || contains_text(adjacent, "vinylore"))
+            rank = 2;
+        return y == 4 ? rank + 3 : rank;
+    }
+
     // The Anemone Mine spot to mine next, or 0 when no spot qualifies.
     int mineSpot(){
         int num, x_coor, y_coor;
@@ -1081,21 +1106,22 @@ import <seedfinder/seedfinder.ash>;
             }
         }
 
-        // Fall back to promising chunks not near bad ore
+        // Then the best ranked promising chunk.
+        int best = -1;
         if (num == 0) {
-            while (mining_spot.find()){
+            while (mining_spot.find()) {
                 x_coor = to_int(mining_spot.group(1));
                 y_coor = to_int(mining_spot.group(2));
-                string adj = adjacentCaverns(x_coor, y_coor);
-                if (y_coor >= 4 || contains_text(adj, "velcroore") || contains_text(adj, "vinylore"))
-                    continue;
-                num = (8 * y_coor) + x_coor;
-                break;
+                int rank = mineSpotRank(y_coor, adjacentCaverns(x_coor, y_coor));
+                if (rank >= 0 && (best < 0 || rank < best)) {
+                    best = rank;
+                    num = (8 * y_coor) + x_coor;
+                }
             }
         }
 
-        // Fall back 2 that I see sometimes
-        if (num == 0) {
+        // Without a clean chunk above row 4, an edge chunk beside a matching pair of squares comes first.
+        if (num == 0 || best >= 2) {
             mining_spot.reset();
             while (mining_spot.find()){
                 x_coor = to_int(mining_spot.group(1));
@@ -1107,18 +1133,6 @@ import <seedfinder/seedfinder.ash>;
                     num = (8 * y_coor) + x_coor;
                     break;
                 }
-            }
-        }
-
-        // Last resort: any promising chunk not too deep
-        if (num == 0) {
-            mining_spot.reset();
-            while (mining_spot.find()){
-                x_coor = to_int(mining_spot.group(1));
-                y_coor = to_int(mining_spot.group(2));
-                if (y_coor >= 4) continue;
-                num = (8 * y_coor) + x_coor;
-                break;
             }
         }
         return num;
@@ -1872,6 +1886,25 @@ boolean prayerbeadsShort() {
     return available_amount($item[mer-kin prayerbeads]) < 3;
 }
 
+// Hallpasses the guide's school still spends, one each for the facecowl and the waistrope.
+int hallpassesNeeded(boolean dreadscroll, boolean facecowl, boolean waistrope) {
+    if (dreadscroll)
+        return 0;
+    return (facecowl ? 0 : 1) + (waistrope ? 0 : 1);
+}
+
+// The guide's seahorse taming: three sea cowbells.
+boolean seahorseGearWanted(boolean tamed, int held, int needed) {
+    return !tamed && held < needed;
+}
+
+// The guide's sea leather: the hat and the chaps before the seahorse, then only the chaps a tailpiece is made with.
+boolean seaLeatherWanted(boolean tamed, int leather, int chaps, int hat, boolean tailpiece) {
+    if (!tamed)
+        return leather + chaps + hat < 2;
+    return leather + chaps == 0 && !tailpiece;
+}
+
 // Healscrolls past one for Yog-Urt and one for the dreadscroll's healscroll clue.
 int healscrollSurplus(int held, boolean yogDone, boolean clueOpen) {
     return max(0, held - (yogDone ? 0 : 1) - (clueOpen ? 1 : 0));
@@ -1892,6 +1925,11 @@ boolean stillWanted(item it) {
     case $item[rusty rivet]:
         return diverHuntActive();
     case $item[sea leather]:
+        if (guideRoute())
+            return seaLeatherWanted(get_property("seahorseName") != "", item_amount($item[sea leather]),
+                available_amount($item[sea chaps]), available_amount($item[sea cowboy hat]),
+                available_amount($item[crappy Mer-kin tailpiece]) + available_amount($item[Mer-kin scholar tailpiece])
+                    + available_amount($item[Mer-kin gladiator tailpiece]) > 0);
         return seaCowNeeded();
     case $item[Mer-kin cheatsheet]:
         // The guide route takes no wordquizzes.
@@ -1903,7 +1941,24 @@ boolean stillWanted(item it) {
     case $item[Mer-kin prayerbeads]:
         return prayerbeadsShort();
     case $item[Mer-kin bunwig]:
-        return available_amount($item[mer-kin bunwig]) == 0;
+        // The guide takes no wordquizzes, the bunwig's only use in the teacher's lounge.
+        return !guideRoute() && available_amount($item[mer-kin bunwig]) == 0;
+    case $item[Mer-kin hallpass]:
+        if (guideRoute())
+            return item_amount($item[Mer-kin hallpass]) + closet_amount($item[Mer-kin hallpass])
+                < hallpassesNeeded(available_amount($item[Mer-kin dreadscroll]) > 0,
+                    available_amount($item[Mer-kin facecowl]) + available_amount($item[Mer-kin scholar mask]) > 0,
+                    available_amount($item[Mer-kin waistrope]) + available_amount($item[Mer-kin scholar tailpiece]) > 0);
+        break;
+    case $item[sea lasso]:
+        // Thrown lassos are spent, so the Corral wants them until training plus three per held lasso reaches 23.
+        if (guideRoute())
+            return get_property("seahorseName") == "" && !doneWithCowboy();
+        break;
+    case $item[sea cowbell]:
+        if (guideRoute())
+            return seahorseGearWanted(get_property("seahorseName") != "", item_amount($item[sea cowbell]), 3);
+        break;
     case $item[Mer-kin knucklebone]:
         // The guide route reads one for dreadscroll clue 4.
         return guideRoute() && item_amount($item[Mer-kin knucklebone]) == 0 && dreadClueWanted(dreadSeedAnswers(), 4);
@@ -1912,10 +1967,12 @@ boolean stillWanted(item it) {
         return guideRoute() && available_amount($item[Mer-kin digpick]) == 0
             && item_amount($item[teflon ore]) == 0 && tailpiece() == $item[none];
     case $item[Mer-kin healscroll]:
-        // The guide route keeps one for Yog-Urt and one for the clue, so it wants one more only while that one is not surplus.
+        // The guide route keeps one for Yog-Urt and one for a wanted clue, so it wants one more only while that one is
+        // not surplus, and not while the Outpost's healers still drop them.
         if (guideRoute())
-            return healscrollSurplus(item_amount($item[Mer-kin healscroll]) + 1,
-                get_property("yogUrtDefeated") == "true", get_property("dreadScroll2") == "0") == 0;
+            return get_property("corralUnlocked") == "true"
+                && healscrollSurplus(item_amount($item[Mer-kin healscroll]) + 1, get_property("yogUrtDefeated") == "true",
+                    dreadClueWanted(dreadSeedAnswers(), 2)) == 0;
         // One held covers the next use, and healers keep dropping them.
         return item_amount($item[Mer-kin healscroll]) == 0;
     case $item[Mer-kin lipstick]:
@@ -1923,7 +1980,7 @@ boolean stillWanted(item it) {
             item_amount($item[Mer-kin lipstick]), have_effect($effect[Red Around the Gills]));
     }
     // The rest are thrown or spent, so what the run wants of them moves. The
-    // cowbell and the lasso outlive the seahorse as Yog-Urt delevelers.
+    // cowbell and the lasso outlive the seahorse as Yog-Urt delevelers off the guide route.
     return true;
 }
 
@@ -2552,13 +2609,14 @@ void sourceEnhance() {
 // UnderTheSea.ash and UnderTheSeaCCS.ash can share a single helper module.
 
 void cargoPocket() {
-    if (get_property("cargoPocketsEmptied") == "")
-        set_property("cargoPocketsEmptied", "");
+    if (available_amount($item[Cargo Cultist Shorts]) == 0 || get_property("_cargoPocketEmptied") == "true")
+        return;
     // Comma-delimited match so a pocket number cannot match inside another.
     if (contains_text("," + get_property("cargoPocketsEmptied") + ",", ",494,"))
         return;
     step("Cargo shorts: opening pocket 494");
-    cli_execute("cargo pocket 494");
+    if (!cli_execute("cargo pick 494"))
+        print("Couldn't pick pocket 494 of the " + $item[Cargo Cultist Shorts] + ".", "red");
 }
 
 // ─── KREMLIN'S GREATEST BRIEFCASE ─────────────────────────────────────────────
@@ -3015,9 +3073,14 @@ boolean ironPalmsUp() {
     return have_effect($effect[Iron Palms]) > 0;
 }
 
-// Batter Up! needs 5 Fury, which only a Seal Clubber with Ire of the Orca holds, and a club.
+// Batter Up! needs 5 Fury, which only a Seal Clubber with Ire of the Orca holds.
+boolean batterUpUsable() {
+    return have_skill($skill[Batter Up!]) && my_maxfury() >= 5;
+}
+
+// Batter Up! with a club to swing.
 boolean batterUpPossible() {
-    return have_skill($skill[Batter Up!]) && my_maxfury() >= 5
+    return batterUpUsable()
         && (guideClub() != $item[none]
             || (have_skill($skill[Iron Palm Technique]) && scimitarWieldable()));
 }
@@ -4434,10 +4497,12 @@ guideSkill [int] guideSkills = {
     new guideSkill($skills[Cannelloni Cocoon], 1, "Healing."),
 };
 
+// A line marked both pulls whichever of its items is not yet held, so the pair can be worn together.
 record guidePull {
     boolean [item] any;
     boolean flexible;
     string why;
+    boolean both;
 };
 
 guidePull [int] guidePulls = {
@@ -4470,6 +4535,7 @@ guidePull [int] guidePulls = {
     new guidePull($items[waffle], true, "Finds the seahorse sooner."),
     new guidePull($items[stench jelly, Clara's bell, handheld Allied radio], true, "A noncombat forcer."),
     new guidePull($items[aquamariner's necklace, lucky rabbitfish fin], true, "MP regen, cheaper than restores."),
+    new guidePull($items[hardened slime belt, six-rainbow shield], true, "The other one too, worn together for +3 more resistance.", true),
 };
 
 string skillNames(boolean [skill] list) {
@@ -4484,6 +4550,19 @@ string itemNames(boolean [item] list) {
     foreach it in list
         out += (out == "" ? "" : " or ") + it;
     return out;
+}
+
+// False for a line only Batter Up! uses when Batter Up! can't be cast.
+boolean guidePullClassOk(boolean [item] any, boolean batterUsable) {
+    return batterUsable || !(any contains $item[rusted-out shootin' iron]);
+}
+
+// Batter Up! and the Fury skills feeding it, which only a Seal Clubber can use.
+boolean guideSkillNeedsFury(boolean [skill] any) {
+    foreach sk in $skills[Batter Up!, Wrath of the Wolverine, Ire of the Orca]
+        if (any contains sk)
+            return true;
+    return false;
 }
 
 // Pulled by the phase that uses them, not by the breakfast plan.
@@ -4526,9 +4605,13 @@ string pullBudgetLine(int wanted, int perDay) {
 int printGuidePulls(boolean flexible, boolean runStart) {
     int wanted;
     foreach num, gp in guidePulls {
-        if (gp.flexible != flexible)
+        if (gp.flexible != flexible || gp.both)
             continue;
         boolean [item] items = gp.any;
+        if (runStart && !guidePullClassOk(gp.any, batterUpUsable())) {
+            print("○ " + itemNames(gp.any) + ": " + gp.why + " Skipped, Batter Up! needs a Seal Clubber's Fury.", "gray");
+            continue;
+        }
         if (gp.any contains $item[Deep Dish of Legend]) {
             boolean [item] mine;
             mine[legendPizza(runStart ? my_primestat() : $stat[muscle])] = true;
@@ -4658,11 +4741,12 @@ string lowIOTMChecklist(boolean runStart) {
         foreach sk in gs.any
             if (have_skill(sk))
                 owned += 1;
-        if (owned >= gs.need) {
+        boolean classOk = !runStart || batterUpUsable() || !guideSkillNeedsFury(gs.any);
+        if (owned >= gs.need && classOk) {
             skillsMet += 1;
             print("✓ " + skillNames(gs.any) + ": " + gs.why, "blue");
         } else
-            print("✗ " + skillNames(gs.any) + ": " + gs.why, "red");
+            print("✗ " + skillNames(gs.any) + ": " + gs.why + (classOk ? "" : " Unused without Batter Up! and 5 Fury, which only a Seal Clubber holds."), "red");
     }
     print("Low IOTM check: " + skillsMet + " of " + count(guideSkills) + " guide perms owned.");
 
@@ -4776,9 +4860,16 @@ string legendPizzaEatenProp(item pizza) {
 // The item to pull for a guide line: none when one is on hand, already pulled
 // today or unused by this route, else Hagnk's stock, else the cheapest listing.
 item guidePullChoice(guidePull gp) {
+    if (!guidePullClassOk(gp.any, batterUpUsable())) {
+        print("Low IOTM pulls: no " + itemNames(gp.any) + ", since Batter Up! needs a Seal Clubber's Fury.", "blue");
+        return $item[none];
+    }
+    boolean [item] open;
     foreach it in gp.any
-        if (available_amount(it) > 0 || pulledToday(it))
-            return $item[none];
+        if (available_amount(it) == 0 && !pulledToday(it))
+            open[it] = true;
+    if (count(open) == 0 || (!gp.both && count(open) < count(gp.any)))
+        return $item[none];
     if (gp.any contains $item[aquamariner's necklace])
         return regenPullChoice();
     // Untradeable, so Hagnk's or nothing.
@@ -4799,12 +4890,12 @@ item guidePullChoice(guidePull gp) {
             return $item[none];
         return storage_amount(colosseumLantern()) > 0 ? colosseumLantern() : $item[none];
     }
-    foreach it in gp.any
+    foreach it in open
         if (storage_amount(it) > 0)
             return it;
     item pick = $item[none];
     int best;
-    foreach it in gp.any {
+    foreach it in open {
         int price = is_tradeable(it) ? mall_price(it) : 0;
         if (price > 0 && (pick == $item[none] || price < best)) {
             pick = it;
@@ -5188,6 +5279,11 @@ int colosseumMPGoal(boolean champion, int cost, int passCost, int maxMP) {
     return min(maxMP, max(200, (champion ? 2 : 1) * cost + 10 * passCost));
 }
 
+// True when the adventures held can't cover a fight for each Colosseum round left after roundsWon.
+boolean colosseumAdventuresShort(int adventures, int roundsWon) {
+    return adventures < max(0, 15 - roundsWon);
+}
+
 // MP the Colosseum rounds after roundsWon take: one cast a round, two for the champions in rounds 13 to 15.
 int colosseumMPNeeded(int roundsWon, int cost) {
     int mp;
@@ -5317,8 +5413,8 @@ void lowIOTMBreakfast() {
         && !buy(1, $item[antique accordion]))
         print("Low IOTM breakfast: couldn't buy an " + $item[antique accordion] + ".", "red");
 
-    // Batter Up! needs a club unless Iron Palms makes the scimitar count as one.
-    boolean club = have_skill($skill[Iron Palm Technique])
+    // Batter Up! needs a club unless Iron Palms makes the scimitar count as one. No club is bought when it can't be cast.
+    boolean club = !batterUpUsable() || have_skill($skill[Iron Palm Technique])
         || item_type(equipped_item($slot[weapon])) == "club";
     foreach it in get_inventory()
         if (item_type(it) == "club")
@@ -5347,6 +5443,50 @@ void lowIOTMBreakfast() {
     set_property("uts_lowIOTMBreakfast", my_ascensions());
 }
 
+// The sushi room fullness holds from one fish meat: maki with seaweed, magical with dragonfish caviar too,
+// else nigiri. Empty when there is no fish meat or under 2 fullness free.
+string sushiFor(item meat, int room, boolean seaweed, boolean caviar) {
+    if (meat == $item[none] || room < 2)
+        return "";
+    string kind = replace_string(to_string(meat), " fish meat", "");
+    if (room >= 3 && seaweed)
+        return (caviar ? "magical " : "") + kind + " maki";
+    return kind + " nigiri";
+}
+
+// The first fish meat held, or none.
+item fishMeatHeld() {
+    foreach it in $items[beefy fish meat, glistening fish meat, slick fish meat]
+        if (item_amount(it) > 0)
+            return it;
+    return $item[none];
+}
+
+// Opens a held crate of fish meat, then rolls and eats sushiFor()'s pick in room fullness. True when it was eaten.
+boolean guideSushi(int room) {
+    item crate = $item[crate of fish meat];
+    item mat = $item[sushi-rolling mat];
+    if (item_amount(crate) > 0 && !use(1, crate))
+        print("Couldn't open the " + crate + ".", "red");
+    string sushi = sushiFor(fishMeatHeld(), room, item_amount($item[seaweed]) > 0, item_amount($item[dragonfish caviar]) > 0);
+    if (sushi == "")
+        return false;
+    if (get_property("hasSushiMat") != "true" && item_amount(mat) > 0 && !use(1, mat))
+        print("Couldn't use the " + mat + ".", "red");
+    if (get_property("hasSushiMat") != "true") {
+        print("No " + mat + " in the campground, so no " + sushi + ".", "red");
+        return false;
+    }
+    if (!retrieve_item(1, $item[white rice])) {
+        print("Couldn't get " + $item[white rice] + " for a " + sushi + ".", "red");
+        return false;
+    }
+    int full = my_fullness();
+    if (!cli_execute("make " + sushi))
+        print("Couldn't roll a " + sushi + ".", "red");
+    return my_fullness() > full;
+}
+
 // Fishy on the low IOTM route: guide consumables still on hand, then sushi
 // from the old man's crate of fish meat. No fish sauce pulls and no clovers.
 void lowIOTMFishy() {
@@ -5359,16 +5499,9 @@ void lowIOTMFishy() {
         if (drink(1, $item[Centauri fish wine]))
             return;
     }
-    if (item_amount($item[crate of fish meat]) > 0 && !use(1, $item[crate of fish meat]))
-        print("Couldn't open the " + $item[crate of fish meat] + ".", "red");
-    foreach it in $items[beefy fish meat, glistening fish meat, slick fish meat]
-        if (item_amount(it) > 0) {
-            if (fullness_limit() - my_fullness() < 2)
-                print("No stomach room for a nigiri.", "red");
-            else if (retrieve_item(1, $item[white rice]))
-                eatSushi();
-            return;
-        }
+    if (!guideSushi(fullness_limit() - my_fullness()) && fishMeatHeld() != $item[none]
+        && fullness_limit() - my_fullness() < 2)
+        print("No stomach room for a nigiri.", "red");
 }
 
 // Fishy from a pull when nothing held gives it: Aldebaran sardines, eaten after a held legendary pasta,
@@ -5429,5 +5562,23 @@ boolean lowIOTMTopUp() {
         if (!drink(1, ale))
             print("Couldn't drink the " + ale + ".", "red");
     }
+    // The room nigiriKeep() holds goes to sushi once nothing else gave adventures.
+    if (my_adventures() == before)
+        guideSushi(fullness_limit() - my_fullness());
     return my_adventures() > before;
+}
+
+// What lowIOTMTopUp() had to work with, for the stop message.
+string lowIOTMTopUpReport() {
+    item ale = $item[Alewife&trade; Ale];
+    int meat;
+    foreach it in $items[beefy fish meat, glistening fish meat, slick fish meat]
+        meat += item_amount(it);
+    return "Checked: " + my_fullness() + "/" + fullness_limit() + " fullness with " + nigiriKeep() + " kept for sushi, "
+        + item_amount($item[kelp puck]) + " kelp pucks, " + item_amount($item[sand penny]) + " sand pennies, "
+        + my_inebriety() + "/" + inebriety_limit() + " drunk, " + item_amount($item[Ocean-Touched Rum]) + " rum (Yog-Urt "
+        + (get_property("yogUrtDefeated") == "true" ? "down" : "not down") + "), " + item_amount(ale) + " " + ale + ", "
+        + item_amount($item[crate of fish meat]) + " crates of fish meat, " + meat + " fish meat, sushi mat "
+        + (get_property("hasSushiMat") == "true" ? "set up" : "not set up") + ", old man's quest "
+        + get_property("questS01OldGuy") + ".";
 }
