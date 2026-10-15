@@ -21,6 +21,19 @@ boolean skillOffered(string page_text, skill sk) {
     return dropdownLists(page_text, sk) == 1;
 }
 
+// Douse Foe comes with the Flash Liquidizer worn. The dropdown decides when the page has one.
+boolean douseFoeOffered(string page_text) {
+    int listed = dropdownLists(page_text, $skill[Douse Foe]);
+    if (listed >= 0)
+        return listed == 1;
+    return have_equipped($item[Flash Liquidizer Ultra Dousing Accessory]);
+}
+
+// Douse again while the fight is live before round 25, a use is left with no success yet, and the last cast moved the round.
+boolean douseAgain(int round, int lastRound, int uses, boolean success) {
+    return round > 0 && round < 25 && round != lastRound && uses < 3 && !success;
+}
+
 // A gladiator move from the dropdown, else its moves-known property with its weapon wielded.
 // Mafia's own have_skill() swaps Blade Roller and Blade Runner.
 boolean gladiatorMoveOffered(string page_text, skill sk) {
@@ -114,6 +127,27 @@ string colosseumSpellAction(boolean boss, boolean neutral, int bustLeft, boolean
     return spellNow ? "spell" : "run";
 }
 
+// Off the guide route a champion takes the spell while it can still be hurt, a one-cast kill even at low HP.
+// Live neutrality or no MP for a spell runs, as do low HP and a live bust with no pass castable.
+string championAction(boolean neutral, int bustLeft, boolean passNow, boolean hpLow, boolean spellNow, boolean oneShot) {
+    if (neutral || !spellNow)
+        return "run";
+    if (bustLeft > 0)
+        return passNow && !hpLow ? "pass" : "run";
+    return oneShot || !hpLow ? "spell" : "run";
+}
+
+// The reason championAction() ran.
+string championRunWhy(boolean neutral, int bustLeft, boolean hpLow, boolean spellNow) {
+    if (neutral)
+        return "his neutrality held every hit to 1 damage";
+    if (!spellNow)
+        return "there was no MP for a spell";
+    if (hpLow)
+        return "HP ran low";
+    return "his bust would reflect the spell and no pass skill was castable";
+}
+
 // Attempt a free kill using available skills/items.
 // Pass drop=true to skip items that interfere with item drops.
 void free_kill(string ptext, boolean drop) {
@@ -125,8 +159,12 @@ void free_kill(string ptext, boolean drop) {
     if (highShiny()){
         if (contains_text(ptext, "Darts: Aim for the Bullseye")
             && my_location() != $location[mer-kin colosseum])
-            while (current_round() > 0 && get_property("_dartsLeft").to_int() > 0)
-                use_skill($skill[Darts: Aim for the Bullseye]);
+            while (current_round() > 0 && get_property("_dartsLeft").to_int() > 0) {
+                int dartRound = current_round();
+                buffer dart = use_skill($skill[Darts: Aim for the Bullseye]);
+                if (current_round() == dartRound)
+                    break;
+            }
         if (contains_text(ptext, "Spit jurassic acid")
             && my_location() != $location[mer-kin colosseum])
                 use_skill($skill[Spit jurassic acid]);
@@ -498,6 +536,81 @@ void colosseumCombatFight(string page_text) {
     }
 }
 
+// Runs from a champion without a banish, then stops the run with the reason. The Saucegeyser estimate goes in
+// _utsChampionRanEst for championCheck().
+void championRetreat(string page_text, string why, int hit) {
+    set_property("_utsChampionRanEst", hit);
+    free_run_any(page_text, false);
+    for i from 1 to 3 {
+        if (current_round() > 0) {
+            buffer ran = runaway();
+        }
+    }
+    why += current_round() > 0 ? " Running away failed, so finish the fight by hand." : "";
+    print(why, "red");
+    abort(why);
+}
+
+// The guide's spell route fight, and a champion's off the guide route. The spell casts from round 1 through any wind-up.
+// A live bust lasts 10 rounds from its twirl, a live neutrality the rest of the fight, and a runner wind-up hits for half max HP.
+// Off the guide route a champion one Saucegeyser can't kill is run from before the first cast.
+void colosseumSpellFight(string page_text, boolean guide) {
+    string seen = page_text;
+    int bustEnds;
+    boolean neutral;
+    int stuck;
+    int actions;
+    boolean opened;
+    int hit = !guide && have_skill($skill[Saucegeyser]) ? sorceressSpellHit() : 0;
+    if (hit > 0 && !championOneCast(monster_hp(), hit))
+        championRetreat(page_text, last_monster() + " has " + monster_hp() + " HP and Saucegeyser's low roll in this gear is about "
+            + hit + ", so one cast can't kill him before his specials stop the damage. Raise spell damage or Mysticality, then rerun.", hit);
+    while (current_round() > 0) {
+        if (actions >= 40)
+            abort("40 actions against " + last_monster() + " in the Mer-kin Colosseum and the fight goes on. Finish it by hand, then rerun.");
+        actions += 1;
+        if (contains_text(seen, "twirling his blade around himself"))
+            bustEnds = current_round() + 10;
+        if (contains_text(seen, "glowing eerily"))
+            neutral = true;
+        int bustLeft = max(0, bustEnds - current_round());
+        boolean geyser = have_skill($skill[Saucegeyser]);
+        boolean storm = have_skill($skill[Saucestorm]);
+        skill route = guide ? colosseumSpell() : $skill[none];
+        skill spell = championSpell(route, my_mp(), geyser, storm);
+        skill pass = colosseumPassSkill();
+        boolean passNow = pass != $skill[none] && my_mp() >= mp_cost(pass);
+        boolean passPlan = pass != $skill[none]
+            && championSpell(route, my_mp() - mp_cost(pass) * bustLeft, geyser, storm) != $skill[none];
+        boolean hpLow = colosseumHpLow(my_hp(), my_maxhp(), expected_damage(),
+            contains_text(seen, "If you were a <b>runner</b>"));
+        boolean oneShot = hit > 0 && spell == $skill[Saucegeyser] && championOneCast(monster_hp(), hit);
+        string act = guide ? colosseumSpellAction(last_monster().boss, neutral, bustLeft, passNow, passPlan, current_round(),
+            hpLow, spell != $skill[none]) : championAction(neutral, bustLeft, passNow, hpLow, spell != $skill[none], oneShot);
+        if (!guide && act == "run")
+            championRetreat(seen, "Ran from " + last_monster() + " because " + championRunWhy(neutral, bustLeft, hpLow, spell != $skill[none])
+                + ". Raise spell damage, Mysticality, MP or HP, then rerun.", hit);
+        int round = current_round();
+        if (act == "spell")
+            seen = to_string(use_skill(spell));
+        else if (act == "pass")
+            seen = to_string(use_skill(pass));
+        else if (act == "attack")
+            seen = to_string(attack());
+        else
+            seen = to_string(runaway());
+        // A champion's opening cast that moved the round without killing records the estimate for championCheck().
+        if (hit > 0 && !opened && act == "spell") {
+            opened = true;
+            if (current_round() > round)
+                set_property("_utsChampionRanEst", hit);
+        }
+        stuck = current_round() == round ? stuck + 1 : 0;
+        if (stuck >= 3)
+            abort("The " + act + " against " + last_monster() + " in the Mer-kin Colosseum isn't moving the fight on. Finish it by hand, then rerun.");
+    }
+}
+
 // True once the item has been thrown this fight; _lastCombatActions lists throws as "it<id>;".
 boolean itemUsedThisCombat(item it) {
     return contains_text(get_property("_lastCombatActions"), "it" + to_int(it) + ";");
@@ -813,6 +926,11 @@ void main(int round, monster mob, string page_text) {
         yogUrtFight();
         return;
     }
+    // Off the guide route a Colosseum champion takes the spell as its first action, ahead of any opener.
+    if (!guideRoute() && my_location() == $location[Mer-kin Colosseum] && last_monster().boss) {
+        colosseumSpellFight(page_text, false);
+        return;
+    }
 
     duplicateMonster(last_monster(), page_text);
 
@@ -920,10 +1038,14 @@ void main(int round, monster mob, string page_text) {
                     throw_item($item[Septapus summoning charm]);
                 use_if_have_skill(page_text, $skill[swoop like a bat]);
                 use_if_have_skill(page_text, $skill[Perpetrate Mild Evil]);
-                while (to_int(get_property("_douseFoeUses")) < 3
-                    && get_property("_douseFoeSuccess") == "false"
-                    && current_round() < 25)
-                    use_skill($skill[douse foe]);
+                if (douseFoeOffered(page_text)) {
+                    int douseRound = -1;
+                    while (douseAgain(current_round(), douseRound, to_int(get_property("_douseFoeUses")),
+                        get_property("_douseFoeSuccess") != "false")) {
+                        douseRound = current_round();
+                        buffer doused = use_skill($skill[Douse Foe]);
+                    }
+                }
             }
             if (last_monster() == $monster[tumbleweed])
                 abort("Unexpected mob encountered in shadow rift");
@@ -1173,8 +1295,13 @@ void main(int round, monster mob, string page_text) {
 
         case $location[cyberzone 1]:
             if (last_monster() == $monster[eye in the darkness] || last_monster() == $monster[slithering thing]) {
-                while (current_round() > 0)
-                    use_skill($skill[Throw Cyber Rock]);
+                int rockRound = -1;
+                while (current_round() > 0 && current_round() != rockRound) {
+                    rockRound = current_round();
+                    buffer rock = use_skill($skill[Throw Cyber Rock]);
+                }
+                if (current_round() > 0)
+                    abort("Throw Cyber Rock isn't moving the fight against " + last_monster() + " on. Finish it by hand, then rerun.");
             } else {
                 use_if_have_skill(page_text, $skill[Sea *dent: Throw a Lightning Bolt]);
             }
@@ -1483,47 +1610,8 @@ void main(int round, monster mob, string page_text) {
             // Colosseum rounds need WINS, so this drains free kills and never
             // Use the Force (which forfeits the win); the saber is not
             // equipped here, so its last-resort clause stays dead.
-            // The spell route casts from round 1 through any wind-up. A live bust lasts 10 rounds from its
-            // twirl, a live neutrality the rest of the fight, and a runner wind-up hits for half max HP.
             if (guideRoute() && colosseumRoute() == "spell") {
-                string seen = page_text;
-                int bustEnds;
-                boolean neutral;
-                int stuck;
-                int actions;
-                while (current_round() > 0) {
-                    if (actions >= 40)
-                        abort("40 actions against " + last_monster() + " in the Mer-kin Colosseum and the fight goes on. Finish it by hand, then rerun.");
-                    actions += 1;
-                    if (contains_text(seen, "twirling his blade around himself"))
-                        bustEnds = current_round() + 10;
-                    if (contains_text(seen, "glowing eerily"))
-                        neutral = true;
-                    int bustLeft = max(0, bustEnds - current_round());
-                    boolean geyser = have_skill($skill[Saucegeyser]);
-                    boolean storm = have_skill($skill[Saucestorm]);
-                    skill spell = championSpell(colosseumSpell(), my_mp(), geyser, storm);
-                    skill pass = colosseumPassSkill();
-                    boolean passNow = pass != $skill[none] && my_mp() >= mp_cost(pass);
-                    boolean passPlan = pass != $skill[none]
-                        && championSpell(colosseumSpell(), my_mp() - mp_cost(pass) * bustLeft, geyser, storm) != $skill[none];
-                    boolean hpLow = colosseumHpLow(my_hp(), my_maxhp(), expected_damage(),
-                        contains_text(seen, "If you were a <b>runner</b>"));
-                    string act = colosseumSpellAction(last_monster().boss, neutral, bustLeft, passNow, passPlan, current_round(),
-                        hpLow, spell != $skill[none]);
-                    int round = current_round();
-                    if (act == "spell")
-                        seen = to_string(use_skill(spell));
-                    else if (act == "pass")
-                        seen = to_string(use_skill(pass));
-                    else if (act == "attack")
-                        seen = to_string(attack());
-                    else
-                        seen = to_string(runaway());
-                    stuck = current_round() == round ? stuck + 1 : 0;
-                    if (stuck >= 3)
-                        abort("The " + act + " against " + last_monster() + " in the Mer-kin Colosseum isn't moving the fight on. Finish it by hand, then rerun.");
-                }
+                colosseumSpellFight(page_text, true);
                 break;
             }
             if (guideRoute() && colosseumRoute() == "combat") {

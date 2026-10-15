@@ -837,6 +837,9 @@ import <seedfinder/seedfinder.ash>;
         return guide && club != $item[none] && item_type(club) == "club" && mainHand != club;
     }
 
+    // Defined with the MP recovery helpers.
+    void maintainerMPHold(boolean own, boolean enforce);
+
     void tempEquipment(string maximizerInput, string itemInput){
         string [int] itemMap = split_string(itemInput, ",");
         item [slot] equipmentSelection;
@@ -904,6 +907,8 @@ import <seedfinder/seedfinder.ash>;
         }
         if (modes != "")
             cli_execute(modes);
+        // The new gear moves max MP, which the recovery target is a fraction of.
+        maintainerMPHold(false, false);
     }
 
 // Quest Related Functions
@@ -4368,6 +4373,59 @@ void holdMPRecovery(int goal) {
     set_property("mpAutoRecovery", to_string(to_float(round(max(0.0, target - 0.01) * 10000)) / 10000));
 }
 
+// Off the guide route mafia's MP recovery aims at this much MP before each adventure.
+int maintainerMPGoal = 250;
+// The mpAutoRecoveryTarget maintainerMPHold() last wrote, and the capped target it last reported.
+string maintainerMPWritten;
+int maintainerMPShown;
+
+// MP that Doc Galaktik's tonics buy with this meat, at their low roll of 9 MP.
+int mpFromMeat(int meat, int price) {
+    return 9 * (meat / max(1, price));
+}
+
+// The MP target: the goal, lowered to the MP meat alone buys, never under the floor.
+int mpMeatTarget(int goal, int floor, int meatMP) {
+    return min(goal, max(floor, meatMP));
+}
+
+// MP the next fight and a buff need: three of the finisher's casts and at least a 100 MP song, within the goal
+// and half of max MP.
+int mpFightFloor(int killMP, int goal, int maxMP) {
+    return min(min(goal, maxMP / 2), max(3 * killMP, 100));
+}
+
+// Off the guide route: mafia's MP recovery aims at maintainerMPGoal in the current max MP, lowered to what meat
+// buys. A target set elsewhere since the last write stays unless own is set. With enforce set, short of the floor it
+// restores now or stops.
+void maintainerMPHold(boolean own, boolean enforce) {
+    if (guideRoute() || (!own && get_property("mpAutoRecoveryTarget") != maintainerMPWritten))
+        return;
+    int goal = min(max(1, my_maxmp()), maintainerMPGoal);
+    int price = npc_price($item[Doc Galaktik's Invigorating Tonic]);
+    int floor = mpFightFloor(killReserveMP(), goal, my_maxmp());
+    int meatMP = price > 0 ? mpFromMeat(my_meat(), price) : goal;
+    int target = mpMeatTarget(goal, floor, meatMP);
+    float share = min(1.0, target / to_float(max(1, my_maxmp())));
+    maintainerMPWritten = to_string(to_float(round(share * 10000)) / 10000);
+    string trigger = to_string(to_float(round(share * 0.5 * 10000)) / 10000);
+    if (get_property("mpAutoRecoveryTarget") != maintainerMPWritten)
+        set_property("mpAutoRecoveryTarget", maintainerMPWritten);
+    if (get_property("mpAutoRecovery") != trigger)
+        set_property("mpAutoRecovery", trigger);
+    if (target < goal && maintainerMPShown == 0)
+        print("Meat for MP is short: " + my_meat() + " meat buys about " + meatMP + " MP of tonics, so MP recovery aims at "
+            + target + " instead of " + goal + ".", "red");
+    maintainerMPShown = target < goal ? target : 0;
+    if (!enforce || my_mp() + meatMP >= floor || restore_mp(floor) || my_mp() >= floor)
+        return;
+    string why = "Out of meat for MP: " + my_mp() + " MP and " + my_meat() + " meat, which buys about " + meatMP + " MP of "
+        + $item[Doc Galaktik's Invigorating Tonic] + "s, against the " + floor + " MP the next fight and its buffs need. "
+        + "Get meat or MP restores, then rerun.";
+    print(why, "red");
+    abort(why);
+}
+
 // Low roll of the Sorceress kill's spell in the worn gear, lanterns aside: Saucegeyser, else both Saucestorm hits.
 int sorceressSpellHit() {
     float mys = my_buffedstat($stat[mysticality]);
@@ -4419,6 +4477,24 @@ int colosseumMPToBuy(int roundsWon, int cost, int gillsTurns) {
     int fights = max(0, 15 - roundsWon);
     int regen = 140 * max(0, min(gillsTurns, fights - 1));
     return max(0, colosseumMPNeeded(roundsWon, cost) - regen);
+}
+
+// Off the guide route the champion rounds get the one-cast check: 12 to 14 rounds won, Saucegeyser known
+// and the Colosseum not yet won.
+boolean championRounds(int roundsWon, boolean geyser, boolean champion) {
+    return geyser && !champion && roundsWon >= 12 && roundsWon <= 14;
+}
+
+// A champion's special can hold every hit after the first to 1 damage, reflect it or heal it away,
+// so the first spell's low roll has to cover its HP.
+boolean championOneCast(int hp, int hit) {
+    return hit >= hp;
+}
+
+// Off the guide route a champion run from at an estimate of recorded (0 for none) stops the champion rounds before
+// the turn until the estimate rises past it, or the Colosseum is won.
+boolean championRanBlock(int recorded, int estimate, boolean champion) {
+    return !champion && recorded > 0 && estimate <= recorded;
 }
 
 // Meat for the Doc Galaktik's tonics that cover an MP shortfall, at their low roll of 9 MP.

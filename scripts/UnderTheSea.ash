@@ -74,6 +74,13 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         return;
     }
 
+    // A mood buff cast, with the maintainer route's MP target refreshed before and after it.
+    void moodCast(effect ef) {
+        maintainerMPHold(false, false);
+        cli_execute(ef.default);
+        maintainerMPHold(false, false);
+    }
+
     void mood(string mod) {
         effect [int] itdrop;
         int i;
@@ -97,7 +104,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 					if ((ef == $effect[Thoughtful Empathy] || ef == $effect[Lubricating Sauce]) && !have_item($item[April Shower Thoughts Shield]))
 						continue;
                     if (have_effect(ef) == 0)
-                        cli_execute(ef.default);
+                        moodCast(ef);
                 }
                 // Free +item from the Source Terminal. Guarded internally, so
                 // calling it on every itdrop setup just tops the buff back up
@@ -124,7 +131,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                         if (ef == $effect[silent running]
                             && !poolSprintOpen(item_amount($item[Clan VIP Lounge key]), get_property("_olympicSwimmingPool") == "true")) continue;
                         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))) continue;
-                        cli_execute(ef.default);
+                        moodCast(ef);
                     }
                 }
                 print("Combat rate is " + numeric_modifier("Combat Rate"));
@@ -148,7 +155,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                             && lowShiny() == true) continue;
                         if (ef == $effect[Apriling Band Battle Cadence] && (!have_item($item[Apriling band helmet]) || total_turns_played() < to_int(get_property("nextAprilBandTurn")))) continue;
                         if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))) continue;
-                        cli_execute(ef.default);
+                        moodCast(ef);
                     }
                 }
                 print("Combat rate is " + numeric_modifier("Combat Rate"));
@@ -161,7 +168,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (ef == $effect[Minor Invulnerability]
                         && item_amount($item[scroll of minor invulnerability]) == 0) continue;
                     if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))) continue;
-                    if (have_effect(ef) == 0) cli_execute(ef.default);
+                    if (have_effect(ef) == 0) moodCast(ef);
                 }
                 break;
             case "sleazeres":
@@ -171,7 +178,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (ef == $effect[Minor Invulnerability]
                         && item_amount($item[scroll of minor invulnerability]) == 0) continue;
                     if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))) continue;
-                    if (have_effect(ef) == 0) cli_execute(ef.default);
+                    if (have_effect(ef) == 0) moodCast(ef);
                 }
                 break;
             case "colosseum":
@@ -184,7 +191,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (ef == $effect[Everybody Calls Him Gorgon] && (!lowShiny() || !have_item($item[Clan VIP Lounge key]))) continue;
 					if ((ef == $effect[Tubes of Universal Meat] || ef == $effect[Mariachi Moisture]) && !have_item($item[April Shower Thoughts Shield]))
 						continue;
-                    if (have_effect(ef) == 0) cli_execute(ef.default);
+                    if (have_effect(ef) == 0) moodCast(ef);
                 }
                 break;
             case "shub":
@@ -192,7 +199,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (to_skill(ef) != $skill[none] && !have_skill(to_skill(ef))) continue;
                     if (effect_to_item(ef) != $item[none] && item_amount(effect_to_item(ef)) == 0) continue;
                     if (ef == $effect[Starry-Eyed] && get_property("telescopeUpgrades") == "0") continue;
-                    if (have_effect(ef) == 0) cli_execute(ef.default);
+                    if (have_effect(ef) == 0) moodCast(ef);
                 }
                 break;
         }
@@ -226,17 +233,19 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     void oldGuy();
     void guideEarlyTank();
 
-    // Sells spare scales and healscrolls, and dense meat stacks and gems while meat is short.
+    // Sells dense meat stacks and gems while meat is short, and on the guide route spare scales and healscrolls.
     // With force set, everything spare sells regardless of its value.
-    void guideSellSpare(boolean force) {
-        item rough = $item[rough fish scale];
-        int pristine = pristineScalesNeeded();
+    void sellSpare(boolean force) {
         int [item] spare;
-        spare[$item[dull fish scale]] = dullScalesSurplus(item_amount($item[dull fish scale]), item_amount(rough),
-            available_amount($item[scale-mail underwear]) > 0, pristine);
-        spare[rough] = roughScalesSurplus(item_amount(rough), pristine);
-        spare[$item[Mer-kin healscroll]] = healscrollSurplus(item_amount($item[Mer-kin healscroll]),
-            get_property("yogUrtDefeated") == "true", get_property("dreadScroll2") == "0");
+        if (guideRoute()) {
+            item rough = $item[rough fish scale];
+            int pristine = pristineScalesNeeded();
+            spare[$item[dull fish scale]] = dullScalesSurplus(item_amount($item[dull fish scale]), item_amount(rough),
+                available_amount($item[scale-mail underwear]) > 0, pristine);
+            spare[rough] = roughScalesSurplus(item_amount(rough), pristine);
+            spare[$item[Mer-kin healscroll]] = healscrollSurplus(item_amount($item[Mer-kin healscroll]),
+                get_property("yogUrtDefeated") == "true", get_property("dreadScroll2") == "0");
+        }
         foreach it in $items[dense meat stack, Azurite, Lapis Lazuli, Eye Agate]
             spare[it] = looseSaleCount(item_amount(it), my_meat(), force);
         int value;
@@ -254,16 +263,21 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
-    // Guide route meat: The Polka of Plenty while the old SCUBA tank is still to buy, and spare goods sold.
-    void guideMeat() {
-        if (!guideRoute())
+    // Spare goods sold for meat, all of them off the guide route on path 55 once meat can't buy its MP goal.
+    // The guide route also casts The Polka of Plenty while the old SCUBA tank is still to buy.
+    void routeMeat() {
+        if (!guideRoute()) {
+            int price = npc_price($item[Doc Galaktik's Invigorating Tonic]);
+            if (my_path().id == 55)
+                sellSpare(price > 0 && mpFromMeat(my_meat(), price) < min(my_maxmp(), maintainerMPGoal));
             return;
+        }
         skill polka = $skill[The Polka of Plenty];
         if (scubaTankOnRoute() && have_skill(polka) && have_effect($effect[Polka of Plenty]) == 0
             && my_mp() >= mp_cost(polka) + killReserveMP() && polkaFits(songsActive(), songLimit(), routeSongsMissing())
             && !use_skill(1, polka))
             print("Couldn't cast " + polka + ".", "red");
-        guideSellSpare(false);
+        sellSpare(false);
     }
 
     // Before a fight whose MP mafia buys as tonics: sells everything spare when meat is under their cost,
@@ -272,7 +286,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         int meat = tonicMeatNeeded(mpNeeded, my_mp(), npc_price($item[Doc Galaktik's Invigorating Tonic]));
         if (!guideRoute() || my_meat() >= meat)
             return;
-        guideSellSpare(true);
+        sellSpare(true);
         if (my_meat() < meat)
             print("Only " + my_meat() + " meat against an estimated " + meat + " in " + $item[Doc Galaktik's Invigorating Tonic]
                 + "s for " + fight + ". If MP runs short, mafia's recovery can fail mid-fight; get meat, then rerun.", "red");
@@ -458,7 +472,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 dolphinSaidWhy = "";
             }
         }
-        guideMeat();
+        routeMeat();
         economistFallback();
         if (my_meat( ) < 300 && (!guideRoute() || pristineScalesWanted() == 0)){
             foreach it in $items[dull fish scale, rough fish scale]{
@@ -500,7 +514,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             }
         }
 
-        float mpTar = min(1, (guideRoute() ? 400 : 250) / to_float(my_maxmp()));
+        float mpTar = min(1, (guideRoute() ? 400 : maintainerMPGoal) / to_float(my_maxmp()));
         // Guide route: free rests, then mafia's recovery, once MP drops under a scale fight or 125,
         // capped at half of max MP.
         int mpFloor = guideRoute() ? min(max(scaleFightMP(), 125), my_maxmp() / 2) : 0;
@@ -522,8 +536,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         string mpAutoRecoveryTarget = to_float(round(mpTar * 10000))/10000;
         set_property("hpAutoRecovery",       hpAutoRecovery);
         set_property("hpAutoRecoveryTarget", hpAutoRecoveryTarget);
-        set_property("mpAutoRecovery",       mpAutoRecovery);
-        set_property("mpAutoRecoveryTarget", mpAutoRecoveryTarget);
+        if (guideRoute()) {
+            set_property("mpAutoRecovery",       mpAutoRecovery);
+            set_property("mpAutoRecoveryTarget", mpAutoRecoveryTarget);
+        } else
+            maintainerMPHold(true, true);
         if (guideRoute())
             guideEarlyTank();
     }
@@ -542,6 +559,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             post_adv();
         if (my_adventures() == 0)
             abort("Out of adventures before " + loc + ". Eat or drink, then rerun.");
+        maintainerMPHold(false, true);
         clearGoals();
         scimitarAway();
         string before = advMark(loc);
@@ -1236,6 +1254,16 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             cli_execute("monkeypaw item " + it);
     }
 
+    // The familiar, item drop gear and mood for a shadow rift fight. The Flash Liquidizer brings Douse Foe for a shadow slab.
+    void shadowRiftGear() {
+        if (!use_familiar($familiar[jill-of-all-trades]))
+            use_familiar("itdrop");
+        string lasso = to_int(get_property("lassoTrainingCount")) < 20 ? "sea cowboy hat,sea chaps," : "";
+        tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + if_equip($item[monodent of the sea]) + lasso
+            + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]) + baseball_equip());
+        mood("itdrop");
+    }
+
     void shadowRift() {
         if (!have_item($item[closed-circuit pay phone]) || (get_property("_shadowAffinityToday") == "true" && have_effect($effect[shadow affinity]) == 0))
             return;
@@ -1243,18 +1271,20 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             if (get_property("questRufus") == "unstarted")
                 use($item[closed-circuit pay phone]);
             if (get_property("questRufus") == "started") {
+                shadowRiftGear();
                 NCforce();
                 adv1($location[Shadow Rift (The Misspelled Cemetary)]);
             }
             if (get_property("_seadentWaveUsed") == "false")
                 use_skill($skill[Sea *dent: Summon a Wave]);
             use($item[closed-circuit pay phone]);
+            shadowRiftGear();
             adv1($location[Shadow Rift (The Misspelled Cemetary)]);
         } else {
             if (to_int(get_property("encountersUntilSRChoice")) > 9
                 && get_property("questRufus") == "unstarted"
                 && item_amount($item[Closed-circuit pay phone]) > 0) {
-                tempEquipment("item drop","Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
+                tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + if_equip($item[monodent of the sea])
                 + if_equip($item[bat wings]) + baseball_equip() + if_equip($item[Everfull Dart Holster]));
                 use($item[closed-circuit pay phone]);
             }
@@ -1266,17 +1296,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     equip($item[little bitty bathysphere]);
                     monkeypaw($item[sea lasso]);
                 }
-                if (!use_familiar($familiar[jill-of-all-trades]))
-                    use_familiar("itdrop");
+                shadowRiftGear();
                 
-                if (to_int(get_property("lassoTrainingCount")) < 20) {
-                    tempEquipment("item drop","Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea]) + "sea cowboy hat,sea chaps,"
-                    + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]) + baseball_equip());
-                } else {
-                    tempEquipment("item drop","Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
-                    + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]) + baseball_equip());
-                }
-                mood("itdrop");
                 adv1($location[Shadow Rift (The Misspelled Cemetary)]);
                 if (get_property("_seadentWaveUsed") == "false"
                     && have_effect($effect[shadow affinity]) > 0) {
@@ -2491,7 +2512,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 retrieve_item($item[oversized sparkler]);
                 if (item_amount($item[lump of loyal latite]) > 0)
                     use($item[lump of loyal latite]);
-                tempEquipment("item drop", "Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
+                tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + if_equip($item[monodent of the sea])
                     + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]));
                 mood("itdrop");
                 if (!highShiny() && have_item($item[closed-circuit pay phone]))
@@ -3538,6 +3559,38 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         }
     }
 
+    // Off the guide route the champion rounds start only when one Saucegeyser's low roll in the worn gear covers the
+    // weakest champion's HP, is above any estimate a champion was run from, and MP covers the cast.
+    void championCheck(int won) {
+        skill geyser = $skill[Saucegeyser];
+        boolean champion = get_property("isMerkinGladiatorChampion") == "true";
+        int ranAt = to_int(get_property("_utsChampionRanEst"));
+        if (champion && ranAt > 0)
+            set_property("_utsChampionRanEst", "");
+        if (!championRounds(won, have_skill(geyser), champion))
+            return;
+        monster weakest = $monster[Georgepaul, the Balldodger];
+        int hp = monster_hp(weakest);
+        int hit = sorceressSpellHit();
+        string why;
+        if (championRanBlock(ranAt, hit, champion))
+            why = "The script ran from a Mer-kin Colosseum champion with Saucegeyser's low roll at about " + ranAt + ", and it is "
+                + hit + " now. Raise spell damage or Mysticality above " + ranAt + ", then rerun. No turn was spent.";
+        else if (!championOneCast(hp, hit))
+            why = "The Mer-kin Colosseum champions start at " + weakest + " with " + hp + " HP, and Saucegeyser's low roll in the "
+                + "Colosseum gear is about " + hit + ". After the first hit a champion's specials hold hits to 1 damage, reflect them "
+                + "or heal them away. Raise spell damage or Mysticality until one cast does " + hp + ", then rerun. No turn was spent.";
+        else if (my_mp() < mp_cost(geyser) && !restore_mp(mp_cost(geyser)))
+            why = "Only " + my_mp() + " MP for the " + mp_cost(geyser) + " MP Saucegeyser a Colosseum champion needs. Restore MP, then rerun.";
+        if (why == "") {
+            if (ranAt > 0)
+                set_property("_utsChampionRanEst", "");
+            return;
+        }
+        print(why, "red");
+        abort(why);
+    }
+
     // Before the Colosseum spends Null Afternoon, the lipstick and its buffs: adventures topped up toward turns,
     // then a clean stop when the rounds left still don't fit.
     void guideColosseumAdventures(int turns) {
@@ -4017,8 +4070,11 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             // deals 30% max HP and frees the fight. Past its five casts, only
             // the bat wings proc can refund a round.
             while (to_int(get_property("lastColosseumRoundWon")) < 15) {
+                int won = to_int(get_property("lastColosseumRoundWon"));
+                // A champion takes the spell first, so Club 'Em Back in Time's club stays out of the champion rounds.
                 string freeFight;
-                if (to_int(get_property("_clubEmTimeUsed")) < 5 && !highShiny() && !lowShiny() && have_item($item[legendary seal-clubbing club]))
+                if (to_int(get_property("_clubEmTimeUsed")) < 5 && !highShiny() && !lowShiny() && have_item($item[legendary seal-clubbing club])
+                    && won < 12)
                     freeFight = "legendary seal-clubbing club,";
                 if (to_int(get_property("_batWingsFreeFights")) < 5 && if_equip($item[bat wings]) != "")
                     freeFight += if_equip($item[bat wings]);
@@ -4045,6 +4101,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                 float coeff = (60 + my_buffedstat($stat[mysticality])/2.5)/(numeric_modifier("spell damage percent") + 1);
                 tempEquipment(coeff + " spell damage percent, mys,sea", "Mer-kin gladiator tailpiece,Mer-kin gladiator mask,"
                     + if_equip($item[Congressional Medal of Insanity]) + freeFight + bathysphere($item[none]));
+                championCheck(won);
                 adv($location[Mer-kin Colosseum]);
                 if (get_property("lastEncounter") == "Been There, Won That"){
                     set_property("lastColosseumRoundWon","15");
@@ -5138,6 +5195,10 @@ void main(string... args) {
         initialization();
         if (guideRoute())
             manaBurnOff();
+        else {
+            routeMeat();
+            maintainerMPHold(true, true);
+        }
         seaMonkees();
     } finally {
         manaBurnRestore();
