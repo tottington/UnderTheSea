@@ -328,7 +328,8 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
         if (have_skill($skill[Summon Taffy]))
             if (mp_cost($skill[Summon Taffy]) < my_mp() && get_property("_taffyYellowSummons") == 0)
                 use_skill($skill[Summon Taffy]);
-        if (my_path().id == 55){
+        // Path upkeep stops once the Seaceress is dead. The end of seaMonkees() frees the king.
+        if (my_path().id == 55 && !seaceressDead()){
             if (my_adventures() == 0) {
                 if (item_amount($item[astral six-pack]) > 0) 
                     use($item[astral six-pack]);
@@ -482,7 +483,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
         // VHS tape monster follow-up
         if (total_turns_played() >= to_int(get_property("spookyVHSTapeMonsterTurn")) + 8
-            && get_property("spookyVHSTapeMonster") != "") {
+            && get_property("spookyVHSTapeMonster") != "" && !seaceressDead()) {
             if (doSWord())
                 use_familiar($familiar[sword of s words]);
             else
@@ -505,7 +506,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
 
         // Club em next week monster follow-up
         if (total_turns_played() >= to_int(get_property("clubEmNextWeekMonsterTurn")) + 8
-            && get_property("clubEmNextWeekMonster") != "") {
+            && get_property("clubEmNextWeekMonster") != "" && !seaceressDead()) {
             if (my_location() != $location[mer-kin elementary school]
                 && !(my_location() == $location[mer-kin library])) {
                 use_familiar("itdrop");
@@ -540,7 +541,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             set_property("mpAutoRecovery",       mpAutoRecovery);
             set_property("mpAutoRecoveryTarget", mpAutoRecoveryTarget);
         } else
-            maintainerMPHold(true, true);
+            maintainerMPHold(true, !seaceressDead());
         if (guideRoute())
             guideEarlyTank();
     }
@@ -4200,14 +4201,17 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
                     if (holdMP)
                         holdMPRecovery(goal);
                     adv($location[Mer-kin Temple (center Door)]);
-                    if (guideRoute() && get_property("questL13Final") != "finished" && !guideNullAfternoon(1))
-                        abort("Null Afternoon ran out before the Nautical Seaceress fight, and no null-day exploit is left. Get one, then rerun.");
-                    if (holdMP) {
-                        holdMPRecovery(goal);
-                        if (my_mp() < goal && !restore_mp(goal))
-                            print("Couldn't restore MP to " + goal + " before the Nautical Seaceress.", "red");
+                    // The first visit is a no-turn Deepcity page and the second the fight, skipped once she is dead.
+                    if (!seaceressDead()) {
+                        if (guideRoute() && !guideNullAfternoon(1))
+                            abort("Null Afternoon ran out before the Nautical Seaceress fight, and no null-day exploit is left. Get one, then rerun.");
+                        if (holdMP) {
+                            holdMPRecovery(goal);
+                            if (my_mp() < goal && !restore_mp(goal))
+                                print("Couldn't restore MP to " + goal + " before the Nautical Seaceress.", "red");
+                        }
+                        adv($location[Mer-kin Temple (center Door)]);
                     }
-                    adv($location[Mer-kin Temple (center Door)]);
                 } finally {
                     if (holdMP) {
                         set_property("mpAutoRecovery", mpRecovery);
@@ -5010,7 +5014,33 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
     }
 
 // ─── SEA MONKEES ──────────────────────────────────────────────────────────────
+// ── Post-quest cleanup and spending ──────────────────────────────────────
+void endOfRun() {
+    while (item_amount($item[sand penny]) > 30)
+        buy($coinmaster[Wet Crap For Sale], 1, $item[water-logged pill]);
+    while (item_amount($item[sand penny]) > 10)
+        buy($coinmaster[Wet Crap For Sale], 1,
+            $item[waterlogged scroll of healing]);
+    council();
+    council();
+    // First of the postloop steps, since the later ones can abort
+    // and leave the supply undrunk. After council(): the storage
+    // pull it may need is refused before the prism breaks.
+    usePilsners();
+    prepCodpiece(false);
+    screechRundown();
+    pearloFarm();
+    prepCodpiece(true);
+    if (get_property("uts_postloopCommand") != "")
+        cli_execute(get_property("uts_postloopCommand"));
+}
+
 void seaMonkees() {
+    if (seaceressDead()) {
+        step("final boss already dead, skipping to the end of the run");
+        endOfRun();
+        return;
+    }
     //Use Sword of S Words to get sea lasso early if you can't use shadow rift to lasso train
     SWordLasso();
     //Unlock guild to gain access to shadow brick if you have payphone
@@ -5112,26 +5142,8 @@ void seaMonkees() {
     finalBoss();
 
     if (my_path().id == 55){
-        // ── Post-quest cleanup and spending ──────────────────────────────────────
-        if (get_property("questL13Final") == "finished") {
-            while (item_amount($item[sand penny]) > 30)
-                buy($coinmaster[Wet Crap For Sale], 1, $item[water-logged pill]);
-            while (item_amount($item[sand penny]) > 10)
-                buy($coinmaster[Wet Crap For Sale], 1,
-                    $item[waterlogged scroll of healing]);
-            council();
-            council();
-            // First of the postloop steps, since the later ones can abort
-            // and leave the supply undrunk. After council(): the storage
-            // pull it may need is refused before the prism breaks.
-            usePilsners();
-            prepCodpiece(false);
-            screechRundown();
-            pearloFarm();
-            prepCodpiece(true);
-            if (get_property("uts_postloopCommand") != "")
-                cli_execute(get_property("uts_postloopCommand"));
-        }
+        if (get_property("questL13Final") == "finished")
+            endOfRun();
     }
 }
 
@@ -5219,7 +5231,7 @@ void main(string... args) {
             manaBurnOff();
         else {
             routeMeat();
-            maintainerMPHold(true, true);
+            maintainerMPHold(true, !seaceressDead());
         }
         seaMonkees();
     } finally {

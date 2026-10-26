@@ -4516,6 +4516,15 @@ boolean guideColosseumNext() {
         && get_property("questS02Monkees") == "finished" && item_amount($item[unblemished pearl]) >= 5;
 }
 
+// Path 55 with the Nautical Seaceress dead: mafia finishes questL13Final on the win, before the council frees the king.
+boolean seaceressDead(int pathId, string questL13Final) {
+    return pathId == 55 && questL13Final == "finished";
+}
+
+boolean seaceressDead() {
+    return seaceressDead(my_path().id, get_property("questL13Final"));
+}
+
 void guideSeaStrengthAfterYog() {
     item scroll = $item[scroll of sea strength];
     int price = npc_price(scroll) > 0 ? npc_price(scroll) : 950;
