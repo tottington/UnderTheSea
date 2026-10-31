@@ -4,6 +4,7 @@ import UnderTheSeaGlobals.ash;
 // Set with the mafia CLI; all default to off.
 // uts_godRunGuard, uts_postloopCommand, uts_usePilsners, uts_postLoopRunOutEagleBanish, uts_postLoopFarmPearls, uts_postLoopCloverFishy, uts_postLoopPrepCodpiece and uts_pearloArgs
 // uts_acornOutpost defaults on; false skips the Outpost Acorndion Refrain and banishes.
+// uts_saveSeadentWave=true never floods the Shadow Rift, leaving Summon a Wave for later in the day.
 // see the README for what each does.
 familiar chosenFamiliar = $familiar[none]; //For 
 
@@ -906,6 +907,7 @@ string DropsItems;
     // Shadow Rift fight gear. The Liquidizer grants the Douse Foe the CCS casts on a shadow slab.
     void shadowRiftGear() {
         string trainer = to_int(get_property("lassoTrainingCount")) < 20
+            && get_property("uts_saveSeadentWave") != "true"
             ? if_equip($item[sea cowboy hat]) + if_equip($item[sea chaps]) : "";
         tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + "monodent of the sea," + trainer
             + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]) + baseball_equip());
@@ -923,7 +925,9 @@ string DropsItems;
                 NCforce();
                 adv1($location[Shadow Rift (The Misspelled Cemetary)]);
             }
-            if (get_property("_seadentWaveUsed") == "false")
+            if (get_property("_seadentWaveUsed") == "false"
+                && get_property("uts_saveSeadentWave") != "true"
+                && to_int(get_property("lassoTrainingCount")) < 20)
                 use_skill($skill[Sea *dent: Summon a Wave]);
             use($item[closed-circuit pay phone]);
             shadowRiftGear();
@@ -951,6 +955,8 @@ string DropsItems;
                 mood("itdrop");
                 adv1($location[Shadow Rift (The Misspelled Cemetary)]);
                 if (get_property("_seadentWaveUsed") == "false"
+                    && get_property("uts_saveSeadentWave") != "true"
+                    && to_int(get_property("lassoTrainingCount")) < 20
                     && have_effect($effect[shadow affinity]) > 0) {
                     adv1($location[Shadow Rift (The Misspelled Cemetary)]);
                     use_skill($skill[Sea *dent: Summon a Wave]);
@@ -1343,6 +1349,18 @@ string DropsItems;
         step("Outpost: Acorndion on for the " + stage);
     }
 
+    // Smiths the lasso trainer pieces from Outpost sea leather while training is short.
+    void outpostTrainerSmith() {
+        if (my_path().id != 55 || highShiny() || to_int(get_property("lassoTrainingCount")) >= 20)
+            return;
+        if (available_amount($item[sea chaps]) == 0 && tailpiece() == $item[none]
+            && item_amount($item[sea leather]) > 0 && !create(1, $item[sea chaps]))
+            print("Could not smith the sea chaps.", "red");
+        if (available_amount($item[sea cowboy hat]) == 0 && item_amount($item[sea leather]) > 0
+            && !create(1, $item[sea cowboy hat]))
+            print("Could not smith the sea cowboy hat.", "red");
+    }
+
     void outpost(){
         step("phase: Mer-kin Outpost (stashbox / lockkey)");
         if (NCForceEstimate() >= 5 && have_effect($effect[driving waterproofly]) > 0)
@@ -1372,6 +1390,7 @@ string DropsItems;
                 set_property("_utsAcornOutpost", "");
             if (get_property("_utsAcornBanishDress") != "")
                 set_property("_utsAcornBanishDress", "");
+            outpostTrainerSmith();
             if ($location[The Mer-Kin Outpost].turns_spent < 5)
                 set_property("stashboxChecked", "0");
             if (contains_text(get_property("stashboxChecked"), "1")
@@ -1419,6 +1438,9 @@ string DropsItems;
                 mood("-combat");
                 tempEquipment("-combat,sea", bathysphere($item[none]) + conditional + delay());
             } else {
+                // The trainer's chaps share the pants slot with scale-mail underwear.
+                if (outpostLassoTraining() && !contains_text(conditional, "scale-mail underwear"))
+                    conditional += "sea cowboy hat,sea chaps,";
                 tempEquipment("item drop,sea", bathysphere($item[toy cupid bow]) + conditional + freeKill());
                 if (!contains_text(conditional, "roman candelabra") && !contains_text(conditional, "backup camera")) {
                     if (acornOutpostWanted())
@@ -1778,10 +1800,16 @@ string DropsItems;
     void backupLasso() {
         // ── Lasso training backup ─────────────────────────────────────────────────
         while (to_int(get_property("lassoTrainingCount")) < 20) {
-            if (have_item($item[closed-circuit pay phone]));
+            if (have_item($item[closed-circuit pay phone]))
                 print("Lasso training didn't finish via shadow rift", "red");
-            if (!pulledToday($item[Elf Guard SCUBA tank]))
-                cli_execute("pull elf guard scuba");
+            // Re-drives a lapsed Waterproofly before the breathing check.
+            if (have_effect($effect[Driving Waterproofly]) == 0
+                && get_workshed() == $item[Asdon Martin keyfob (on ring)] && get_fuel() >= 37
+                && !cli_execute("asdonmartin drive Waterproofly"))
+                print("Could not drive Waterproofly before lasso training.", "red");
+            if (!breathesWithTrainer() && !pulledToday($item[Elf Guard SCUBA tank])
+                && !pullSequence($item[Elf Guard SCUBA tank]))
+                print("No underwater breathing outside the hat and pants slots, and no Elf Guard SCUBA tank pull.", "red");
             if (item_amount($item[sea lasso]) == 0){
                 equip($item[really, really nice swimming trunks]);
                 equip($item[little bitty bathysphere]);
