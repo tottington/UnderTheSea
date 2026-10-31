@@ -3,6 +3,7 @@ import UnderTheSeaGlobals.ash;
 // ─── PER-ACCOUNT CONFIG ───────────────────────────────────────────────────────
 // Set with the mafia CLI; all default to off.
 // uts_godRunGuard, uts_postloopCommand, uts_usePilsners, uts_postLoopRunOutEagleBanish, uts_postLoopFarmPearls, uts_postLoopCloverFishy, uts_postLoopPrepCodpiece and uts_pearloArgs
+// uts_acornOutpost defaults on; false skips the Outpost Acorndion Refrain and banishes.
 // see the README for what each does.
 familiar chosenFamiliar = $familiar[none]; //For 
 
@@ -1309,6 +1310,39 @@ string DropsItems;
         }
     }
 
+    // Swaps the weapon for the Acorndion for one fight, unless that costs underwater breathing.
+    // A failed banish dress stops the banish stage; a failed Refrain dress records why.
+    void acornOutpostDress(string conditional, boolean banish) {
+        string stage = banish ? "banish" : "Refrain";
+        int mp = banish ? 8 : 11;
+        boolean breathes = boolean_modifier("Adventure Underwater");
+        if (my_mp() < mp && !restore_mp(mp))
+            return;
+        // Equips through KoL's inventory page instead of mafia's equip(), then resyncs if mafia missed it.
+        buffer worn = visit_url("inv_equip.php?pwd&which=2&action=equip&whichitem=" + to_int(acorndion()) + "&ajax=1");
+        if (!have_equipped(acorndion()) && !cli_execute("refresh equip"))
+            print("Equipment refresh failed after the Acorndion swap.", "red");
+        if (!have_equipped(acorndion())) {
+            print("Could not equip the Acorndion for the Outpost " + stage + ".", "red");
+            if (banish)
+                set_property("_utsAcornBanished", get_property("_utsAcornBanished") + "stop,");
+            else
+                set_property("_utsAcornOutpost", "noequip");
+            return;
+        }
+        if (breathes && !boolean_modifier("Adventure Underwater")) {
+            print("The Acorndion cost underwater breathing; skipping the Outpost " + stage + ".", "red");
+            if (banish)
+                set_property("_utsAcornBanished", get_property("_utsAcornBanished") + "stop,");
+            else
+                set_property("_utsAcornOutpost", "noair");
+            tempEquipment("item drop,sea", bathysphere($item[toy cupid bow]) + conditional + freeKill());
+            return;
+        }
+        set_property(banish ? "_utsAcornBanishDress" : "_utsAcornOutpost", "dressed");
+        step("Outpost: Acorndion on for the " + stage);
+    }
+
     void outpost(){
         step("phase: Mer-kin Outpost (stashbox / lockkey)");
         if (NCForceEstimate() >= 5 && have_effect($effect[driving waterproofly]) > 0)
@@ -1333,6 +1367,11 @@ string DropsItems;
                 }
             }
 
+            // Dressed for the Refrain only in the iteration that equipped the Acorndion.
+            if (get_property("_utsAcornOutpost") == "dressed")
+                set_property("_utsAcornOutpost", "");
+            if (get_property("_utsAcornBanishDress") != "")
+                set_property("_utsAcornBanishDress", "");
             if ($location[The Mer-Kin Outpost].turns_spent < 5)
                 set_property("stashboxChecked", "0");
             if (contains_text(get_property("stashboxChecked"), "1")
@@ -1381,6 +1420,12 @@ string DropsItems;
                 tempEquipment("-combat,sea", bathysphere($item[none]) + conditional + delay());
             } else {
                 tempEquipment("item drop,sea", bathysphere($item[toy cupid bow]) + conditional + freeKill());
+                if (!contains_text(conditional, "roman candelabra") && !contains_text(conditional, "backup camera")) {
+                    if (acornOutpostWanted())
+                        acornOutpostDress(conditional, false);
+                    else if (acornBanishWanted())
+                        acornOutpostDress(conditional, true);
+                }
             }
             adv($location[The Mer-Kin Outpost]);
 
