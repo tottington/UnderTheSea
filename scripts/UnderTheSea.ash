@@ -1774,7 +1774,9 @@ string DropsItems;
 
             // ── Lasso training via shadow rift ────────────────────────────────────────
             step("phase: lasso training");
-            while (to_int(get_property("lassoTrainingCount")) < 20 && !highShiny() && (have_effect($effect[shadow affinity]) > 0 || get_property("_shadowAffinityToday") == "false") && have_item($item[closed-circuit pay phone]))
+            // With uts_saveSeadentWave the Rift stays dry and backupLasso() does the training.
+            while (to_int(get_property("lassoTrainingCount")) < 20 && !highShiny() && (have_effect($effect[shadow affinity]) > 0 || get_property("_shadowAffinityToday") == "false") && have_item($item[closed-circuit pay phone])
+                && get_property("uts_saveSeadentWave") != "true")
                 shadowRift();
 
             if ((my_turncount( ) > 25 || !have_item($item[Miniature crystal ball])) && !highShiny() && have_item($item[closed-circuit pay phone])){
@@ -1800,7 +1802,7 @@ string DropsItems;
     void backupLasso() {
         // ── Lasso training backup ─────────────────────────────────────────────────
         while (to_int(get_property("lassoTrainingCount")) < 20) {
-            if (have_item($item[closed-circuit pay phone]))
+            if (have_item($item[closed-circuit pay phone]) && get_property("uts_saveSeadentWave") != "true")
                 print("Lasso training didn't finish via shadow rift", "red");
             // Re-drives a lapsed Waterproofly before the breathing check.
             if (have_effect($effect[Driving Waterproofly]) == 0
