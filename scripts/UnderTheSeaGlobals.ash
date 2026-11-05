@@ -280,15 +280,14 @@ import <seedfinder/seedfinder.ash>;
             abort("Could not get an 11-leaf clover. The hermit may be out today, and buying from him needs autoSatisfyWithCoinmasters = true.");
     }
 
-    // Whether getLucky() has a Lucky! source to use.
+    // Whether getLucky() has a Lucky! source in hand.
     boolean luckyReady() {
         return have_effect($effect[Lucky!]) > 0
             || (have_skill($skill[Aug. 2nd: Find an Eleven-Leaf Clover Day])
                 && get_property("_aug2Cast") == "false" && to_int(get_property("_augSkillsCast")) < 5)
             || (available_amount($item[heartstone]) > 0 && get_property("heartstoneLuckUnlocked") == "true"
                 && get_property("_heartstoneLuckUsed") == "false")
-            || item_amount($item[11-leaf clover]) > 0
-            || (get_property("autoSatisfyWithCoinmasters") == "true" && to_int(get_property("_cloversPurchased")) < 3);
+            || item_amount($item[11-leaf clover]) > 0;
     }
 
     // Pristine scales still needed for the crappy mask and tailpiece.

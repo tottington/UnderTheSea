@@ -916,7 +916,9 @@ void main(int round, monster mob, string page_text) {
                     && $monsters[slithering thing, eye in the darkness,
                         school of many] contains last_monster())
                     throw_item($item[spooky VHS tape]);
-                if (get_property("_monsterHabitatsRecalled") != "3" && get_property("_monsterHabitatsFightsLeft") == "0" && !highShiny() && (have_item($item[server room key]) || $location[The Mer-Kin Outpost].turns_spent < 29)) {
+                // While scale farming, no habitat recall, and free kills only on the school with drops kept.
+                boolean scaleFarm = get_property("_utsScaleFarm") == "true";
+                if (!scaleFarm && get_property("_monsterHabitatsRecalled") != "3" && get_property("_monsterHabitatsFightsLeft") == "0" && !highShiny() && (have_item($item[server room key]) || $location[The Mer-Kin Outpost].turns_spent < 29)) {
                     if ($monsters[slithering thing, eye in the darkness] contains last_monster())
                         use_skill($skill[RECALL FACTS: MONSTER HABITATS]);
                 }
@@ -925,7 +927,8 @@ void main(int round, monster mob, string page_text) {
                     for i from 1 to 4
                         use_skill($skill[garbage nova]);
                 }
-                free_kill(page_text, false);
+                if (!scaleFarm || last_monster() == $monster[school of many])
+                    free_kill(page_text, scaleFarm);
                 cleanUp();
             }
             break;
