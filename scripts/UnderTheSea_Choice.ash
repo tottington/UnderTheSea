@@ -32,6 +32,23 @@ boolean pickChoice(string keyword) {
     return false;
 }
 
+// Trades scales up until the pristine ones are covered, then leaves. Trading doesn't end the encounter.
+void economistTrade() {
+    int trades;
+    while (pristineShort() > 0 && trades < 30) {
+        item gain = item_amount($item[rough fish scale]) >= 10 ? $item[pristine fish scale] : $item[rough fish scale];
+        if (gain == $item[rough fish scale] && item_amount($item[dull fish scale]) < 10)
+            break;
+        int before = item_amount(gain);
+        if (!pickChoice(gain == $item[pristine fish scale] ? "for a pristine one" : "for a rough one")
+            || item_amount(gain) <= before)
+            break;
+        trades += 1;
+    }
+    if (!pickChoice("Take your leave"))
+        run_choice(6);
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 void main(int whichchoice, string page) {
@@ -87,6 +104,16 @@ void main(int whichchoice, string page) {
             if (get_property("intenseCurrents") == "true"){
                 run_choice(3);
             }
+            break;
+
+        // Outside an economist trip, the player's choice settings answer these.
+        case 311:
+            if (get_property("_utsEconomistTrip") == "true")
+                run_choice(pristineShort() > 0 && economistScales() > 0 ? 1 : 2);
+            break;
+        case 310:
+            if (get_property("_utsEconomistTrip") == "true")
+                economistTrade();
             break;
 
         // ── Stashbox searches (different priority orders per lock monster) ──

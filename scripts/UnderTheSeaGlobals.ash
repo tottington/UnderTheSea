@@ -63,6 +63,26 @@ import <seedfinder/seedfinder.ash>;
             use_skill(sk);
     }
 
+    // Whether the run can use the Monodent. uts_noMonodent=true leaves an owned one out, for testing.
+    boolean hasMonodent() {
+        return get_property("uts_noMonodent") != "true" && available_amount($item[Monodent of the Sea]) > 0;
+    }
+
+    string monodentGear() {
+        return hasMonodent() ? "monodent of the sea," : "";
+    }
+
+    // The Sea *dent skills exist only while the Monodent is worn.
+    void seadent(skill sk) {
+        if (have_equipped($item[Monodent of the Sea]))
+            use_skill(sk);
+    }
+
+    // Without a wave the Rift can't train the lasso, so backupLasso() does.
+    boolean riftStaysDry() {
+        return get_property("uts_saveSeadentWave") == "true" || !hasMonodent();
+    }
+
     boolean have_item(item it) {
         if (available_amount(it) > 0 || storage_amount(it) > 0)
             return true;
@@ -248,6 +268,47 @@ import <seedfinder/seedfinder.ash>;
         use($item[11-leaf clover]);
     }
 
+    // Whether getLucky() has a Lucky! source to use.
+    boolean luckyReady() {
+        return have_effect($effect[Lucky!]) > 0
+            || (have_skill($skill[Aug. 2nd: Find an Eleven-Leaf Clover Day])
+                && get_property("_aug2Cast") == "false" && to_int(get_property("_augSkillsCast")) < 5)
+            || (available_amount($item[heartstone]) > 0 && get_property("heartstoneLuckUnlocked") == "true"
+                && get_property("_heartstoneLuckUsed") == "false")
+            || item_amount($item[11-leaf clover]) > 0
+            || (get_property("autoSatisfyWithCoinmasters") == "true" && to_int(get_property("_cloversPurchased")) < 3);
+    }
+
+    // Pristine scales still needed for the crappy mask and tailpiece.
+    int pristineShort() {
+        int want;
+        if (available_amount($item[crappy Mer-kin mask]) + available_amount($item[Mer-kin gladiator mask])
+            + available_amount($item[Mer-kin scholar mask]) == 0)
+            want += 3;
+        if (available_amount($item[crappy Mer-kin tailpiece]) + available_amount($item[Mer-kin gladiator tailpiece])
+            + available_amount($item[Mer-kin scholar tailpiece]) == 0)
+            want += 3;
+        return max(0, want - available_amount($item[pristine fish scale]));
+    }
+
+    // Pristine scales the Madness Reef economist can make from those held: 10 dull a rough, 10 rough a pristine.
+    int economistScales() {
+        return (item_amount($item[rough fish scale]) + item_amount($item[dull fish scale]) / 10) / 10;
+    }
+
+    // Harpoon! scales from the cozy scimitar stand in for the Monodent's fish, for the economist.
+    boolean scimitarWanted() {
+        return !hasMonodent() && have_skill($skill[Harpoon!]) && can_equip($item[cozy scimitar])
+            && available_amount($item[cozy scimitar]) + storage_amount($item[cozy scimitar]) > 0
+            && can_adventure($location[Madness Reef]) && pristineShort() > economistScales();
+    }
+
+    // The first Harpoon! of a fight shakes scales off a worn cozy scimitar.
+    void harpoonScales() {
+        if (current_round() > 0 && have_equipped($item[cozy scimitar]) && scimitarWanted() && my_mp() >= 100)
+            use_skill($skill[Harpoon!]);
+    }
+
 // Low roll of Saucegeyser in the worn gear, crits and lanterns aside.
     int geyserLowRoll() {
         float flat = numeric_modifier("Spell Damage")
@@ -393,6 +454,13 @@ import <seedfinder/seedfinder.ash>;
         if (baseballPlayers() < 9 && !highShiny())
             return if_equip($item[baseball diamond]);
         return "";
+    }
+
+    // The two-handed scimitar can't share the Rift with the diamond in the off-hand.
+    string riftWeapon() {
+        if (scimitarWanted() && available_amount($item[cozy scimitar]) > 0 && baseball_equip() == "")
+            return "cozy scimitar,";
+        return monodentGear();
     }
 
     void yellowRayPrep(){
@@ -633,6 +701,8 @@ import <seedfinder/seedfinder.ash>;
     }
 
     void tempEquipment(string maximizerInput, string itemInput){
+        if (get_property("uts_noMonodent") == "true" && available_amount($item[Monodent of the Sea]) > 0)
+            maximizerInput += ", -equip monodent of the sea";
         if (have_equipped($item[Elf Guard SCUBA tank]))
             cli_execute("unequip Elf Guard SCUBA tank");
         item [slot] equipmentSelection = equipSlots(itemInput,
@@ -1115,7 +1185,7 @@ boolean acornBanishTarget(monster mob) {
 
 // These routes farm pristine scales with the Monodent in item-drop Outpost fights.
 boolean outpostFarmsScales() {
-    return my_familiar() != $familiar[Sword of S Words]
+    return hasMonodent() && my_familiar() != $familiar[Sword of S Words]
         && (highShiny() || available_amount($item[closed-circuit pay phone]) == 0 || lowShiny())
         && available_amount($item[pristine fish scale]) < 6;
 }
@@ -2017,6 +2087,8 @@ boolean banishUsedAtYourLocation(string banisher) {
 item banishGear(location loc) {
     item it;
     foreach ite in $items[spring shoes, monodent of the sea, Heartstone] {
+        if (ite == $item[monodent of the sea] && !hasMonodent())
+            continue;
         if (ite == $item[Heartstone] && get_property("heartstoneBanishUnlocked") == "false")
             continue;
         if (appearance_rates(loc)[banished(banMap[ite].pref)] == 0 && have_item(ite)) {
@@ -2037,6 +2109,8 @@ item banishGear(location loc) {
 // whose target is no longer appearing at your location
 skill combatBan() {
     foreach ite in $items[spring shoes, monodent of the sea, Heartstone] {
+        if (ite == $item[monodent of the sea] && !hasMonodent())
+            continue;
         if (ite == $item[Heartstone] && get_property("heartstoneBanishUnlocked") == "false")
             continue;
         if (have_equipped(ite)

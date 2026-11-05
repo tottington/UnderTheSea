@@ -516,10 +516,20 @@ void main(int round, monster mob, string page_text) {
             }
             if (last_monster() == $monster[tumbleweed])
                 abort("Unexpected mob encountered in shadow rift");
+            harpoonScales();
             if (!can_still_steal() || available_amount($item[pristine fish scale]) < 6)
                 use_if_have_skill(page_text, $skill[Sea *dent: Talk to Some Fish]);
             darts();
             cleanUp();
+            break;
+
+        case $location[Madness Reef]:
+            // A trip here only wants the economist's noncombat.
+            if (get_property("_utsEconomistTrip") == "true") {
+                if (!free_monster(last_monster()))
+                    free_run(page_text, true);
+                cleanUp();
+            }
             break;
 
         case $location[an octopus's garden]:
@@ -542,7 +552,7 @@ void main(int round, monster mob, string page_text) {
             } else if (!free_monster(last_monster())) {
                 if (have_equipped($item[spring shoes]) && !banishUsedAtYourLocation("Spring Kick") && highShiny()) {
                     use_skill($skill[spring kick]);
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                    seadent($skill[Sea *dent: Talk to Some Fish]);
                 } else {
                     free_run(page_text, true);
                     freeRunFallback(page_text);
@@ -558,7 +568,7 @@ void main(int round, monster mob, string page_text) {
                         use_skill($skill[spring kick]);
                     else 
                         use_if_have_skill(page_text,$skill[Sea *dent: Throw a Lightning Bolt]);
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                    seadent($skill[Sea *dent: Talk to Some Fish]);
                 }
                 if (last_monster() == $monster[Mine crab]){
                     use_skill($skill[Heartstone: %banish]);
@@ -689,8 +699,8 @@ void main(int round, monster mob, string page_text) {
                     use_skill($skill[Back-Up to your Last Enemy]);
                     run_combat();
                 }
-                if (my_familiar() != $familiar[sword of s words] && (highShiny() || available_amount($item[closed-circuit pay phone]) == 0 || lowShiny()) && available_amount($item[pristine fish scale]) < 6 && !free_monster(last_monster())){
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                if (hasMonodent() && my_familiar() != $familiar[sword of s words] && (highShiny() || available_amount($item[closed-circuit pay phone]) == 0 || lowShiny()) && available_amount($item[pristine fish scale]) < 6 && !free_monster(last_monster())){
+                    seadent($skill[Sea *dent: Talk to Some Fish]);
                     free_kill(page_text,true);
                     cleanUp();
                 }
@@ -698,7 +708,7 @@ void main(int round, monster mob, string page_text) {
                     && item_amount($item[mer-kin prayerbeads]) < 2) {
                     if (have_equipped($item[baseball diamond]) || (get_property("_curveballMonster") == "some fish"
                             && to_int(get_property("_curveballFightsLeft")) > 0))
-                        use_skill($skill[Sea *dent: Talk to Some Fish]);
+                        seadent($skill[Sea *dent: Talk to Some Fish]);
                     free_kill(page_text, true);
                     if (to_int(get_property("_backUpUses")) < 7 && have_equipped($item[backup camera])) {
                         use_skill($skill[Back-Up to your Last Enemy]);
@@ -709,7 +719,7 @@ void main(int round, monster mob, string page_text) {
                 } else if (last_monster() == $monster[Mer-kin burglar]
                     || last_monster() == $monster[Mer-kin raider]) {
                     if ((highShiny() || available_amount($item[closed-circuit pay phone]) == 0) && my_familiar() == $familiar[sword of s words] && !banishUsedAtYourLocation("Sea *dent"))
-                        use_skill($skill[sea *dent: throw a lightning bolt]);
+                        seadent($skill[Sea *dent: throw a lightning bolt]);
                     free_run(page_text, true);
                 }
                 if (!free_monster(last_monster()))
@@ -717,8 +727,8 @@ void main(int round, monster mob, string page_text) {
                 cleanUp();
             } else {
                 // turns_spent >= 24 and no lockkey monster
-                if (my_familiar() != $familiar[sword of s words] && (highShiny() || available_amount($item[closed-circuit pay phone]) == 0 || lowShiny()) && available_amount($item[pristine fish scale]) < 6 && !free_monster(last_monster())){
-                    use_skill($skill[Sea *dent: Talk to Some Fish]);
+                if (hasMonodent() && my_familiar() != $familiar[sword of s words] && (highShiny() || available_amount($item[closed-circuit pay phone]) == 0 || lowShiny()) && available_amount($item[pristine fish scale]) < 6 && !free_monster(last_monster())){
+                    seadent($skill[Sea *dent: Talk to Some Fish]);
                     free_kill(page_text,true);
                     cleanUp();
                 }
@@ -829,9 +839,9 @@ void main(int round, monster mob, string page_text) {
                                     use_skill($skill[heartstone: %banish]);
                                 } 
                             } else if (last_monster() == $monster[sea cowboy]){
-                                use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
+                                seadent($skill[Sea *dent: Throw a Lightning Bolt]);
                             } else if (last_monster() == $monster[sea cow]){
-                                use_skill($skill[Sea *dent: Throw a Lightning Bolt]);
+                                seadent($skill[Sea *dent: Throw a Lightning Bolt]);
                             }
                         }
                 }
@@ -956,7 +966,7 @@ void main(int round, monster mob, string page_text) {
             if (current_round() > 0)
                 feelNostalgic(last_monster(), page_text);
             if (bcz_gaze_ready() && get_property("NCtoC") != "true") {
-                use_skill($skill[Sea *dent: Talk to Some Fish]);
+                seadent($skill[Sea *dent: Talk to Some Fish]);
                 if (to_monster(get_property("lastEncounter")) != $monster[none] && item_amount($item[mer-kin cheatsheet]) < 10)
                     use_skill($skill[BCZ: Refracted Gaze]);
             }
@@ -985,7 +995,7 @@ void main(int round, monster mob, string page_text) {
                 } else {
                     if (item_amount($item[mer-kin knucklebone]) == 0) {
                         if (bcz_gaze_ready()) {
-                            use_skill($skill[Sea *dent: Talk to Some Fish]);
+                            seadent($skill[Sea *dent: Talk to Some Fish]);
                             use_skill($skill[BCZ: Refracted Gaze]);
                         }
                     } else if (last_monster() == $monster[Mer-kin alphabetizer]) {

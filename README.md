@@ -10,7 +10,6 @@
 - **A clan with a stocked photobooth.** The script claims the three sheriff
   props daily and aborts if the booth is empty.
 - **Aftercore mode (running the sea outside the path):** The script prompts for which boss to fight.
-- **A Monodent of the Sea.**
 - **The Eternity Codpiece**, loaded with unblemished pearls before
   ascending. 
 - **A Congressional Medal of Insanity** 
@@ -37,6 +36,7 @@ Preferences, set once in the gCLI; all default to off:
 | `set uts_postLoopPrepCodpiece = true` | Loads The Eternity Codpiece with five unblemished pearls for your next ascension, buying any you're short of if `autoSatisfyWithMall` and `autoBuyPriceLimit` allow. Aborts if it can't reach five. |
 | `set uts_pearloArgs = <args>` | Extra arguments for the `pearlo` call, such as `airmode=gear`. See `pearlo help`. |
 | `set uts_acornOutpost = true` | Uses the legendary acorndion in the Mer-kin Outpost to add sea cows and, when it can, banish the burglar and raider. |
+| `set uts_noMonodent = true` | Runs as if the Monodent of the Sea isn't owned. |
 | `set uts_saveSeadentWave = true` | Never floods the Shadow Rift, saving Summon a Wave for later. Costs extra turns. |
 
 The postloop steps run in this order: pilsners, codpiece, screech, pearl farm, codpiece top-up, `uts_postloopCommand`. Most empty Hagnk's first.
@@ -73,6 +73,7 @@ The script sorts your account into a resource tier and routes accordingly:
 
 | IOTM | Why it matters |
 |---|---|
+| Monodent of the Sea | Free lasso training and fish scales. Without it, the run trains in the Trench and gets scales from Lucky! trips and the Madness Reef economist, for roughly 6 to 12 more turns. Have the map to Madness Reef, 4 Lucky! sources, and optionally a cozy scimitar in storage if Harpoon! is permed. |
 | closed-circuit pay phone | With Monodent, free shadow-rift fights allow free sea lasso training. |
 | CyberRealm keycode | Free Mom quest. |
 | cursed monkey's paw | Free sea lassos and sea cowbells for the seahorse taming instead of farming them. |
