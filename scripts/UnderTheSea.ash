@@ -827,14 +827,17 @@ string DropsItems;
             + "&preaction=pickreward&whichreward=6313");
     }
 
-    // Pristine scales for the crappy mask and tailpiece. A Lucky! Abyss trip gives 1 pristine, 5 rough and
-    // 10 dull, and one Madness Reef trip at the end trades up the rest.
+    // Pristine scales for the crappy mask and tailpiece. Lucky! Abyss trips come from in-hand sources, the hermit,
+    // then one pulled clover; short of those, school of many fights farm the rough and dull scales the economist trades up.
     void farmPristine() {
         location reef = $location[Madness Reef];
+        location abyss = $location[the caliginous abyss];
         int trips;
+        int farmed;
+        boolean askedHermit;
         while (pristineShort() > 0) {
             trips += 1;
-            if (trips > 20)
+            if (trips - farmed > 20)
                 abort("Pristine fish scales aren't accumulating; still " + pristineShort() + " short.");
             use_familiar("-combat");
             if (!can_adventure(reef) && item_amount($item[sand dollar]) - sandDollarsOwed() >= 50) {
@@ -862,17 +865,50 @@ string DropsItems;
             }
             if (available_amount($item[black glass]) == 0)
                 oldGuy();
+            int hermitClovers = to_int(get_property("_cloversPurchased"));
+            if (!luckyReady() && !askedHermit && hermitClovers < 3) {
+                askedHermit = true;
+                if (!hermit(3 - hermitClovers, $item[11-leaf clover]))
+                    print("The hermit didn't sell any 11-leaf clovers.", "red");
+            }
             if (!luckyReady() && !pulledToday($item[11-leaf clover]) && pulls_remaining() > reservedPulls()
                 && !pullSequence($item[11-leaf clover]))
                 print("Couldn't pull an 11-leaf clover.", "red");
-            if (!luckyReady())
-                abort("Still " + pristineShort() + " pristine fish scales short with no Lucky! left: "
-                    + item_amount($item[rough fish scale]) + " rough and " + item_amount($item[dull fish scale]) + " dull. "
-                    + "The Madness Reef economist trades 10 rough for 1 pristine and needs the map to Madness Reef, "
-                    + "and hermit clovers need autoSatisfyWithCoinmasters = true.");
-            tempEquipment("sea", "black glass," + bathysphere($item[toy cupid bow]));
-            getLucky();
-            adv($location[the caliginous abyss]);
+            if (luckyReady()) {
+                tempEquipment("sea", "black glass," + bathysphere($item[toy cupid bow]));
+                getLucky();
+                adv(abyss);
+                continue;
+            }
+            // With no Lucky! left, the school of many's rough and dull scales feed the economist.
+            int roughShort = 10 * pristineShort() - item_amount($item[rough fish scale]) - item_amount($item[dull fish scale]) / 10;
+            farmed += 1;
+            if (!can_adventure(reef) || (farmed == 1 && roughShort > 15) || farmed > 60 || my_adventures() == 0)
+                abort("Still " + pristineShort() + " pristine fish scales short with no Lucky! left after " + (farmed - 1)
+                    + " Abyss farming adventures: " + item_amount($item[rough fish scale]) + " rough and "
+                    + item_amount($item[dull fish scale]) + " dull. The Madness Reef economist trades 10 rough for 1 pristine "
+                    + "and needs the map to Madness Reef; farming covers at most 15 rough short.");
+            use_familiar("itdrop");
+            tempEquipment("item drop,0.25 mys,sea", "shark jumper,scale-mail underwear,black glass,"
+                + if_equip($item[Congressional Medal of Insanity]) + bathysphere($item[toy cupid bow]));
+            mood("itdrop");
+            if (farmed == 1) {
+                // A school of many is a third of the Abyss and drops 0.36 rough-equivalents per 100% item over the zone's -200%.
+                float perTurn = 0.12 * (numeric_modifier("item drop") - 100) / 100;
+                if (perTurn <= 0 || roughShort / perTurn > 60)
+                    abort("Still " + pristineShort() + " pristine fish scales short with no Lucky! left, and farming "
+                        + roughShort + " rough's worth in the Abyss at +" + to_int(numeric_modifier("item drop"))
+                        + "% item would take over 60 turns.");
+                print("No Lucky! left, so the Abyss farms " + roughShort + " rough fish scales' worth for the economist, about "
+                    + ceil(roughShort / perTurn) + " turns.", "blue");
+            }
+            set_property("_utsScaleFarm", "true");
+            adv(abyss);
+            set_property("_utsScaleFarm", "false");
+            monster foe = to_monster(get_property("lastEncounter"));
+            if ($monsters[school of many, eye in the darkness, slithering thing, peanut] contains foe
+                && get_property("_lastCombatWon") == "false")
+                abort("Lost to the " + foe + " while farming fish scales in the Abyss; still " + pristineShort() + " pristine short.");
         }
     }
 
@@ -3192,6 +3228,9 @@ void main(string... args) {
     if (command != "" && command != "postloop")
         abort("Unknown command \"" + command + "\" -- plain \"UnderTheSea\" runs the loop, \"UnderTheSea sim\" prints the IOTM and pull checklists, \"UnderTheSea postloop\" runs only the postloop steps.");
     DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item drop, sea";
+    // Trip flags left set by an abort mid-trip.
+    set_property("_utsEconomistTrip", "false");
+    set_property("_utsScaleFarm", "false");
     if (command == "postloop") {
         // Postloop-only mode: the finishing steps the run would have reached
         // on its own, without initialization() or any of the run itself. A

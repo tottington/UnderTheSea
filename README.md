@@ -73,7 +73,7 @@ The script sorts your account into a resource tier and routes accordingly:
 
 | IOTM | Why it matters |
 |---|---|
-| Monodent of the Sea | Free lasso training and fish scales. Without it, the run trains in the Trench and gets scales from Lucky! trips and the Madness Reef economist, for roughly 6 to 12 more turns. Have the map to Madness Reef, 4 Lucky! sources, and optionally a cozy scimitar in storage if Harpoon! is permed. |
+| Monodent of the Sea | Free lasso training and fish scales. Without it, the run trains in the Trench and gets scales from Lucky! trips and the Madness Reef economist, for roughly 6 to 12 more turns. Have the map to Madness Reef, 4 Lucky! sources counting the hermit's 3 clovers, and optionally a cozy scimitar in storage if Harpoon! is permed. Short of Lucky!, it pulls a clover; with no pull left it farms the Abyss's school of many, roughly 30 to 60 more turns, and that finishes the Mom quest early. |
 | closed-circuit pay phone | With Monodent, free shadow-rift fights allow free sea lasso training. |
 | CyberRealm keycode | Free Mom quest. |
 | cursed monkey's paw | Free sea lassos and sea cowbells for the seahorse taming instead of farming them. |
