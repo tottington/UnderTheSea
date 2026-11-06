@@ -245,7 +245,8 @@ string DropsItems;
         }
         int fight = min(goal, fightMP());
         int afford = my_meat() / price * 9;
-        if (afford < fight && my_mp() < fight && (!restore_mp(fight) || my_mp() < fight)) {
+        // Once the Seaceress is dead the run no longer stops for MP.
+        if (!seaceressDead() && afford < fight && my_mp() < fight && (!restore_mp(fight) || my_mp() < fight)) {
             string why = "UTS: " + my_mp() + " MP and " + my_meat() + " meat can't cover the " + fight
                 + " MP of the next fight. Get MP or meat, then rerun.";
             print(why, "red");
@@ -374,7 +375,7 @@ string DropsItems;
             if (mp_cost($skill[Summon Taffy]) < my_mp() && get_property("_taffyYellowSummons") == 0)
                 use_skill($skill[Summon Taffy]);
         // The Seaceress kill sets questL13Final to finished; the run's end block takes over from there.
-        if (my_path().id == 55 && get_property("questL13Final") != "finished"){
+        if (my_path().id == 55 && !seaceressDead()){
             if (my_adventures() == 0) {
                 if (item_amount($item[astral six-pack]) > 0) 
                     use($item[astral six-pack]);
@@ -535,7 +536,7 @@ string DropsItems;
 
         // VHS tape monster follow-up
         if (total_turns_played() >= to_int(get_property("spookyVHSTapeMonsterTurn")) + 8
-            && get_property("spookyVHSTapeMonster") != "") {
+            && get_property("spookyVHSTapeMonster") != "" && !seaceressDead()) {
             if (doSWord())
                 use_familiar($familiar[sword of s words]);
             else
@@ -560,7 +561,7 @@ string DropsItems;
 
         // Club em next week monster follow-up
         if (total_turns_played() >= to_int(get_property("clubEmNextWeekMonsterTurn")) + 8
-            && get_property("clubEmNextWeekMonster") != "") {
+            && get_property("clubEmNextWeekMonster") != "" && !seaceressDead()) {
             if (my_location() != $location[mer-kin elementary school]
                 && !(my_location() == $location[mer-kin library])) {
                 use_familiar("itdrop");
