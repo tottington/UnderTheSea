@@ -3874,7 +3874,8 @@ string DropsItems;
                 continue;
             if (ef == $effect[Ultraheart] && get_property("heartstoneBuffUnlocked") != "true")
                 continue;
-            if (ef == $effect[Everybody Calls Him Gorgon] && (!lowShiny() || !have_item($item[Clan VIP Lounge key])))
+            if (ef == $effect[Everybody Calls Him Gorgon]
+                && (!lowShiny() || get_property("_clanFortuneBuffUsed") == "true" || !loungeHas("fortuneteller.gif")))
                 continue;
             if ((ef == $effect[Tubes of Universal Meat] || ef == $effect[Mariachi Moisture]) && !have_item($item[April Shower Thoughts Shield]))
                 continue;
