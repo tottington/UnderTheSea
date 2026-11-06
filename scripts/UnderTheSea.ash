@@ -1359,7 +1359,7 @@ string DropsItems;
             if (to_int(get_property("encountersUntilSRChoice")) > 9
                 && get_property("questRufus") == "unstarted"
                 && item_amount($item[Closed-circuit pay phone]) > 0) {
-                tempEquipment("item drop","Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
+                tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + if_equip($item[monodent of the sea])
                 + if_equip($item[bat wings]) + baseball_equip() + if_equip($item[Everfull Dart Holster]));
                 use($item[closed-circuit pay phone]);
             }
@@ -2657,7 +2657,7 @@ string DropsItems;
                     print("No oversized sparkler; continuing without one.", "gray");
                 if (item_amount($item[lump of loyal latite]) > 0)
                     use($item[lump of loyal latite]);
-                tempEquipment("item drop", "Flash Liquidizer Ultra Dousing Accessory," + if_equip($item[monodent of the sea])
+                tempEquipment("item drop", if_equip($item[Flash Liquidizer Ultra Dousing Accessory]) + if_equip($item[monodent of the sea])
                     + if_equip($item[bat wings]) + if_equip($item[Everfull Dart Holster]) + if_equip($item[toy cupid bow]));
                 mood("itdrop");
                 if (!highShiny() && available_amount($item[closed-circuit pay phone]) > 0)
@@ -4221,8 +4221,11 @@ string DropsItems;
             // deals 30% max HP and frees the fight. Past its five casts, only
             // the bat wings proc can refund a round.
             while (to_int(get_property("lastColosseumRoundWon")) < 15) {
+                int won = to_int(get_property("lastColosseumRoundWon"));
+                // A champion takes the spell first, so Club 'Em Back in Time's club stays out of the champion rounds.
                 string freeFight;
-                if (to_int(get_property("_clubEmTimeUsed")) < 5 && !highShiny() && !lowShiny() && available_amount($item[legendary seal-clubbing club]) > 0)
+                if (to_int(get_property("_clubEmTimeUsed")) < 5 && !highShiny() && !lowShiny() && available_amount($item[legendary seal-clubbing club]) > 0
+                    && won < 12)
                     freeFight = "legendary seal-clubbing club,";
                 if (to_int(get_property("_batWingsFreeFights")) < 5 && if_equip($item[bat wings]) != "")
                     freeFight += if_equip($item[bat wings]);
