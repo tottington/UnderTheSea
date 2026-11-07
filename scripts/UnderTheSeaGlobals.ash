@@ -602,6 +602,20 @@ import <seedfinder/seedfinder.ash>;
         return "";
     }
 
+    // For adventures that skip the sea maximizer: a familiar that can't breathe underwater gets the
+    // little bitty bathysphere, or goes back to the terrarium when none is held or it can't wear one.
+    void familiarBreathes() {
+        if (boolean_modifier("Underwater Familiar"))
+            return;
+        item sphere = $item[little bitty bathysphere];
+        if (available_amount(sphere) > 0 && can_equip(my_familiar(), sphere) && !equip($slot[familiar], sphere))
+            print("Couldn't put the " + sphere + " on the " + my_familiar() + ".", "red");
+        if (!boolean_modifier("Underwater Familiar") && !use_familiar($familiar[none]))
+            print("Couldn't put the " + my_familiar() + " away.", "red");
+        if (!boolean_modifier("Underwater Familiar"))
+            abort("The " + my_familiar() + " can't breathe underwater and couldn't be put away.");
+    }
+
     boolean badMaxString(string str){
         foreach c in $strings[\,,0,1,2,3,4,5,6,7,8,9] {
             if (contains_text(str, c))

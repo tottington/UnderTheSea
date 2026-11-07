@@ -1037,6 +1037,7 @@ string DropsItems;
             cli_execute("unequip peridot");
             if (item_amount(it) > 0)
                 equip(it);
+            familiarBreathes();
         } else {
             use_familiar("-combat");
             if (available_amount(it) > 0){
