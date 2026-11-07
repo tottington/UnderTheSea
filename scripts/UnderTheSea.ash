@@ -969,6 +969,7 @@ string DropsItems = maximize("Drops Items",false) ? "Drops Items, sea" : "item d
             cli_execute("unequip peridot");
             if (item_amount(it) > 0)
                 equip(it);
+            familiarBreathes();
         } else {
             use_familiar("-combat");
             if (available_amount(it) > 0){
